@@ -1047,7 +1047,7 @@ function CallToAction() {
 function Footer() {
   const links = {
     Tools: [
-      "Speed Test",
+      "Speed-Test",
       "TTFB Test",
       "Uptime Monitor",
       "SEO Audit",
