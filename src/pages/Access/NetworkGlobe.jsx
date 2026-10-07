@@ -107,10 +107,9 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
       <div
         className={`${mono} flex items-center gap-2 text-[9px] tracking-[.12em] text-[var(--green)]`}
       >
-        <span className="h-[5px] w-[5px] rounded-full bg-[var(--green)]" /> A
-        WORLD OF PERSPECTIVE{" "}
+        <span className="h-[5px] w-[5px] rounded-full bg-[var(--green)]" /> LIVE{" "}
         <span className="ml-auto text-[7px] tracking-[.06em] text-[var(--muted-2)]">
-          ILLUSTRATION
+          IN
         </span>
       </div>
       <div className="relative isolate aspect-square w-full">
@@ -165,11 +164,7 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
             </span>
           </div>
         </div>
-        <div className="pointer-events-none absolute bottom-[7%] left-0 font-['Outfit',sans-serif] text-[10px] leading-relaxed font-semibold tracking-[.12em] sm:text-xs">
-          GLOBAL REACH.
-          <br />
-          <span className="text-[var(--green)]">LOCAL INSIGHT.</span>
-        </div>
+      
       </div>
       <figcaption className="flex items-center justify-between gap-2.5 border-t border-[var(--border-mid)] pt-4">
         <div>

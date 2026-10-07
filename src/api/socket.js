@@ -8,8 +8,7 @@ const log = IS_DEV ? (...args) => console.debug('[socket]', ...args) : () => {}
 function resolveSocketUrl() {
   const fromEnv = import.meta.env.VITE_SOCKET_URL
   if (fromEnv) return fromEnv.replace(/\/+$/, '')
-  if (IS_DEV) return 'https://webanalytics-9srv.onrender.com'
-  return IS_BROWSER ? window.location.origin : ''
+
 }
 
 export const SOCKET_URL = resolveSocketUrl()

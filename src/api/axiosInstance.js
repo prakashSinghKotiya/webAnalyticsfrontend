@@ -1,7 +1,7 @@
 import axios from "axios";
 import { notifyAuthExpired } from "../utils/authEvents";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "https://webanalytics-9srv.onrender.com";
+const BASE_URL = import.meta.env.VITE_API_URL ;
 
 // Axios instance WITH credentials (for authenticated routes)
 export const axiosWithCreds = axios.create({

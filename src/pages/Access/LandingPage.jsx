@@ -188,7 +188,7 @@ function Navbar() {
       >
         <Logo />
         <div className="hidden items-center gap-7 lg:flex">
-          {["Features", "Tools", "Locations", "Pricing"].map((item) => (
+          {["Features", "Tools", "Pricing"].map((item) => (
             <a
               key={item}
               href={`#${item.toLowerCase()}`}
@@ -239,7 +239,7 @@ function Navbar() {
           id="mobile-navigation"
           className={`${container} space-y-1 pb-5 lg:hidden`}
         >
-          {["Features", "Tools", "Locations", "Pricing"].map((item) => (
+          {["Features", "Tools", "Pricing"].map((item) => (
             <a
               key={item}
               href={`#${item.toLowerCase()}`}
@@ -314,16 +314,14 @@ function Hero() {
         <div>
           <Badge>
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--cyan)] motion-safe:animate-pulse" />
-            35+ GLOBAL TEST LOCATIONS
+            6+ GLOBAL TEST LOCATIONS
           </Badge>
           <h1
             className={`${display} mt-7 text-[clamp(36px,5.4vw,68px)] font-extrabold leading-[1.05] tracking-[-.03em]`}
           >
             Analyze Your Website
             <br />
-            <span className="bg-linear-to-r from-[var(--cyan)] to-[var(--green)] bg-clip-text text-transparent">
-              From Every Angle
-            </span>
+            
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-[var(--muted-2)] sm:text-lg">
             Global TTFB testing, uptime monitoring, Core Web Vitals, SEO audits
@@ -378,8 +376,8 @@ function Hero() {
           </div>
           <dl className="mt-9 flex flex-wrap gap-8">
             {[
-              ["2.4M+", "Tests Run"],
-              ["35", "Locations"],
+              ["1k+", "Tests Run"],
+              ["6+", "Locations"],
               ["99.9%", "Uptime"],
             ].map(([value, label]) => (
               <div key={label}>
@@ -405,14 +403,12 @@ function Hero() {
 }
 function StatsTicker() {
   const items = [
-    "2,412,851 tests run",
+    "1K+ tests run",
     "99.97% uptime average",
-    "35 test locations",
-    "< 45s scan time",
-    "170+ countries monitored",
+    "6+ test locations",
     "Real-time alerts",
     "Full Core Web Vitals",
-    "SEO + Accessibility audit",
+    
   ]
   return (
     <section
@@ -700,7 +696,7 @@ function HowItWorks() {
     {
       icon: "globe",
       name: "Multi-Location Scan",
-      text: "Simultaneous tests from 35+ data centers — TTFB, response time, CDN cache status.",
+      text: "Select the service and Simultaneous tests from 6+ data centers — TTFB, response time,  status.",
     },
     {
       icon: "chart",
@@ -738,145 +734,7 @@ function HowItWorks() {
     </section>
   )
 }
-function Locations() {
-  const regions = [
-    {
-      name: "Americas",
-      cities: ["New York", "Los Angeles", "São Paulo", "Toronto"],
-    },
-    {
-      name: "Europe",
-      cities: ["London", "Frankfurt", "Paris", "Amsterdam", "Stockholm"],
-    },
-    {
-      name: "Asia Pacific",
-      cities: ["Singapore", "Tokyo", "Sydney", "Mumbai", "Seoul"],
-    },
-    { name: "ME & Africa", cities: ["Dubai", "Johannesburg", "Tel Aviv"] },
-  ]
-  const points = [
-    { x: 74, y: 95, label: "NY" },
-    { x: 56, y: 105, label: "LA" },
-    { x: 195, y: 76, label: "LDN" },
-    { x: 212, y: 78, label: "FRA" },
-    { x: 312, y: 116, label: "SIN" },
-    { x: 342, y: 88, label: "TKY" },
-    { x: 357, y: 155, label: "SYD" },
-    { x: 280, y: 100, label: "MUM" },
-    { x: 100, y: 136, label: "SAO" },
-    { x: 258, y: 95, label: "DXB" },
-  ]
-  return (
-    <section id="locations" className={`${container} ${section} scroll-mt-20`}>
-      <div className="grid items-center gap-10 lg:grid-cols-2">
-        <div>
-          <Badge>GLOBAL COVERAGE</Badge>
-          <h2
-            className={`${display} mt-5 text-3xl font-extrabold leading-tight tracking-tight sm:text-[42px]`}
-          >
-            Test from 35+
-            <br />
-            <span className="text-[var(--cyan)]">Worldwide Nodes</span>
-          </h2>
-          <p className="mt-4 mb-7 text-sm leading-7 text-[var(--muted)]">
-            Designed for regional insights across real data centers. The network
-            below illustrates planned coverage in this product preview.
-          </p>
-          {regions.map((region) => (
-            <div key={region.name} className="mb-5">
-              <h3
-                className={`${display} mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-2)]`}
-              >
-                <span className="h-1 w-1 rounded-full bg-[var(--cyan)]" />
-                {region.name}
-              </h3>
-              <div className="flex flex-wrap gap-1.5 pl-3">
-                {region.cities.map((city) => (
-                  <span
-                    key={city}
-                    className={`${mono} rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[10px] text-[var(--muted)]`}
-                  >
-                    {city}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div
-          className={`${card} min-w-0 border-[var(--border-bright)] p-5 sm:p-7`}
-        >
-          <p
-            className={`${mono} mb-4 text-[10px] tracking-wider text-[var(--muted)]`}
-          >
-            GLOBAL RESPONSE MAP / ILLUSTRATION
-          </p>
-          <svg
-            viewBox="0 0 400 225"
-            role="img"
-            aria-label="Illustrative network connections between worldwide analysis nodes"
-            className="aspect-video w-full rounded-xl bg-[var(--surface-2)]"
-          >
-            {[0, 80, 160, 240, 320, 400].map((position) => (
-              <line
-                key={position}
-                x1={position}
-                x2={position}
-                y1="0"
-                y2="225"
-                stroke="var(--grid-line)"
-              />
-            ))}
-            {[0, 56, 112, 168, 225].map((position) => (
-              <line
-                key={position}
-                x1="0"
-                x2="400"
-                y1={position}
-                y2={position}
-                stroke="var(--grid-line)"
-              />
-            ))}
-            <path
-              d="M74 95Q190 42 312 116 M74 95Q152 62 196 76 M212 78Q320 65 357 155"
-              fill="none"
-              stroke="var(--cyan)"
-              strokeWidth=".8"
-              strokeDasharray="4 3"
-              opacity=".5"
-            />
-            {points.map((point) => (
-              <g key={point.label}>
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r="9"
-                  fill="var(--green)"
-                  opacity=".12"
-                />
-                <circle cx={point.x} cy={point.y} r="3" fill="var(--green)" />
-                <text
-                  x={point.x + 7}
-                  y={point.y - 5}
-                  fill="var(--green)"
-                  fontSize="7"
-                  className={mono}
-                >
-                  {point.label}
-                </text>
-              </g>
-            ))}
-          </svg>
-          <div className="mt-4 flex flex-wrap gap-4 text-[10px] text-[var(--muted-2)]">
-            <span>● Regional latency</span>
-            <span>↗ Edge connections</span>
-            <span>◎ CDN insight</span>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
+
 function Capabilities() {
   const features = [
     {
@@ -891,12 +749,12 @@ function Capabilities() {
       text: "Scan for HSTS, CSP, X-Frame-Options, and other security best practices.",
       tone: "cyan",
     },
-    {
-      icon: "search",
-      name: "SEO Deep Audit",
-      text: "Title tags, meta descriptions, structured data, canonical URLs, and crawlability.",
-      tone: "orange",
-    },
+   {
+  icon: "activity",
+  name: "Uptime Monitor",
+  text: "Monitor website uptime, response times, and availability with automatic checks and real-time outage detection.",
+  tone: "orange",
+},
     {
       icon: "activity",
       name: "Real-Time Alerts",
@@ -909,12 +767,12 @@ function Capabilities() {
       text: "Track TTFB, uptime, and performance scores over time. Spot regressions fast.",
       tone: "cyan",
     },
-    {
-      icon: "globe",
-      name: "CDN Detection",
-      text: "Identify cache HIT/MISS status, CDN provider, and edge node per location.",
-      tone: "orange",
-    },
+  {
+    icon: "globe",
+    name: "IP & Hosting Lookup",
+    text: "Identify IP addresses, hosting providers, ASN information, and network infrastructure behind a domain.",
+    tone: "orange",
+  },
   ]
   return (
     <section
@@ -933,14 +791,13 @@ function Capabilities() {
             <br />a Speed Test
           </h2>
           <p className="mt-5 text-sm leading-7 text-[var(--muted)]">
-            WebPulse gives you a complete diagnostics suite — from CDN analysis
-            to structured data validation.
+            WebPulse gives you a complete diagnostics suite
           </p>
           <ul className="mt-6 space-y-3">
             {[
-              "No setup — just paste a URL",
+              "Login —  paste a URL",
+              "Pick a Service ",
               "Shareable public report links",
-              "API access for CI/CD pipelines",
               "White-label reports for agencies",
             ].map((item) => (
               <li
@@ -979,58 +836,8 @@ function Capabilities() {
     </section>
   )
 }
-function Testimonials() {
-  const testimonials = [
-    {
-      name: "Priya Sharma",
-      role: "Frontend Lead, Razorpay",
-      text: "WebPulse's TTFB map was a revelation. We found 40% of Indian users hitting a cold cache. Fixed it in a day.",
-    },
-    {
-      name: "Marco Bianchi",
-      role: "DevOps Engineer, n26",
-      text: "The uptime monitoring caught a CloudFlare misconfiguration before our on-call team did. Pays for itself.",
-    },
-    {
-      name: "Sarah Chen",
-      role: "Head of SEO, Shopify",
-      text: "I run every site through WebPulse before publishing. The SEO + CWV combo gives me exactly what I need.",
-    },
-  ]
-  return (
-    <section className={`${container} ${section}`}>
-      <SectionHeading title="Trusted by Engineering Teams">
-        From indie developers to enterprise DevOps teams.
-      </SectionHeading>
-      <div className="grid gap-5 md:grid-cols-3">
-        {testimonials.map((testimonial) => (
-          <figure
-            key={testimonial.name}
-            className={`${card} flex flex-col p-6 transition hover:border-[var(--border-bright)]`}
-          >
-            <span
-              aria-label="5 out of 5 stars"
-              className="mb-4 text-lg tracking-wider text-[var(--orange)]"
-            >
-              ★★★★★
-            </span>
-            <blockquote className="flex-1 text-sm leading-7 text-[var(--muted-2)] italic">
-              “{testimonial.text}”
-            </blockquote>
-            <figcaption className="mt-5 border-t border-[var(--border)] pt-4">
-              <p className={`${display} text-sm font-semibold`}>
-                {testimonial.name}
-              </p>
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                {testimonial.role}
-              </p>
-            </figcaption>
-          </figure>
-        ))}
-      </div>
-    </section>
-  )
-}
+
+
 function Pricing() {
   const [annual, setAnnual] = useState(true)
   const plans = [
@@ -1303,9 +1110,7 @@ function Footer() {
           <p className={`${mono} text-[10px] leading-5 text-[var(--muted)]`}>
             © 2026 WebPulse. Built for developers who care about performance.
           </p>
-          <span className="text-[10px] text-[var(--muted)]">
-            Demo preview · No live backend connected
-          </span>
+          
         </div>
       </div>
     </footer>
@@ -1345,9 +1150,9 @@ export default function App() {
           <StatsTicker />
           <CoreTools />
           <HowItWorks />
-          <Locations />
+          
           <Capabilities />
-          <Testimonials />
+         
           <Pricing />
           <CallToAction />
         </main>
