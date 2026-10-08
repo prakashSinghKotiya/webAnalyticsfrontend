@@ -129,7 +129,7 @@ function UptimeResultSection({ result, activeMonitor, isLive = true }) {
 
         <div className="flex items-center gap-2 text-right">
           <div className="flex items-center gap-1.5 font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted)]">
-            <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-[var(--green)]" />
+            {isLive && <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-[var(--green)]" />}
             <span>Telemetry updated {relativeTime(result.receivedAt || result.timestamp)}</span>
           </div>
         </div>

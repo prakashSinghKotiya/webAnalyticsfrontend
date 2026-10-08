@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '../constants';
 import { useAuthState, useAuthActions } from '../context';
@@ -10,8 +10,12 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [prevPath, setPrevPath] = useState(location.pathname);
 
-  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+  if (prevPath !== location.pathname) {
+    setPrevPath(location.pathname);
+    setMobileOpen(false);
+  }
 
   const isAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin';
 

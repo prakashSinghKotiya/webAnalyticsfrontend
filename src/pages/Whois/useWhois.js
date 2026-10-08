@@ -3,17 +3,14 @@ import { getWhoisResults, whoisLookup } from '../../api/whoisLookup';
 import {
   EMIT,
   ON,
-  connectSocket,
   emitSocketEvent,
-  isSocketConnected,
-  subscribeToConnectionState,
   subscribeToEvents,
+  waitForSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
 import {
   WHOIS_PAGE_LIMIT,
   WHOIS_SCAN_TIMEOUT_MS,
-  WHOIS_SOCKET_TIMEOUT_MS,
   isValidDomain,
   normalizeDomain,
   normalizeWhoisEntry,
@@ -124,29 +121,7 @@ export default function useWhois() {
     return () => unsub();
   }, [settle]);
 
-  const waitForSocket = useCallback(async () => {
-    if (isSocketConnected()) return true;
-    connectSocket();
 
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = (val) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        unsub();
-        resolve(val);
-      };
-
-      const timer = setTimeout(() => finish(false), WHOIS_SOCKET_TIMEOUT_MS);
-      const unsub = subscribeToConnectionState((state) => {
-        if (state.status === 'connected') finish(true);
-        else if (state.status === 'unauthorized' || state.status === 'disconnected') finish(false);
-      });
-
-      if (isSocketConnected()) finish(true);
-    });
-  }, []);
 
   /**
    * Fetch paginated results from MongoDB backend API.
@@ -285,7 +260,7 @@ export default function useWhois() {
         toast.error(msg);
       }
     },
-    [fetchHistory, settle, toast, waitForSocket],
+    [fetchHistory, settle, toast],
   );
 
   /** Select an entry from history */

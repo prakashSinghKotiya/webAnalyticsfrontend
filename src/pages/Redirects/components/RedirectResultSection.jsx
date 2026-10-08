@@ -48,15 +48,15 @@ function CopyButton({ text, label = 'Copy' }) {
 
 /* ── Single Hop Card ─────────────────────────────────────────────────────── */
 
-function HopCard({ hop, isLast, totalHops }) {
+function HopCard({ hop, isLast }) {
   const meta = getStatusMeta(hop.statusCode);
   const isFinal = !hop.redirectsTo || isLast;
 
-  let protocol = '';
+  let protocol;
   try {
     protocol = new URL(hop.url).protocol.replace(':', '').toUpperCase();
   } catch {
-    protocol = hop.url.startsWith('https') ? 'HTTPS' : 'HTTP';
+    protocol = hop.url?.startsWith('https') ? 'HTTPS' : 'HTTP';
   }
 
   return (

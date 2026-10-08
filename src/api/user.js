@@ -27,7 +27,10 @@ export const logoutUser = async () => {
 };
 
 // Get user details (home)
-export const getUserDetails = async () => {
-  const { data } = await axiosWithCreds.get("/user/home");
+export const getUserDetails = async (config = {}) => {
+  const { data } = await axiosWithCreds.get("/user/home", {
+    _skipAuthExpired: true,
+    ...config,
+  });
   return data;
 };

@@ -7,17 +7,14 @@ import {
 import {
   EMIT,
   ON,
-  connectSocket,
   emitSocketEvent,
-  isSocketConnected,
-  subscribeToConnectionState,
   subscribeToEvents,
+  waitForSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
 import {
   LIGHTHOUSE_PAGE_LIMIT,
   LIGHTHOUSE_SCAN_TIMEOUT_MS,
-  LIGHTHOUSE_SOCKET_TIMEOUT_MS,
   isValidUrl,
   normalizeLighthouseEntry,
   normalizeUrl,
@@ -161,30 +158,7 @@ export default function useLighthouse() {
     return () => unsub();
   }, [settle]);
 
-  /** Ensure socket connection is active and authenticated */
-  const waitForSocket = useCallback(async () => {
-    if (isSocketConnected()) return true;
-    connectSocket();
 
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = (val) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        unsub();
-        resolve(val);
-      };
-
-      const timer = setTimeout(() => finish(false), LIGHTHOUSE_SOCKET_TIMEOUT_MS);
-      const unsub = subscribeToConnectionState((state) => {
-        if (state.status === 'connected') finish(true);
-        else if (state.status === 'unauthorized' || state.status === 'disconnected') finish(false);
-      });
-
-      if (isSocketConnected()) finish(true);
-    });
-  }, []);
 
   /**
    * Fetch paginated results from MongoDB backend API.
@@ -351,7 +325,7 @@ export default function useLighthouse() {
         clearStepTimer();
       }
     },
-    [fetchHistory, settle, startStepProgress, strategy, toast, waitForSocket],
+    [fetchHistory, settle, startStepProgress, strategy, toast],
   );
 
   /** Select an audit entry from the paginated history list */

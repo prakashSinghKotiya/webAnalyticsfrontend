@@ -7,6 +7,7 @@ import {
   WhoisPreview,
 } from "./DomainToolPreview.jsx"
 import { ROUTES } from "../../constants"
+import { useAuthState } from "../../context"
 
 const ThemeContext = createContext({ theme: "dark", toggle: () => {} })
 const display = "font-['Outfit',sans-serif]"
@@ -282,11 +283,12 @@ const globeProbes = [
 
 function Hero() {
   const { theme } = useContext(ThemeContext)
+  const { isAuthenticated } = useAuthState()
   const navigate = useNavigate()
   const [url, setUrl] = useState("")
   const [error, setError] = useState("")
-  const analyze = (event) => {
-    event.preventDefault()
+  const analyze = (event, tool = "ttfb") => {
+    event?.preventDefault()
     try {
       const value = url.trim()
       const parsed = new URL(
@@ -297,7 +299,16 @@ function Hero() {
         !["http:", "https:"].includes(parsed.protocol)
       )
         throw new Error()
-      navigate(ROUTES.LOGIN)
+      const toolMap = {
+        ttfb: { auth: ROUTES.TTFB, demo: ROUTES.DEMO_TTFB },
+        lighthouse: { auth: ROUTES.LIGHTHOUSE, demo: ROUTES.DEMO_LIGHTHOUSE },
+        dns: { auth: ROUTES.DNS, demo: ROUTES.DEMO_DNS },
+        redirects: { auth: ROUTES.REDIRECTS, demo: ROUTES.DEMO_REDIRECTS },
+        whois: { auth: ROUTES.WHOIS, demo: ROUTES.DEMO_WHOIS },
+      }
+      const selected = toolMap[tool] || toolMap.ttfb
+      const destination = isAuthenticated ? selected.auth : `${selected.demo}?url=${encodeURIComponent(parsed.href)}`
+      navigate(destination)
     } catch {
       setError("Enter a valid website URL, such as https://example.com.")
     }
@@ -373,6 +384,44 @@ function Hero() {
                 {site}
               </button>
             ))}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="w-full text-xs text-[var(--muted)] sm:w-auto">Choose an analysis:</span>
+            <button
+              type="button"
+              onClick={() => analyze(null, "ttfb")}
+              className={`${display} inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--cyan-mid)] bg-[var(--cyan-dim)] px-3 py-1.5 text-xs font-bold text-[var(--cyan)] transition hover:bg-[var(--cyan)] hover:text-white`}
+            >
+              <Icon name="zap" size={13} /> TTFB
+            </button>
+            <button
+              type="button"
+              onClick={() => analyze(null, "lighthouse")}
+              className={`${display} inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)] transition hover:border-[var(--cyan-mid)] hover:text-[var(--cyan)]`}
+            >
+              <Icon name="chart" size={13} /> Lighthouse
+            </button>
+            <button
+              type="button"
+              onClick={() => analyze(null, "dns")}
+              className={`${display} inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)] transition hover:border-[var(--cyan-mid)] hover:text-[var(--cyan)]`}
+            >
+              <Icon name="dns" size={13} /> DNS
+            </button>
+            <button
+              type="button"
+              onClick={() => analyze(null, "redirects")}
+              className={`${display} inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)] transition hover:border-[var(--cyan-mid)] hover:text-[var(--cyan)]`}
+            >
+              <Icon name="arrow" size={13} /> Redirects
+            </button>
+            <button
+              type="button"
+              onClick={() => analyze(null, "whois")}
+              className={`${display} inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)] transition hover:border-[var(--cyan-mid)] hover:text-[var(--cyan)]`}
+            >
+              <Icon name="search" size={13} /> WHOIS
+            </button>
           </div>
           <dl className="mt-9 flex flex-wrap gap-8">
             {[
@@ -591,6 +640,8 @@ const tools = [
     description:
       "Measure Time to First Byte from 35+ worldwide nodes. Detect CDN cache status, regional latency, and server bottlenecks.",
     Preview: TTFBPreview,
+    authRoute: ROUTES.TTFB,
+    demoRoute: ROUTES.DEMO_TTFB,
   },
   {
     name: "Uptime Monitoring",
@@ -600,6 +651,8 @@ const tools = [
     description:
       "24/7 monitoring with instant alerts via email, Slack, or webhook. Track trends and catch downtime before users notice.",
     Preview: UptimePreview,
+    authRoute: ROUTES.UPTIME,
+    demoRoute: ROUTES.LOGIN,
   },
   {
     name: "Full Site Report",
@@ -609,6 +662,8 @@ const tools = [
     description:
       "SEO audit, Core Web Vitals, accessibility check, and prioritized recommendations in a single shareable report.",
     Preview: SEOPreview,
+    authRoute: ROUTES.LIGHTHOUSE,
+    demoRoute: ROUTES.DEMO_LIGHTHOUSE,
   },
   {
     name: "WHOIS Lookup",
@@ -618,6 +673,8 @@ const tools = [
     description:
       "Look up domain registration, registrar, expiration dates, and name servers. See ownership details where available, including privacy-protected registrations.",
     Preview: WhoisPreview,
+    authRoute: ROUTES.WHOIS,
+    demoRoute: ROUTES.DEMO_WHOIS,
   },
   {
     name: "Redirect Checker",
@@ -627,6 +684,8 @@ const tools = [
     description:
       "Trace each URL redirect to its final response, count every hop, and flag loops or non-200 destinations. Understand exactly where your visitors land.",
     Preview: RedirectPreview,
+    authRoute: ROUTES.REDIRECTS,
+    demoRoute: ROUTES.DEMO_REDIRECTS,
   },
   {
     name: "DNS Record Checker",
@@ -636,9 +695,12 @@ const tools = [
     description:
       "Inspect A, AAAA, CNAME, MX, TXT, NS, and other DNS records for a domain. Troubleshoot routing, email configuration, and domain verification.",
     Preview: DnsPreview,
+    authRoute: ROUTES.DNS,
+    demoRoute: ROUTES.DEMO_DNS,
   },
 ]
 function CoreTools() {
+  const { isAuthenticated } = useAuthState()
   return (
     <section id="tools" className={`${container} ${section} scroll-mt-20`}>
       <SectionHeading
@@ -650,38 +712,41 @@ function CoreTools() {
         domain ownership, redirects, and DNS.
       </SectionHeading>
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {tools.map(({ name, icon, tone, badge, description, Preview }) => (
-          <article
-            key={name}
-            className={`${card} group flex min-w-0 flex-col p-5 transition duration-300 hover:border-[var(--border-bright)] hover:shadow-[var(--shadow-card-hover)] motion-safe:hover:-translate-y-1 sm:p-6`}
-          >
-            <div className="mb-6 min-h-48 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
-              <Preview />
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span
-                className={`flex h-9 w-9 items-center justify-center rounded-lg ${tones[tone].text} ${tones[tone].wash}`}
-              >
-                <Icon name={icon} />
-              </span>
-              <span
-                className={`${mono} rounded-full border px-2 py-1 text-[8px] tracking-wider ${tones[tone].text} ${tones[tone].wash} ${tones[tone].border}`}
-              >
-                {badge}
-              </span>
-            </div>
-            <h3 className={`${display} mt-4 text-lg font-bold`}>{name}</h3>
-            <p className="mt-2 flex-1 text-[13px] leading-6 text-[var(--muted)]">
-              {description}
-            </p>
-            <Link
-              to={ROUTES.LOGIN}
-              className={`mt-5 inline-flex w-fit items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition hover:bg-[var(--surface-2)] ${tones[tone].text} ${tones[tone].border}`}
+        {tools.map((tool) => {
+          const { name, icon, tone, badge, description, Preview, authRoute, demoRoute } = tool
+          return (
+            <article
+              key={name}
+              className={`${card} group flex min-w-0 flex-col p-5 transition duration-300 hover:border-[var(--border-bright)] hover:shadow-[var(--shadow-card-hover)] motion-safe:hover:-translate-y-1 sm:p-6`}
             >
-              Explore Tool <Icon name="arrow" size={13} />
-            </Link>
-          </article>
-        ))}
+              <div className="mb-6 min-h-48 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
+                <Preview />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg ${tones[tone].text} ${tones[tone].wash}`}
+                >
+                  <Icon name={icon} />
+                </span>
+                <span
+                  className={`${mono} rounded-full border px-2 py-1 text-[8px] tracking-wider ${tones[tone].text} ${tones[tone].wash} ${tones[tone].border}`}
+                >
+                  {badge}
+                </span>
+              </div>
+              <h3 className={`${display} mt-4 text-lg font-bold`}>{name}</h3>
+              <p className="mt-2 flex-1 text-[13px] leading-6 text-[var(--muted)]">
+                {description}
+              </p>
+              <Link
+                to={isAuthenticated ? (authRoute || ROUTES.LOGIN) : (demoRoute || ROUTES.LOGIN)}
+                className={`mt-5 inline-flex w-fit items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition hover:bg-[var(--surface-2)] ${tones[tone].text} ${tones[tone].border}`}
+              >
+                Explore Tool <Icon name="arrow" size={13} />
+              </Link>
+            </article>
+          )
+        })}
       </div>
     </section>
   )
@@ -1001,6 +1066,8 @@ function Pricing() {
   )
 }
 function CallToAction() {
+  const { isAuthenticated } = useAuthState()
+  const analysisRoute = isAuthenticated ? ROUTES.TTFB : ROUTES.DEMO_TTFB
   return (
     <section className={`${container} ${section}`}>
       <div
@@ -1023,7 +1090,7 @@ function CallToAction() {
             reveal. Start with the interactive product preview.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link to={ROUTES.LOGIN} className={primary}>
+            <Link to={analysisRoute} className={primary}>
               Analyze Your Site <Icon name="arrow" size={14} />
             </Link>
             <Link to={ROUTES.LOGIN} className={secondary}>

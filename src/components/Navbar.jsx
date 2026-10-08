@@ -32,17 +32,21 @@ function SocketDot() {
 }
 
 function ToolsDropdown() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
   const location = useLocation();
+  const [open, setOpen] = useState(false);
+  const [prevPath, setPrevPath] = useState(location.pathname);
+  const ref = useRef(null);
+
+  if (prevPath !== location.pathname) {
+    setPrevPath(location.pathname);
+    setOpen(false);
+  }
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
-  useEffect(() => { setOpen(false); }, [location.pathname]);
 
   const isToolActive = TOOL_GROUPS.flatMap(g => g.items).some(i => location.pathname === i.to);
 
@@ -101,17 +105,21 @@ function ToolsDropdown() {
 }
 
 function UserMenu({ user, onLogout }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
   const location = useLocation();
+  const [open, setOpen] = useState(false);
+  const [prevPath, setPrevPath] = useState(location.pathname);
+  const ref = useRef(null);
+
+  if (prevPath !== location.pathname) {
+    setPrevPath(location.pathname);
+    setOpen(false);
+  }
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
-  useEffect(() => { setOpen(false); }, [location.pathname]);
 
   const initial = (user?.name || 'U').charAt(0).toUpperCase();
 

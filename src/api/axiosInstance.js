@@ -42,7 +42,8 @@ axiosWithCreds.interceptors.response.use(
 
     // Global 401 handling: notify the auth layer so it can clear state and
     // let route guards redirect. Keeps session expiry in sync app-wide.
-    if (status === 401) {
+    // Requests with _skipAuthExpired (e.g. initial guest checkAuth) bypass this.
+    if (status === 401 && !error?.config?._skipAuthExpired) {
       console.warn("[API] Unauthorized - session may have expired");
       notifyAuthExpired();
     }

@@ -8,13 +8,15 @@ const log = IS_DEV ? (...args) => console.debug('[socket]', ...args) : () => {}
 function resolveSocketUrl() {
   const fromEnv = import.meta.env.VITE_SOCKET_URL
   if (fromEnv) return fromEnv.replace(/\/+$/, '')
-
+  const apiUrl = import.meta.env.VITE_API_URL
+  if (apiUrl) return apiUrl.replace(/\/+$/, '')
+  return window.location.origin
 }
 
 export const SOCKET_URL = resolveSocketUrl()
 
 /* ------------------------------------------------------------------ */
-/* Event names - aligned with backend                                 */
+/* Event names - aligned with backend BullMQ worker & queue emissions */
 /* ------------------------------------------------------------------ */
 
 export const EMIT = Object.freeze({
@@ -29,23 +31,31 @@ export const EMIT = Object.freeze({
 
 export const ON = Object.freeze({
   TTFB_COMPLETED: 'ttfbCompleted',
-  LIGHTHOUSE_COMPLETED: 'Lighthouse-completed',
+  LIGHTHOUSE_COMPLETED: 'lighthouseCompleted',
+  LIGHTHOUSE_COMPLETED_ALT: 'Lighthouse-completed',
   LIGHTHOUSE_FAILED: 'Lighthouse-failed',
   DNS_COMPLETED: 'dnsRecordCheck-completed',
+  DNS_COMPLETED_ALT: 'dnsRecordCompleted',
   DNS_FAILED: 'dnsRecordCheck-failed',
+  DNS_FAILED_ALT: 'dnsRecordCheckFailed',
   REDIRECT_COMPLETED: 'redirectQueue-completed',
+  REDIRECT_COMPLETED_ALT: 'redirectCheckCompleted',
   REDIRECT_FAILED: 'redirectQueue-failed',
+  REDIRECT_FAILED_ALT: 'redirectCheckFailed',
   WHOIS_COMPLETED: 'whoisLookup-completed',
+  WHOIS_COMPLETED_ALT: 'whoisLookupCompleted',
   WHOIS_FAILED: 'whoisLookup-failed',
+  WHOIS_FAILED_ALT: 'whoisLookupFailed',
   UPTIME_COMPLETED: 'uptimeCompleted',
+  UPTIME_FAILED: 'uptimeMonitor-failed',
   CONNECT: 'connect',
   DISCONNECT: 'disconnect',
   CONNECT_ERROR: 'connect_error',
 })
 
-
+/* ------------------------------------------------------------------ */
 /* Connection state store                                             */
-
+/* ------------------------------------------------------------------ */
 
 /** @typedef {'idle'|'connecting'|'connected'|'reconnecting'|'disconnected'|'unauthorized'} SocketStatus */
 
@@ -83,7 +93,7 @@ function createSocket() {
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1_000,
-    reconnectionDelayMax: 30_000,
+    reconnectionDelayMax: 15_000,
     randomizationFactor: 0.5,
     timeout: 20_000,
   })
@@ -91,8 +101,8 @@ function createSocket() {
   instance.on('connect', () => {
     log('connected', instance.id)
     setConnectionState({ status: 'connected', error: null, attempt: 0 })
-    
-    // Rejoin rooms on reconnect
+
+    // Rejoin rooms on reconnect if necessary
     if (!instance.recovered) {
       for (const { joinEvent, payload } of activeRooms.values()) {
         instance.emit(joinEvent, payload)
@@ -102,22 +112,33 @@ function createSocket() {
 
   instance.on('disconnect', (reason) => {
     log('disconnected:', reason)
-    setConnectionState({ 
-      status: instance.active ? 'reconnecting' : 'disconnected' 
+    setConnectionState({
+      status: instance.active ? 'reconnecting' : 'disconnected',
     })
   })
 
   instance.on('connect_error', (err) => {
     log('connect_error:', err?.message)
-    const isAuthError = /unauthori[sz]ed|invalid|forbidden/i.test(err?.message || '')
-    
-    if (!instance.active) {
+    const isAuthError = /unauthori[sz]ed|invalid|forbidden|authentication required/i.test(
+      err?.message || '',
+    )
+
+    if (isAuthError) {
       setConnectionState({
-        status: isAuthError ? 'unauthorized' : 'disconnected',
+        status: 'unauthorized',
         error: err,
       })
       return
     }
+
+    if (!instance.active) {
+      setConnectionState({
+        status: 'disconnected',
+        error: err,
+      })
+      return
+    }
+
     setConnectionState({ status: 'reconnecting', error: err })
   })
 
@@ -172,6 +193,38 @@ export function isSocketConnected() {
   return Boolean(socket?.connected)
 }
 
+/**
+ * Resilient socket readiness waiter.
+ * Resolves true as soon as the socket is connected.
+ * Never fails prematurely on transient disconnected/reconnecting states while within timeoutMs.
+ */
+export function waitForSocket(timeoutMs = 15_000) {
+  if (isSocketConnected()) return Promise.resolve(true)
+  connectSocket()
+
+  return new Promise((resolve) => {
+    let finished = false
+    const finish = (value) => {
+      if (finished) return
+      finished = true
+      clearTimeout(timer)
+      unsubscribe()
+      resolve(value)
+    }
+
+    const timer = setTimeout(() => finish(false), timeoutMs)
+    const unsubscribe = subscribeToConnectionState((state) => {
+      if (state.status === 'connected') {
+        finish(true)
+      } else if (state.status === 'unauthorized') {
+        finish(false)
+      }
+    })
+
+    if (isSocketConnected()) finish(true)
+  })
+}
+
 /* ------------------------------------------------------------------ */
 /* Subscriptions                                                      */
 /* ------------------------------------------------------------------ */
@@ -215,7 +268,6 @@ export function subscribeToEvents(handlers) {
 export function emitSocketEvent(event, payload) {
   const instance = getSocket()
   if (!instance.connected) {
-    console.warn(`[socket] Cannot emit "${event}" - not connected`)
     return false
   }
   instance.emit(event, payload)
@@ -276,9 +328,13 @@ export default {
   getSocket,
   connectSocket,
   disconnectSocket,
+  isSocketConnected,
+  waitForSocket,
   subscribeToEvents,
   getConnectionState,
   subscribeToConnectionState,
   emitSocketEvent,
   emitWithAck,
+  joinRoom,
+  leaveRoom,
 }

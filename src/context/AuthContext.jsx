@@ -49,7 +49,6 @@ export function AuthProvider({ children }) {
       if (!mountedRef.current) return null;
       setUser(null);
       setIsAuthenticated(false);
-      disconnectSocket();
       return null;
     } finally {
       if (mountedRef.current) setLoading(false);
@@ -84,6 +83,10 @@ export function AuthProvider({ children }) {
   const login = useCallback(
     async (credentials) => {
       const response = await apiLogin(credentials);
+      // A guest socket is authenticated from its initial handshake. Recreate it
+      // after login so it joins the authenticated user room (and retains the
+      // guest room server-side for any in-flight demo job).
+      disconnectSocket();
       await checkAuth(); // hydrate user + connect socket after login
       return response;
     },

@@ -39,17 +39,19 @@ export function formatDate(iso) {
   if (!iso) return '—';
   try {
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString('en-US', {
+    if (Number.isNaN(d.getTime())) return String(iso);
+    return d.toLocaleString('en-US', {
       year: 'numeric',
-      month: 'short',
+      month: 'numeric',
       day: 'numeric',
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
       timeZoneName: 'short',
     });
   } catch {
-    return iso;
+    return String(iso);
   }
 }
 
@@ -240,6 +242,395 @@ export function analyzeWhoisSecurity({ events, nameservers, secureDNS }) {
   return diagnostics;
 }
 
+export const EPP_STATUS_INFO = Object.freeze({
+  clienttransferprohibited: {
+    label: 'Transfer Lock (Client)',
+    desc: 'Domain cannot be transferred to another registrar without owner authorization.',
+    level: 'safe',
+  },
+  servertransferprohibited: {
+    label: 'Transfer Lock (Registry)',
+    desc: 'The top-level registry forbids domain transfer requests.',
+    level: 'safe',
+  },
+  clientupdateprohibited: {
+    label: 'Update Lock (Client)',
+    desc: 'Prevents unauthorized changes to nameservers, contacts, and DNS routing.',
+    level: 'safe',
+  },
+  serverupdateprohibited: {
+    label: 'Update Lock (Registry)',
+    desc: 'Registry strictly prohibits changes to domain technical and contact records.',
+    level: 'safe',
+  },
+  clientdeleteprohibited: {
+    label: 'Deletion Protection (Client)',
+    desc: 'Prevents accidental or malicious domain deletion.',
+    level: 'safe',
+  },
+  serverdeleteprohibited: {
+    label: 'Deletion Protection (Registry)',
+    desc: 'Registry strictly prevents domain deletion from the registry.',
+    level: 'safe',
+  },
+  clienthold: {
+    label: 'Client Hold (Suspended)',
+    desc: 'Domain is suspended by the registrar and will not resolve in DNS.',
+    level: 'danger',
+  },
+  serverhold: {
+    label: 'Server Hold (Suspended)',
+    desc: 'Domain is suspended by the registry and removed from DNS root.',
+    level: 'danger',
+  },
+  active: {
+    label: 'Active & Operational',
+    desc: 'Domain is active and resolving normally.',
+    level: 'safe',
+  },
+  ok: {
+    label: 'Normal Active',
+    desc: 'Standard active state with no restrictions or pending actions.',
+    level: 'safe',
+  },
+  pendingtransfer: {
+    label: 'Pending Transfer',
+    desc: 'A domain registrar transfer is currently underway.',
+    level: 'warning',
+  },
+  pendingdelete: {
+    label: 'Pending Deletion',
+    desc: 'Domain has expired and is scheduled for permanent cancellation.',
+    level: 'danger',
+  },
+  redemptionperiod: {
+    label: 'Redemption Period',
+    desc: 'Domain expired. Original owner can reclaim it within redemption window.',
+    level: 'danger',
+  },
+  autorenewperiod: {
+    label: 'Auto-Renew Grace Period',
+    desc: 'Temporary grace period following expiration date.',
+    level: 'warning',
+  },
+  renewperiod: {
+    label: 'Renew Grace Period',
+    desc: 'Domain was recently renewed by the registrar.',
+    level: 'info',
+  },
+});
+
+export function formatEppStatus(statusCode) {
+  if (!statusCode) return { raw: '', label: 'Unknown', desc: 'No details available', level: 'info' };
+  const rawStr = String(statusCode);
+  const normalized = rawStr.toLowerCase().replace(/[\s_-]+/g, '');
+  const found = EPP_STATUS_INFO[normalized];
+  if (found) {
+    return {
+      raw: rawStr,
+      label: found.label,
+      desc: found.desc,
+      level: found.level,
+    };
+  }
+
+  // Capitalize camelCase or spaced words if not in dictionary
+  const readable = rawStr
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_-]/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  return {
+    raw: rawStr,
+    label: readable,
+    desc: 'Standard ICANN Registry status indicator.',
+    level: 'info',
+  };
+}
+
+export function formatAddress(address) {
+  if (!address) return null;
+  if (typeof address === 'string') {
+    const trimmed = address.trim();
+    if (!trimmed) return null;
+    if (/redacted/i.test(trimmed)) {
+      const countryMatch = trimmed.match(/([A-Z]{2})$/);
+      const country = countryMatch ? ` (${countryMatch[1]})` : '';
+      return `Redacted for Privacy${country}`;
+    }
+    return trimmed;
+  }
+  if (typeof address === 'object') {
+    const parts = [
+      address.street,
+      address.locality,
+      address.region,
+      address.postalCode,
+      address.country,
+    ].filter(Boolean);
+    if (!parts.length) return null;
+    const joined = parts.join(', ');
+    if (/redacted/i.test(joined)) {
+      const country = address.country ? ` (${address.country})` : '';
+      return `Redacted for Privacy${country}`;
+    }
+    return joined;
+  }
+  return null;
+}
+
+export function getRawAddress(address) {
+  if (!address) return null;
+  if (typeof address === 'string') return address.trim();
+  if (typeof address === 'object') {
+    const parts = [
+      address.street,
+      address.locality,
+      address.region,
+      address.postalCode,
+      address.country,
+    ].filter(Boolean);
+    return parts.length ? parts.join(', ') : JSON.stringify(address);
+  }
+  return String(address);
+}
+
+export function parseVcardAddress(rawValue) {
+  if (!Array.isArray(rawValue)) return rawValue;
+  const [poBox, extended, street, locality, region, postalCode, country] = rawValue;
+  const parts = [poBox, extended, street, locality, region, postalCode, country].filter(Boolean);
+  return parts.length ? parts.join(', ') : null;
+}
+
+export function readVCardFields(vcardArray) {
+  const fields = { name: null, organization: null, address: null, phone: null, email: null };
+  if (!Array.isArray(vcardArray) || !Array.isArray(vcardArray[1])) return fields;
+  for (const property of vcardArray[1]) {
+    if (!Array.isArray(property) || property.length < 4) continue;
+    const [propertyName, , , rawValue] = property;
+    const value = Array.isArray(rawValue) ? rawValue.filter(Boolean).join(', ') : rawValue;
+    if (typeof value !== 'string' || !value.trim()) continue;
+    switch (propertyName) {
+      case 'fn':
+        fields.name = value;
+        break;
+      case 'org':
+        fields.organization = value;
+        break;
+      case 'adr':
+        fields.address = Array.isArray(rawValue) ? parseVcardAddress(rawValue) : value;
+        break;
+      case 'tel':
+        fields.phone = fields.phone || value;
+        break;
+      case 'email':
+        fields.email = fields.email || value;
+        break;
+      default:
+        break;
+    }
+  }
+  return fields;
+}
+
+export const ROLE_INFO_MAP = Object.freeze({
+  registrant: {
+    key: 'registrant',
+    label: 'Registrant (Domain Owner)',
+    badge: 'Owner',
+    desc: 'The official individual or organization holding registration rights to this domain name.',
+    isPrimary: true,
+    icon: '👑',
+  },
+  administrative: {
+    key: 'administrative',
+    label: 'Administrative Contact',
+    badge: 'Admin',
+    desc: 'Authorized party managing domain administration, legal notices, and official inquiries.',
+    isPrimary: false,
+    icon: '👤',
+  },
+  technical: {
+    key: 'technical',
+    label: 'Technical Administrator',
+    badge: 'Tech',
+    desc: 'Responsible for nameserver records, DNS zone routing, and server availability.',
+    isPrimary: false,
+    icon: '⚙️',
+  },
+  abuse: {
+    key: 'abuse',
+    label: 'Abuse & Security Hotline',
+    badge: 'Abuse',
+    desc: 'Designated point of contact for security reports, phishing, copyright, or malware.',
+    isPrimary: false,
+    icon: '🚨',
+  },
+  billing: {
+    key: 'billing',
+    label: 'Billing Contact',
+    badge: 'Billing',
+    desc: 'Handles renewal payments, subscription invoices, and accounting notices.',
+    isPrimary: false,
+    icon: '💳',
+  },
+  registrar: {
+    key: 'registrar',
+    label: 'Accredited Registrar',
+    badge: 'Registrar',
+    desc: 'ICANN-accredited registrar managing the registry delegation.',
+    isPrimary: false,
+    icon: '🏢',
+  },
+});
+
+export function getRoleInfo(role) {
+  if (!role) return { label: 'Contact Entity', badge: 'Entity', desc: 'Registered RDAP entity', isPrimary: false, icon: '👤' };
+  const normalized = String(role).toLowerCase().trim();
+  return (
+    ROLE_INFO_MAP[normalized] || {
+      key: normalized,
+      label: normalized.replace(/\b\w/g, (c) => c.toUpperCase()),
+      badge: normalized.toUpperCase(),
+      desc: 'Authorized domain entity record.',
+      isPrimary: false,
+      icon: '👤',
+    }
+  );
+}
+
+export function normalizeEntityForUi(entity, index = 0) {
+  if (!entity || typeof entity !== 'object') return null;
+
+  const vcardFields = entity.vcardArray ? readVCardFields(entity.vcardArray) : {};
+
+  const roles = Array.isArray(entity.roles) && entity.roles.length > 0
+    ? entity.roles
+    : entity.role
+      ? [entity.role]
+      : ['entity'];
+
+  const name = entity.name || vcardFields.name || null;
+  const organization = entity.organization || entity.org || vcardFields.organization || null;
+  const rawAddr = entity.address || vcardFields.address || null;
+  const address = getRawAddress(rawAddr);
+  const formattedAddress = formatAddress(rawAddr);
+  const phone = entity.phone || vcardFields.phone || null;
+  const email = entity.email || vcardFields.email || null;
+  const contactUrl = extractEntityContactUrl(entity);
+  const handle = entity.handle || null;
+  const format = entity.format || (entity.vcardArray || entity.rawVcard ? 'jCard' : 'jCard');
+
+  const rawEvents = Array.isArray(entity.events) ? entity.events : [];
+  const events = rawEvents.map((ev) => ({
+    eventAction: ev.eventAction || 'event',
+    eventDate: ev.eventDate || null,
+    formattedDate: formatDate(ev.eventDate),
+  }));
+
+  const isPrimary = roles.includes('registrant') || index === 0;
+  const primaryRole = roles[0] || 'entity';
+  const roleInfo = getRoleInfo(primaryRole);
+  const redacted = isContactRedacted({ name, organization, email, address });
+
+  return {
+    id: handle || `entity_${index + 1}`,
+    index: index + 1,
+    handle,
+    roles,
+    primaryRole,
+    roleInfo,
+    isPrimary,
+    name,
+    organization,
+    address,
+    formattedAddress,
+    phone,
+    email,
+    contactUrl,
+    format,
+    events,
+    isRedacted: redacted,
+    raw: entity,
+  };
+}
+
+export function extractNormalizedEntities(result) {
+  if (!result) return [];
+  const raw = result.raw || result.result || result;
+
+  const list = [];
+  const seenKeys = new Set();
+
+  const addEntity = (item, defaultRole = null) => {
+    if (!item || typeof item !== 'object') return;
+    const entityObj = { ...item };
+    if (defaultRole && (!entityObj.roles || !entityObj.roles.length)) {
+      entityObj.roles = [defaultRole];
+    }
+    const key = entityObj.handle || `${entityObj.name || ''}_${(entityObj.roles || []).join('_')}_${entityObj.organization || ''}`;
+    if (key && seenKeys.has(key)) return;
+    if (key) seenKeys.add(key);
+    list.push(entityObj);
+  };
+
+  // 1. Entities source
+  const entitiesSource = Array.isArray(result.entities) && result.entities.length > 0
+    ? result.entities
+    : Array.isArray(raw.entities)
+      ? raw.entities
+      : [];
+
+  for (const ent of entitiesSource) {
+    addEntity(ent);
+  }
+
+  // 2. Contacts source
+  const contacts = result.contacts || raw.contacts;
+  if (contacts && typeof contacts === 'object') {
+    if (contacts.registrant) addEntity(contacts.registrant, 'registrant');
+    if (contacts.administrative) addEntity(contacts.administrative, 'administrative');
+    if (contacts.technical) addEntity(contacts.technical, 'technical');
+    if (contacts.abuse) addEntity(contacts.abuse, 'abuse');
+    if (contacts.billing) addEntity(contacts.billing, 'billing');
+  }
+
+  return list
+    .map((ent, idx) => normalizeEntityForUi(ent, idx))
+    .filter(Boolean);
+}
+
+export function extractEntityContactUrl(entity) {
+  if (!entity) return null;
+  if (entity.contactUrl) return entity.contactUrl;
+  if (Array.isArray(entity.links)) {
+    const contactLink = entity.links.find(
+      (l) => l?.href && (l.rel === 'contact' || String(l.href).includes('contact') || String(l.href).includes('whois'))
+    );
+    if (contactLink?.href) return contactLink.href;
+    const webLink = entity.links.find((l) => l?.href && (l.rel === 'related' || l.type === 'text/html'));
+    if (webLink?.href) return webLink.href;
+    if (entity.links[0]?.href) return entity.links[0].href;
+  }
+  return null;
+}
+
+export function isContactRedacted(contact) {
+  if (!contact) return true;
+  const str = `${contact.name || ''} ${contact.organization || ''} ${contact.email || ''} ${contact.address || ''}`.toLowerCase();
+  return (
+    !contact.name ||
+    str.includes('redact') ||
+    str.includes('privacy') ||
+    str.includes('whoisguard') ||
+    str.includes('withheld') ||
+    str.includes('proxy') ||
+    str.includes('gdpr') ||
+    str.includes('contact privacy')
+  );
+}
+
 export function exportWhoisReport(report) {
   if (!report) return;
   const fileName = `whois-${report.domain || 'lookup'}-${new Date().toISOString().slice(0, 10)}.json`;
@@ -265,27 +656,49 @@ export function normalizeWhoisEntry(entry) {
   const id = entry._id ? String(entry._id) : entry.id || entry.jobId || createId();
   const dbId = entry._id ? String(entry._id) : entry.whoisDbId ? String(entry.whoisDbId) : null;
 
-  const domain = raw.domain || entry.url || entry.domain || '';
+  const domain = (raw.domain || entry.url || entry.domain || raw.ldhName || '').toUpperCase();
+  const unicodeDomain = raw.unicodeDomain || raw.unicodeName || null;
   const events = Array.isArray(raw.events) ? raw.events : [];
   const nameservers = Array.isArray(raw.nameservers) ? raw.nameservers : [];
   const secureDNS = raw.secureDNS || null;
+  const registrar = raw.registrar || null;
+  const contacts = raw.contacts || entry.contacts || {};
+  const entities = Array.isArray(raw.entities)
+    ? raw.entities
+    : Array.isArray(entry.entities)
+      ? entry.entities
+      : [];
+  const status = Array.isArray(raw.status)
+    ? raw.status
+    : typeof raw.status === 'string'
+      ? [raw.status]
+      : [];
+  const notices = Array.isArray(raw.notices) ? raw.notices : [];
+
   const lookedUpAt =
     entry.completedAt || entry.createdAt || raw.lookedUpAt || new Date().toISOString();
-  const status = entry.status || raw.status || 'completed';
+  const jobStatus = entry.status || raw.status || 'completed';
   const error = entry.error || raw.error?.message || raw.error || null;
 
   return {
     id,
     dbId,
     domain,
+    unicodeDomain,
     url: entry.url || domain,
     events,
     nameservers,
     secureDNS,
-    lookedUpAt,
+    registrar,
+    contacts,
+    entities,
     status,
+    notices,
+    lookedUpAt,
+    jobStatus,
+    statusList: status,
     error,
-    success: status === 'completed' && !error,
+    success: jobStatus === 'completed' && !error,
     raw,
   };
 }

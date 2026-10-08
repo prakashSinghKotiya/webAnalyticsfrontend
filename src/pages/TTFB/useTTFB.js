@@ -3,16 +3,13 @@ import { ALL_REGIONS, TTFB_REGIONS, findTTFB, findTTFBAllRegions, getTtfbResults
 import {
   EMIT,
   ON,
-  connectSocket,
   emitSocketEvent,
-  isSocketConnected,
-  subscribeToConnectionState,
   subscribeToEvents,
+  waitForSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
 import {
   TTFB_SCAN_TIMEOUT_MS,
-  TTFB_SOCKET_TIMEOUT_MS,
   createId,
   extractReadings,
   isAggregatePayload,
@@ -102,28 +99,7 @@ export default function useTTFB() {
     [settle],
   );
 
-  /** Wait until the socket can carry the job id, so the emit isn't dropped. */
-  const waitForSocket = useCallback(async () => {
-    if (isSocketConnected()) return true;
-    connectSocket();
 
-    return new Promise((resolve) => {
-      let done = false;
-      const finish = (value) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        unsubscribe();
-        resolve(value);
-      };
-      const timer = setTimeout(() => finish(false), TTFB_SOCKET_TIMEOUT_MS);
-      const unsubscribe = subscribeToConnectionState((state) => {
-        if (state.status === 'connected') finish(true);
-        else if (state.status === 'unauthorized' || state.status === 'disconnected') finish(false);
-      });
-      if (isSocketConnected()) finish(true);
-    });
-  }, []);
 
   /** Fetch past measurement results directly from backend MongoDB API. */
   const fetchHistory = useCallback(
@@ -277,7 +253,7 @@ export default function useTTFB() {
         toast.error(message);
       }
     },
-    [fetchHistory, settle, toast, waitForSocket],
+    [fetchHistory, settle, toast],
   );
 
   /** Select a previous scan to inspect details in ResultPanel. */

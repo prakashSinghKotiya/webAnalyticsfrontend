@@ -103,8 +103,26 @@ export default function useUptime() {
 
   // Initial load on mount
   useEffect(() => {
-    fetchMonitors();
-  }, [fetchMonitors]);
+    let ignore = false;
+    getMonitors()
+      .then((data) => {
+        if (!ignore && mountedRef.current) {
+          const list = Array.isArray(data?.monitors) ? data.monitors : [];
+          setMonitors(list);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!ignore && mountedRef.current) {
+          const msg = err?.error || err?.message || 'Failed to load monitors';
+          setError(msg);
+          setLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   /** Fetch paginated results for a specific monitor from backend database */
   const fetchMonitorResults = useCallback(
@@ -179,10 +197,10 @@ export default function useUptime() {
         const checkResult = payload.result || payload;
         const incomingMonitorId = payload.monitorId || checkResult?.monitorId;
 
-        setLatestResult((prev) => ({
+        setLatestResult({
           ...checkResult,
           receivedAt: new Date().toISOString(),
-        }));
+        });
 
         // If active monitor matches the socket event, sync the running monitor inspection
         if (
