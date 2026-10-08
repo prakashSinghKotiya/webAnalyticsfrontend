@@ -10,8 +10,8 @@ import useDns from './useDns';
  * DNSPage — Authoritative Domain Name System (DNS) Record Inspector.
  *
  * Organized strictly into 3 clear, responsive sections:
- *  - Section 1: DnsInputSection (Domain input, presets, query trigger)
- *  - Section 2: DnsResultSection (Summary stats, record cards, copy utilities, security insights)
+ *  - Section 1: DnsInputSection (Domain input, record selector pills, presets, query trigger)
+ *  - Section 2: DnsResultSection (DNSChecker-style record dropdown accordion, stats, utilities, security insights)
  *  - Section 3: DnsHistorySection (MongoDB persistent query history with server-side pagination)
  */
 export default function DNSPage() {
@@ -32,6 +32,7 @@ export default function DNSPage() {
   } = useDns();
 
   const [domain, setDomain] = useState('');
+  const [selectedType, setSelectedType] = useState('ALL');
 
   const handleSubmit = useCallback(() => {
     scan(domain);
@@ -61,6 +62,8 @@ export default function DNSPage() {
         onDomainChange={setDomain}
         isScanning={isScanning}
         onSubmit={handleSubmit}
+        selectedType={selectedType}
+        onSelectType={setSelectedType}
       />
 
       {/* ── Section 2: Showing Result ─────────────────────────────────────── */}
@@ -69,6 +72,8 @@ export default function DNSPage() {
         isScanning={isScanning}
         error={status === 'error' ? error : null}
         onReRun={handleReRun}
+        selectedType={selectedType}
+        onSelectType={setSelectedType}
       />
 
       {/* ── Section 3: History Results ────────────────────────────────────── */}

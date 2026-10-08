@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react';
 import { useSocket } from '../../../context';
+import { DNS_RECORD_ORDER } from '../dns.utils';
 
 const PRESETS = [
   'google.com',
@@ -9,7 +10,16 @@ const PRESETS = [
   'apple.com',
 ];
 
-function DnsInputSection({ domain, onDomainChange, isScanning, onSubmit }) {
+const RECORD_BUTTONS = ['ALL', ...DNS_RECORD_ORDER];
+
+function DnsInputSection({
+  domain,
+  onDomainChange,
+  isScanning,
+  onSubmit,
+  selectedType = 'ALL',
+  onSelectType,
+}) {
   const { isConnected } = useSocket();
 
   const handleSubmit = useCallback(
@@ -48,7 +58,7 @@ function DnsInputSection({ domain, onDomainChange, isScanning, onSubmit }) {
               DNS Record Inspector
             </h1>
             <p className="text-xs text-[var(--muted-2)]">
-              Query authoritative DNS records across A, AAAA, MX, TXT, NS, CNAME, SOA, and CAA
+              Query authoritative DNS records across A, AAAA, MX, TXT, NS, CNAME, SOA, SPF, and CAA
             </p>
           </div>
         </div>
@@ -143,10 +153,31 @@ function DnsInputSection({ domain, onDomainChange, isScanning, onSubmit }) {
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
-                <span>Lookup Records</span>
+                <span>Lookup DNS</span>
               </>
             )}
           </button>
+        </div>
+
+        {/* Record Type Quick Selectors Matching Screenshot */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          {RECORD_BUTTONS.map((type) => {
+            const isSelected = selectedType === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => onSelectType?.(type)}
+                className={`cursor-pointer rounded-lg px-2.5 py-1 font-['JetBrains_Mono',monospace] text-xs font-semibold transition ${
+                  isSelected
+                    ? 'bg-[var(--cyan)] text-black shadow-sm'
+                    : 'border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-2)] hover:border-[var(--border-bright)] hover:text-[var(--text)]'
+                }`}
+              >
+                {type}
+              </button>
+            );
+          })}
         </div>
 
         {/* Quick Presets */}
