@@ -78,7 +78,7 @@ const FEATURED_SUITE = [
   {
     to: ROUTES.LIGHTHOUSE,
     icon: Icons.zap,
-    label: 'Lighthouse Audit',
+    label: 'FullSite Report',
     tag: 'Web Vitals',
     desc: 'Comprehensive Performance, Accessibility, Best Practices, and SEO audits.',
     color: 'var(--green)',
@@ -183,7 +183,7 @@ export default function Home() {
                 className="cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3.5 py-2.5 text-xs sm:text-sm font-medium text-[var(--text)] outline-none transition focus:border-[var(--cyan)]"
               >
                 <option value={ROUTES.TTFB}>TTFB Analyzer</option>
-                <option value={ROUTES.LIGHTHOUSE}>Lighthouse</option>
+                <option value={ROUTES.LIGHTHOUSE}>FullSite Report</option>
                 <option value={ROUTES.UPTIME}>Uptime Monitor</option>
                 <option value={ROUTES.DNS}>DNS Records</option>
                 <option value={ROUTES.WHOIS}>WHOIS Lookup</option>

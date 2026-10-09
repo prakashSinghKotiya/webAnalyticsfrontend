@@ -33,7 +33,7 @@ function LighthouseScanningState({ targetUrl, auditStep }) {
         </div>
 
         <h3 className="font-['Outfit',sans-serif] text-xl font-bold tracking-tight text-[var(--text)] sm:text-2xl">
-          Running Lighthouse Audit…
+          Running FullSite Report Audit…
         </h3>
 
         {targetUrl && (

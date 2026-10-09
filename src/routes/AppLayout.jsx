@@ -17,7 +17,8 @@ export default function AppLayout() {
     setMobileOpen(false);
   }
 
-  const isAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin';
+  const userRole = (user?.role || '').toLowerCase();
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin' || user?.role === 'Admin' || user?.role === 'SuperAdmin';
 
   const handleLogout = async () => {
     await logout();

@@ -81,7 +81,7 @@ export default function LighthousePage() {
             </span>
             <div>
               <h1 className="font-['Outfit',sans-serif] text-2xl font-bold tracking-tight text-[var(--text)]">
-                Lighthouse Audit Studio
+                FullSite Report Studio
               </h1>
               <p className="text-xs text-[var(--muted-2)]">
                 Real-time Core Web Vitals, Lab Performance, SEO, and Accessibility Diagnostics

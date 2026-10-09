@@ -60,7 +60,7 @@ function LighthouseEmptyState() {
         </span>
 
         <h2 className="font-['Outfit',sans-serif] text-xl font-bold text-[var(--text)] sm:text-2xl">
-          Automated Lighthouse Performance Audits
+          Automated FullSite Performance Audits
         </h2>
         <p className="mt-2 text-sm text-[var(--muted-2)]">
           Audit any public web page URL using Google PageSpeed Insights engine. Enter a target address above to

@@ -3,7 +3,7 @@ import { ROUTES } from '../../constants';
 
 const TOOLS = [
   { to: ROUTES.TTFB, label: 'TTFB', desc: 'Time-to-first-byte across regions' },
-  { to: ROUTES.LIGHTHOUSE, label: 'Lighthouse', desc: 'Performance & quality reports' },
+  { to: ROUTES.LIGHTHOUSE, label: 'FullSite Report', desc: 'Performance & quality reports' },
   { to: ROUTES.UPTIME, label: 'Uptime', desc: 'Availability monitoring' },
   { to: ROUTES.WHOIS, label: 'WHOIS', desc: 'Domain ownership lookup' },
   { to: ROUTES.DNS, label: 'DNS', desc: 'Record lookup & validation' },

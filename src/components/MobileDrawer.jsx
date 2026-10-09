@@ -4,22 +4,30 @@ import Logo from './Logo';
 import { I, TOOL_GROUPS } from './navConfig.jsx';
 
 export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin }) {
+  const handleNav = (callback) => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    if (callback) callback();
+    onClose();
+  };
+
   return (
     <>
       <div
-        onClick={onClose}
+        onClick={() => handleNav()}
         className={`fixed inset-0 z-40 bg-black/60 transition-opacity lg:hidden ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         aria-hidden="true"
       />
       <aside
+        inert={!open ? '' : undefined}
         className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 lg:hidden ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
-        aria-hidden={!open}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
           <Logo to={ROUTES.HOME} />
-          <button type="button" onClick={onClose} className="cursor-pointer rounded-lg border-none bg-transparent p-1.5 text-[var(--muted-2)] transition hover:text-[var(--text)]">
+          <button type="button" onClick={() => handleNav()} className="cursor-pointer rounded-lg border-none bg-transparent p-1.5 text-[var(--muted-2)] transition hover:text-[var(--text)]">
             {I.x}
           </button>
         </div>
@@ -27,7 +35,7 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
         <nav className="flex-1 overflow-y-auto p-3">
           <NavLink
             to={ROUTES.HOME}
-            onClick={onClose}
+            onClick={() => handleNav()}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm no-underline transition mb-1 ${
                 isActive ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
@@ -40,7 +48,7 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
 
           <NavLink
             to={ROUTES.DASHBOARD}
-            onClick={onClose}
+            onClick={() => handleNav()}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm no-underline transition mb-1 ${
                 isActive ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
@@ -60,7 +68,7 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  onClick={onClose}
+                  onClick={() => handleNav()}
                   className={({ isActive }) =>
                     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm no-underline transition mb-0.5 ${
                       isActive ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
@@ -78,7 +86,7 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
             <div className="mt-4 border-t border-[var(--border)] pt-4">
               <NavLink
                 to={ROUTES.ADMIN}
-                onClick={onClose}
+                onClick={() => handleNav()}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm no-underline transition ${
                     isActive ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
@@ -99,13 +107,36 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-[var(--text)]">{user?.name || 'Account'}</p>
-              <p className="font-['JetBrains_Mono',monospace] truncate text-[10px] text-[var(--muted)]">{user?.plan || 'free'} plan</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="font-['JetBrains_Mono',monospace] truncate text-[10px] text-[var(--muted)]">{user?.plan || 'free'} plan</p>
+                {isAdmin && (
+                  <span className="font-['JetBrains_Mono',monospace] rounded-full border border-[var(--cyan)]/30 bg-[var(--cyan-dim)] px-1.5 py-0.2 text-[8px] uppercase tracking-wider text-[var(--cyan)]">
+                    {user?.role || 'Admin'}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
+          {isAdmin && (
+            <NavLink
+              to={ROUTES.ADMIN}
+              onClick={() => handleNav()}
+              className={({ isActive }) =>
+                `mb-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium no-underline transition ${
+                  isActive
+                    ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
+                    : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
+                }`
+              }
+            >
+              {I.shield}
+              Admin Panel
+            </NavLink>
+          )}
           <button
             type="button"
-            onClick={() => { onClose(); onLogout(); }}
-            className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border-none bg-transparent px-3 py-2.5 text-sm text-[var(--muted-2)] transition hover:bg-[var(--red)]/10 hover:text-[var(--red)]"
+            onClick={() => handleNav(onLogout)}
+            className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border-none bg-transparent px-3 py-2 text-sm text-[var(--muted-2)] transition hover:bg-[var(--red)]/10 hover:text-[var(--red)]"
           >
             {I.logout}
             Sign out

@@ -13,9 +13,9 @@ import FullScreenLoader from '../components/FullScreenLoader';
  */
 
 function useAuthGate() {
-  const { isAuthenticated, loading } = useAuthState();
+  const { user, isAuthenticated, loading } = useAuthState();
   const location = useLocation();
-  return { isAuthenticated, loading, location };
+  return { user, isAuthenticated, loading, location };
 }
 
 /** Renders children only for authenticated users; remembers the intended destination. */
@@ -55,7 +55,10 @@ export function AdminRoute({ children }) {
     return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
   }
 
-  if (!ADMIN_ROLES.includes(user?.role)) {
+  const role = (user?.role || '').toLowerCase();
+  const isAllowed = role === 'admin' || role === 'superadmin' || ADMIN_ROLES.includes(user?.role);
+
+  if (!isAllowed) {
     return <Navigate to={ROUTES.HOME} replace />;
   }
 

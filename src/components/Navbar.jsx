@@ -104,7 +104,7 @@ function ToolsDropdown() {
   );
 }
 
-function UserMenu({ user, onLogout }) {
+function UserMenu({ user, onLogout, isAdmin }) {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [prevPath, setPrevPath] = useState(location.pathname);
@@ -116,9 +116,16 @@ function UserMenu({ user, onLogout }) {
   }
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (e.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', handler);
+    };
   }, []);
 
   const initial = (user?.name || 'U').charAt(0).toUpperCase();
@@ -135,14 +142,44 @@ function UserMenu({ user, onLogout }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-2xl border border-[var(--border-bright)] bg-[var(--surface)] p-2 shadow-[var(--shadow-card-hover)]">
-          <div className="border-b border-[var(--border)] px-3 py-2.5 mb-1">
+        <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-2xl border border-[var(--border-bright)] bg-[var(--surface)] p-2 shadow-[var(--shadow-card-hover)] animate-in fade-in slide-in-from-top-1">
+          <div className="border-b border-[var(--border)] px-3 py-2.5 mb-1.5">
             <p className="text-sm font-semibold text-[var(--text)] truncate">{user?.name || 'Account'}</p>
             <p className="font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted)] truncate">{user?.email || ''}</p>
-            <span className="font-['JetBrains_Mono',monospace] mt-1.5 inline-block rounded-full border border-[var(--border-bright)] bg-[var(--cyan-dim)] px-2 py-0.5 text-[9px] uppercase tracking-[0.1em] text-[var(--cyan)]">
-              {user?.plan || 'free'}
-            </span>
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+              <span className="font-['JetBrains_Mono',monospace] inline-block rounded-full border border-[var(--border-bright)] bg-[var(--cyan-dim)] px-2 py-0.5 text-[9px] uppercase tracking-[0.1em] text-[var(--cyan)]">
+                {user?.plan || 'free'}
+              </span>
+              {isAdmin && (
+                <span className="font-['JetBrains_Mono',monospace] inline-block rounded-full border border-[var(--cyan)]/40 bg-[var(--cyan-dim)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--cyan)]">
+                  {user?.role || 'Admin'}
+                </span>
+              )}
+            </div>
           </div>
+
+          {isAdmin && (
+            <NavLink
+              to={ROUTES.ADMIN}
+              onClick={() => {
+                if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+                  document.activeElement.blur();
+                }
+                setOpen(false);
+              }}
+              className={({ isActive }) =>
+                `flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition no-underline mb-1 ${
+                  isActive
+                    ? 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
+                    : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
+                }`
+              }
+            >
+              {I.shield}
+              <span>Admin Panel</span>
+            </NavLink>
+          )}
+
           <button
             type="button"
             onClick={() => { setOpen(false); onLogout(); }}
@@ -224,7 +261,7 @@ export default function Navbar({ user, onLogout, isAdmin, onMenuOpen }) {
       <div className="flex items-center gap-3">
         <SocketDot />
         <ThemeToggle />
-        <UserMenu user={user} onLogout={onLogout} />
+        <UserMenu user={user} onLogout={onLogout} isAdmin={isAdmin} />
       </div>
     </header>
   );

@@ -33,8 +33,8 @@ const TOOL_CONFIG = {
   },
   lighthouse: {
     id: 'lighthouse',
-    label: 'Lighthouse Audit',
-    title: 'Lighthouse Quality Audit',
+    label: 'FullSite Report',
+    title: 'FullSite Report Quality Audit',
     description: 'Run deep Performance, Accessibility, Best Practices, and SEO audits.',
     placeholder: 'https://example.com',
     authRoute: ROUTES.LIGHTHOUSE,

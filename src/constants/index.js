@@ -33,7 +33,14 @@ export const ROLES = Object.freeze({
 });
 
 /** Roles allowed past the AdminRoute guard. */
-export const ADMIN_ROLES = Object.freeze([ROLES.ADMIN, ROLES.SUPER_ADMIN]);
+export const ADMIN_ROLES = Object.freeze([
+  ROLES.ADMIN,
+  ROLES.SUPER_ADMIN,
+  'admin',
+  'superadmin',
+  'ADMIN',
+  'SUPERADMIN',
+]);
 
 /** localStorage keys (prefixed to avoid collisions). */
 export const STORAGE_KEYS = Object.freeze({

@@ -309,7 +309,7 @@ export default function useLighthouse() {
 
         setReport(newEntry);
         setStatus('done');
-        toast.success('Lighthouse report generated successfully!');
+        toast.success('FullSite report generated successfully!');
 
         // Refresh database history & pagination
         fetchHistory({ page: 1 });
@@ -317,7 +317,7 @@ export default function useLighthouse() {
         settle(err);
         if (!mountedRef.current) return;
         const msg =
-          err?.response?.data?.error || err?.message || 'Failed to complete Lighthouse audit.';
+          err?.response?.data?.error || err?.message || 'Failed to complete FullSite report audit.';
         setError(msg);
         setStatus('error');
         toast.error(msg);

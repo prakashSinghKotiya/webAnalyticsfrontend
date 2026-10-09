@@ -23,7 +23,7 @@ export const TOOL_GROUPS = [
     label: 'Performance',
     items: [
       { to: ROUTES.TTFB,       icon: I.gauge,    label: 'TTFB Analyzer',    desc: 'Time-to-first-byte across regions' },
-      { to: ROUTES.LIGHTHOUSE, icon: I.zap,      label: 'Lighthouse',       desc: 'Performance & quality reports' },
+      { to: ROUTES.LIGHTHOUSE, icon: I.zap,      label: 'FullSite Report',  desc: 'Performance & quality reports' },
     ],
   },
   {

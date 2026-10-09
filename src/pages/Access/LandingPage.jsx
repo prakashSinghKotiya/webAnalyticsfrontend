@@ -399,7 +399,7 @@ function Hero() {
               onClick={() => analyze(null, "lighthouse")}
               className={`${display} inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)] transition hover:border-[var(--cyan-mid)] hover:text-[var(--cyan)]`}
             >
-              <Icon name="chart" size={13} /> Lighthouse
+              <Icon name="chart" size={13} /> FullSite Report
             </button>
             <button
               type="button"
@@ -655,7 +655,7 @@ const tools = [
     demoRoute: ROUTES.LOGIN,
   },
   {
-    name: "Full Site Report",
+    name: "FullSite Report",
     icon: "chart",
     tone: "orange",
     badge: "FULL AUDIT",

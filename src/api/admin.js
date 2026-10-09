@@ -1,9 +1,13 @@
 import { axiosWithCreds } from "./axiosInstance";
 
-// Admin: Get all users (paginated)
-export const getAllUsers = async (page = 1, limit = 10) => {
+// Admin: Get all users (paginated with optional search)
+export const getAllUsers = async (page = 1, limit = 10, search = '') => {
+  const params = { page, limit };
+  if (search && search.trim()) {
+    params.search = search.trim();
+  }
   const { data } = await axiosWithCreds.get("/admin/getusers", {
-    params: { page, limit },
+    params,
   });
   return data;
 };
