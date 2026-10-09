@@ -287,6 +287,55 @@ export function classifyTxtRecord(txt) {
   return { type: 'General', badge: 'TXT Record', color: 'var(--muted-2)' };
 }
 
+export function normalizeRecordSource(records, type) {
+  if (!records || typeof records !== 'object') {
+    return { found: false, list: [], status: 'not_found' };
+  }
+  const upper = type.toUpperCase();
+  const lower = type.toLowerCase();
+  const raw = records[upper] !== undefined ? records[upper] : records[lower];
+
+  if (!raw) {
+    return { found: false, list: [], status: 'not_found' };
+  }
+
+  if (Array.isArray(raw)) {
+    return {
+      found: raw.length > 0,
+      list: raw,
+      status: raw.length > 0 ? 'found' : 'not_found',
+    };
+  }
+
+  if (typeof raw === 'object') {
+    if (raw.data !== undefined) {
+      const list = Array.isArray(raw.data) ? raw.data : raw.data != null ? [raw.data] : [];
+      const found = raw.status === 'found' || list.length > 0;
+      return {
+        found,
+        list,
+        status: raw.status || (found ? 'found' : 'not_found'),
+      };
+    }
+    // Single object structure (e.g. SOA object or single record)
+    return {
+      found: true,
+      list: [raw],
+      status: 'found',
+    };
+  }
+
+  if (typeof raw === 'string' && raw.trim()) {
+    return {
+      found: true,
+      list: [raw.trim()],
+      status: 'found',
+    };
+  }
+
+  return { found: false, list: [], status: 'not_found' };
+}
+
 /**
  * Extract, normalize and structure all 12 DNS record types matching the DNSChecker layout.
  * @param {object} records - Raw records object from backend
@@ -297,10 +346,9 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   const result = {};
 
   // 1. A Records
-  const aRaw = records.A;
-  const aFound = aRaw?.status === 'found' && Boolean(aRaw?.data);
-  const aData = aFound
-    ? (Array.isArray(aRaw.data) ? aRaw.data : [aRaw.data]).map((item) => {
+  const aSrc = normalizeRecordSource(records, 'A');
+  const aData = aSrc.found
+    ? aSrc.list.map((item) => {
         const address = typeof item === 'object' ? item.address || item.ip || '' : String(item);
         const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
         return {
@@ -317,15 +365,14 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
     type: 'A',
     count: aData.length,
     label: aData.length > 0 ? `A (${aData.length} Records)` : 'A',
-    status: aFound ? 'found' : aRaw?.status || 'not_found',
+    status: aData.length > 0 ? 'found' : aSrc.status,
     data: aData,
   };
 
   // 2. AAAA Records
-  const aaaaRaw = records.AAAA;
-  const aaaaFound = aaaaRaw?.status === 'found' && Boolean(aaaaRaw?.data);
-  const aaaaData = aaaaFound
-    ? (Array.isArray(aaaaRaw.data) ? aaaaRaw.data : [aaaaRaw.data]).map((item) => {
+  const aaaaSrc = normalizeRecordSource(records, 'AAAA');
+  const aaaaData = aaaaSrc.found
+    ? aaaaSrc.list.map((item) => {
         const address = typeof item === 'object' ? item.address || item.ip || '' : String(item);
         const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
         return {
@@ -341,15 +388,14 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
     type: 'AAAA',
     count: aaaaData.length,
     label: aaaaData.length > 0 ? `AAAA (${aaaaData.length} Records)` : 'AAAA',
-    status: aaaaFound ? 'found' : aaaaRaw?.status || 'not_found',
+    status: aaaaData.length > 0 ? 'found' : aaaaSrc.status,
     data: aaaaData,
   };
 
   // 3. CNAME Records
-  const cnameRaw = records.CNAME;
-  const cnameFound = cnameRaw?.status === 'found' && Boolean(cnameRaw?.data);
-  const cnameList = cnameFound
-    ? (Array.isArray(cnameRaw.data) ? cnameRaw.data : [cnameRaw.data]).map((item) => {
+  const cnameSrc = normalizeRecordSource(records, 'CNAME');
+  const cnameList = cnameSrc.found
+    ? cnameSrc.list.map((item) => {
         const target = typeof item === 'object' ? item.value || item.target || '' : String(item);
         const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
         return {
@@ -365,18 +411,30 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
     type: 'CNAME',
     count: cnameList.length,
     label: cnameList.length > 0 ? `CNAME (${cnameList.length} Records)` : 'CNAME',
-    status: cnameFound ? 'found' : cnameRaw?.status || 'not_found',
+    status: cnameList.length > 0 ? 'found' : cnameSrc.status,
     data: cnameList,
   };
 
   // 4. MX Records
-  const mxRaw = records.MX;
-  const mxFound = mxRaw?.status === 'found' && Boolean(mxRaw?.data);
-  const mxList = mxFound
-    ? (Array.isArray(mxRaw.data) ? mxRaw.data : [mxRaw.data]).map((item) => {
-        const exchange = typeof item === 'object' ? item.exchange || item.mx || '' : String(item);
-        const priority = typeof item === 'object' ? item.priority ?? item.preference ?? 10 : 10;
-        const ip = typeof item === 'object' ? item.ip || item.address || '' : '';
+  const mxSrc = normalizeRecordSource(records, 'MX');
+  const mxList = mxSrc.found
+    ? mxSrc.list.map((item) => {
+        let exchange = '';
+        let priority = 10;
+        let ip = '';
+        if (typeof item === 'object') {
+          exchange = item.exchange || item.mx || item.host || '';
+          priority = item.priority ?? item.preference ?? 10;
+          ip = item.ip || item.address || '';
+        } else if (typeof item === 'string') {
+          const parts = item.trim().split(/\s+/);
+          if (parts.length >= 2 && !isNaN(parts[0])) {
+            priority = parseInt(parts[0], 10);
+            exchange = parts[1];
+          } else {
+            exchange = item;
+          }
+        }
         const country = detectIpCountry(ip, exchange);
         return {
           priority,
@@ -394,16 +452,15 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
     type: 'MX',
     count: mxList.length,
     label: mxList.length > 0 ? `MX (${mxList.length} Records)` : 'MX',
-    status: mxFound ? 'found' : mxRaw?.status || 'not_found',
+    status: mxList.length > 0 ? 'found' : mxSrc.status,
     data: mxList,
   };
 
   // 5. NS Records
-  const nsRaw = records.NS;
-  const nsFound = nsRaw?.status === 'found' && Boolean(nsRaw?.data);
-  const nsList = nsFound
-    ? (Array.isArray(nsRaw.data) ? nsRaw.data : [nsRaw.data]).map((ns) => {
-        const nameserver = typeof ns === 'object' ? ns.value || ns.nameserver || '' : String(ns);
+  const nsSrc = normalizeRecordSource(records, 'NS');
+  const nsList = nsSrc.found
+    ? nsSrc.list.map((ns) => {
+        const nameserver = typeof ns === 'object' ? ns.value || ns.nameserver || ns.target || '' : String(ns);
         const ttl = typeof ns === 'object' ? ns.ttl ?? 300 : 300;
         return {
           host: typeof ns === 'object' ? ns.name || hostname || '@' : hostname || '@',
@@ -418,15 +475,14 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
     type: 'NS',
     count: nsList.length,
     label: nsList.length > 0 ? `NS (${nsList.length} Records)` : 'NS',
-    status: nsFound ? 'found' : nsRaw?.status || 'not_found',
+    status: nsList.length > 0 ? 'found' : nsSrc.status,
     data: nsList,
   };
 
   // 6. PTR Records
-  const ptrRaw = records.PTR;
-  const ptrFound = ptrRaw?.status === 'found' && Boolean(ptrRaw?.data);
-  const ptrList = ptrFound
-    ? (Array.isArray(ptrRaw.data) ? ptrRaw.data : [ptrRaw.data]).map((item) => {
+  const ptrSrc = normalizeRecordSource(records, 'PTR');
+  const ptrList = ptrSrc.found
+    ? ptrSrc.list.map((item) => {
         const target = typeof item === 'object' ? item.value || item.target || '' : String(item);
         const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
         return {
@@ -442,38 +498,43 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
     type: 'PTR',
     count: ptrList.length,
     label: ptrList.length > 0 ? `PTR (${ptrList.length} Records)` : 'PTR',
-    status: ptrFound ? 'found' : ptrRaw?.status || 'not_found',
+    status: ptrList.length > 0 ? 'found' : ptrSrc.status,
     data: ptrList,
   };
 
   // 7. SOA Records
-  const soaRaw = records.SOA;
-  const soaFound = soaRaw?.status === 'found' && Boolean(soaRaw?.data);
-  const soaDataRaw = soaFound ? (Array.isArray(soaRaw.data) ? soaRaw.data[0] : soaRaw.data) : null;
-  const mappedSoa = soaDataRaw ? {
-    nsname: soaDataRaw.nsname || soaDataRaw.mname || '',
-    hostmaster: soaDataRaw.hostmaster || soaDataRaw.rname || '',
-    serial: soaDataRaw.serial,
-    refresh: soaDataRaw.refresh,
-    retry: soaDataRaw.retry,
-    expire: soaDataRaw.expire,
-    minttl: soaDataRaw.minttl || soaDataRaw.minimum
-  } : null;
+  const soaSrc = normalizeRecordSource(records, 'SOA');
+  const soaDataRaw = soaSrc.found ? (Array.isArray(soaSrc.list) ? soaSrc.list[0] : soaSrc.list) : null;
+  const mappedSoa = soaDataRaw
+    ? {
+        nsname: soaDataRaw.nsname || soaDataRaw.mname || soaDataRaw.primary || '',
+        hostmaster: soaDataRaw.hostmaster || soaDataRaw.rname || soaDataRaw.admin || '',
+        serial: soaDataRaw.serial,
+        refresh: soaDataRaw.refresh,
+        retry: soaDataRaw.retry,
+        expire: soaDataRaw.expire,
+        minttl: soaDataRaw.minttl || soaDataRaw.minimum || soaDataRaw.ttl,
+      }
+    : null;
   result.SOA = {
     type: 'SOA',
     count: mappedSoa ? 1 : 0,
     label: mappedSoa ? 'SOA (1 Records)' : 'SOA',
-    status: soaFound ? 'found' : soaRaw?.status || 'not_found',
+    status: mappedSoa ? 'found' : soaSrc.status,
     data: mappedSoa,
   };
 
-  // 8. SPF (Extracted from TXT)
-  const txtRaw = records.TXT;
-  const rawTxtArray = txtRaw?.status === 'found' && Boolean(txtRaw?.data)
-    ? (Array.isArray(txtRaw.data) ? txtRaw.data : [txtRaw.data])
-    : [];
-  const allTxtList = rawTxtArray.map((item) => typeof item === 'object' ? item.value || item.text || JSON.stringify(item) : String(item));
-  const spfString = extractSpfRecord(allTxtList);
+  // 8. SPF (Extracted from TXT or direct)
+  const txtSrc = normalizeRecordSource(records, 'TXT');
+  const rawTxtArray = txtSrc.found ? txtSrc.list : [];
+  const allTxtList = rawTxtArray.map((item) => {
+    if (Array.isArray(item)) return item.join('');
+    if (typeof item === 'object') return item.value || item.text || item.data || JSON.stringify(item);
+    return String(item);
+  });
+  const spfSrc = normalizeRecordSource(records, 'SPF');
+  const spfDirect = spfSrc.found ? (Array.isArray(spfSrc.list) ? spfSrc.list[0] : spfSrc.list) : null;
+  const spfString = extractSpfRecord(allTxtList) || (typeof spfDirect === 'object' ? spfDirect.value || spfDirect.text : spfDirect);
   const spfParsed = spfString ? parseSpfMechanisms(spfString) : null;
   result.SPF = {
     type: 'SPF',
@@ -484,17 +545,16 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   };
 
   // 9. TXT Records (remaining non-SPF records, or all TXT records)
-  const txtDisplayData = rawTxtArray.filter((item) => {
-    const textStr = typeof item === 'object' ? item.value || item.text || JSON.stringify(item) : String(item);
-    return !/^v=spf1(\s|$)/i.test(textStr.trim());
+  const txtDisplayData = allTxtList.filter((item) => {
+    return !/^v=spf1(\s|$)/i.test(String(item).trim());
   });
-  const finalTxtList = txtDisplayData.length > 0 ? txtDisplayData : rawTxtArray;
+  const finalTxtList = txtDisplayData.length > 0 ? txtDisplayData : allTxtList;
 
   result.TXT = {
     type: 'TXT',
     count: finalTxtList.length,
     label: finalTxtList.length > 0 ? `TXT (${finalTxtList.length} Records)` : 'TXT',
-    status: finalTxtList.length > 0 ? 'found' : txtRaw?.status || 'not_found',
+    status: finalTxtList.length > 0 ? 'found' : txtSrc.status,
     data: finalTxtList.map((item) => {
       const text = typeof item === 'object' ? item.value || item.text || JSON.stringify(item) : String(item);
       const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
@@ -508,10 +568,9 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   };
 
   // 10. CAA Records
-  const caaRaw = records.CAA;
-  const caaFound = caaRaw?.status === 'found' && Boolean(caaRaw?.data);
-  const caaList = caaFound
-    ? (Array.isArray(caaRaw.data) ? caaRaw.data : [caaRaw.data]).map((item) => ({
+  const caaSrc = normalizeRecordSource(records, 'CAA');
+  const caaList = caaSrc.found
+    ? caaSrc.list.map((item) => ({
         host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
         critical: typeof item === 'object' ? item.critical ?? 0 : 0,
         tag: typeof item === 'object' ? item.tag || (item.issue ? 'issue' : item.issuewild ? 'issuewild' : item.iodef ? 'iodef' : 'tag') : 'tag',
@@ -525,33 +584,31 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
     type: 'CAA',
     count: caaList.length,
     label: caaList.length > 0 ? `CAA (${caaList.length} Records)` : 'CAA',
-    status: caaFound ? 'found' : caaRaw?.status || 'not_found',
+    status: caaList.length > 0 ? 'found' : caaSrc.status,
     data: caaList,
   };
 
   // 11. DS Records (DNSSEC)
-  const dsRaw = records.DS;
-  const dsFound = dsRaw?.status === 'found' && Boolean(dsRaw?.data);
-  const dsList = dsFound ? (Array.isArray(dsRaw.data) ? dsRaw.data : [dsRaw.data]) : [];
+  const dsSrc = normalizeRecordSource(records, 'DS');
+  const dsList = dsSrc.found ? (Array.isArray(dsSrc.list) ? dsSrc.list : [dsSrc.list]) : [];
   result.DS = {
     type: 'DS',
     count: dsList.length,
     label: dsList.length > 0 ? `DS (${dsList.length} Records)` : 'DS',
-    status: dsFound ? 'found' : 'not_found',
+    status: dsList.length > 0 ? 'found' : 'not_found',
     data: dsList,
   };
 
   // 12. DNSKEY Records (DNSSEC)
-  const dnskeyRaw = records.DNSKEY;
-  const dnskeyFound = dnskeyRaw?.status === 'found' && Boolean(dnskeyRaw?.data);
-  const dnskeyList = dnskeyFound
-    ? (Array.isArray(dnskeyRaw.data) ? dnskeyRaw.data : [dnskeyRaw.data])
+  const dnskeySrc = normalizeRecordSource(records, 'DNSKEY');
+  const dnskeyList = dnskeySrc.found
+    ? (Array.isArray(dnskeySrc.list) ? dnskeySrc.list : [dnskeySrc.list])
     : [];
   result.DNSKEY = {
     type: 'DNSKEY',
     count: dnskeyList.length,
     label: dnskeyList.length > 0 ? `DNSKEY (${dnskeyList.length} Records)` : 'DNSKEY',
-    status: dnskeyFound ? 'found' : 'not_found',
+    status: dnskeyList.length > 0 ? 'found' : 'not_found',
     data: dnskeyList,
   };
 
@@ -611,10 +668,24 @@ export function normalizeDnsEntry(entry) {
   const resolvedAt =
     entry.completedAt || entry.createdAt || raw.resolvedAt || new Date().toISOString();
   const durationMs = raw.durationMs ?? 0;
-  const summary = raw.summary || { found: 0, notFound: 0, error: 0, domainExists: true };
-  const records = raw.records || {};
+  const records = raw.records || (raw && typeof raw === 'object' && !raw.records ? raw : {});
   const status = entry.status || raw.status || 'completed';
   const error = entry.error || raw.error || null;
+
+  // Calculate actual found count across record types
+  const parsedMap = extractAllRecordTypes(records, hostname);
+  const foundCount = Object.values(parsedMap).filter((r) => r.count > 0).length;
+
+  const summary = raw.summary || {
+    found: foundCount,
+    notFound: DNS_RECORD_ORDER.length - foundCount,
+    error: 0,
+    domainExists: foundCount > 0,
+  };
+  if (summary.found === 0 && foundCount > 0) {
+    summary.found = foundCount;
+    summary.domainExists = true;
+  }
 
   return {
     id,

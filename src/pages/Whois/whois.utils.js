@@ -896,6 +896,11 @@ export function extractRegistrarInfo(result) {
     if (found) ianaId = found.identifier;
   }
 
+  // Handle case where handle is an IANA number (e.g. "146")
+  if (!ianaId && !isStringR && r.handle && /^\d+$/.test(String(r.handle).trim())) {
+    ianaId = String(r.handle).trim();
+  }
+
   const name = isStringR
     ? r.trim()
     : r.name ||
@@ -908,34 +913,16 @@ export function extractRegistrarInfo(result) {
       (typeof raw.registrar === 'string' ? raw.registrar : null) ||
       null;
 
-  const abuseEmail =
-    (!isStringR && (r.abuseEmail || r.abuseContactEmail)) ||
-    raw.registrarAbuseEmail ||
-    raw.registrarAbuseContactEmail ||
-    raw.abuseContactEmail ||
-    raw.abuseEmail ||
-    (!isStringR && r.email) ||
-    regVcard.email ||
-    raw.registrarEmail ||
-    null;
-
-  const email = (!isStringR && r.email) || raw.registrarEmail || regVcard.email || abuseEmail || null;
-
-  const abusePhone =
-    (!isStringR && (r.abusePhone || r.abuseContactPhone)) ||
-    raw.registrarAbusePhone ||
-    raw.registrarAbuseContactPhone ||
-    raw.abuseContactPhone ||
-    raw.abusePhone ||
-    (!isStringR && r.phone) ||
-    regVcard.phone ||
-    null;
+  const email = (!isStringR && r.email) || raw.registrarEmail || regVcard.email || null;
+  const phone = (!isStringR && r.phone) || raw.registrarPhone || regVcard.phone || null;
 
   const whoisServer =
     (!isStringR && r.whoisServer) ||
     raw.registrarWhoisServer ||
     raw.whoisServer ||
     raw.registrarServer ||
+    (!isStringR && Array.isArray(r.links) && r.links.find((l) => l.value && String(l.value).includes('rdap'))?.value) ||
+    (!isStringR && Array.isArray(r.links) && r.links[0]?.value) ||
     null;
 
   const url =
@@ -944,17 +931,137 @@ export function extractRegistrarInfo(result) {
     raw.url ||
     raw.referralUrl ||
     raw.registrarReferralUrl ||
+    (!isStringR && r.contactUrl) ||
+    (!isStringR && Array.isArray(r.links) && r.links.find((l) => l.href && (l.rel === 'about' || l.rel === 'related'))?.href) ||
+    (!isStringR && Array.isArray(r.links) && r.links[0]?.href) ||
     null;
+
+  const handle = (!isStringR && r.handle) || registrarEntity?.handle || null;
 
   return {
     name,
     ianaId,
     email,
-    abuseEmail,
-    abusePhone,
+    phone,
     whoisServer,
     url,
+    handle,
   };
+}
+
+export function extractAbuseInfo(result) {
+  if (!result) return null;
+  const raw = result.raw || result.result || result;
+
+  const abuseSource =
+    result.abuse ||
+    raw.abuse ||
+    result.contacts?.abuse ||
+    raw.contacts?.abuse ||
+    null;
+
+  const entities = Array.isArray(raw.entities) ? raw.entities : Array.isArray(result.entities) ? result.entities : [];
+  const abuseEntity = entities.find((e) =>
+    Array.isArray(e.roles) && e.roles.map((s) => String(s).toLowerCase()).includes('abuse')
+  );
+  const abuseVcard = abuseEntity?.vcardArray ? readVCardFields(abuseEntity.vcardArray) : {};
+
+  const registrar = typeof raw.registrar === 'object' ? raw.registrar : typeof result.registrar === 'object' ? result.registrar : {};
+
+  let email =
+    abuseSource?.email ||
+    abuseVcard.email ||
+    abuseEntity?.email ||
+    raw.abuseEmail ||
+    raw.registrarAbuseEmail ||
+    raw.registrarAbuseContactEmail ||
+    raw.abuseContactEmail ||
+    registrar?.abuseEmail ||
+    registrar?.abuseContactEmail ||
+    null;
+
+  if (email && typeof email === 'string') {
+    email = email.replace(/^mailto:/i, '').trim();
+  }
+
+  let phone =
+    abuseSource?.phone ||
+    abuseVcard.phone ||
+    abuseEntity?.phone ||
+    raw.abusePhone ||
+    raw.registrarAbusePhone ||
+    raw.registrarAbuseContactPhone ||
+    raw.abuseContactPhone ||
+    registrar?.abusePhone ||
+    registrar?.abuseContactPhone ||
+    null;
+
+  if (phone && typeof phone === 'string') {
+    phone = phone.replace(/^tel:/i, '').trim();
+  }
+
+  const name = abuseSource?.name || abuseVcard.name || abuseEntity?.name || null;
+  const organization = abuseSource?.organization || abuseVcard.organization || abuseEntity?.organization || null;
+  const handle = abuseSource?.handle || abuseEntity?.handle || null;
+  const contactUrl =
+    abuseSource?.contactUrl ||
+    extractEntityContactUrl(abuseSource) ||
+    extractEntityContactUrl(abuseEntity) ||
+    null;
+
+  if (!email && !phone && !name && !organization && !contactUrl) {
+    return null;
+  }
+
+  return {
+    email,
+    phone,
+    name,
+    organization,
+    handle,
+    contactUrl,
+  };
+}
+
+export function extractNotices(result) {
+  if (!result) return [];
+  const raw = result.raw || result.result || result;
+  const list = Array.isArray(result.notices)
+    ? result.notices
+    : Array.isArray(raw.notices)
+      ? raw.notices
+      : [];
+
+  return list
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const title = item.title || 'Notice';
+      const descList = Array.isArray(item.description)
+        ? item.description.filter(Boolean)
+        : typeof item.description === 'string'
+          ? [item.description]
+          : [];
+      const description = descList.join(' ').trim();
+      const links = Array.isArray(item.links)
+        ? item.links
+            .map((link) => {
+              if (!link || typeof link !== 'object') return null;
+              return {
+                href: link.href || link.value || null,
+                rel: link.rel || 'help',
+                type: link.type || 'text/html',
+              };
+            })
+            .filter((l) => l && l.href)
+        : [];
+
+      return {
+        title,
+        description,
+        links,
+      };
+    })
+    .filter(Boolean);
 }
 
 export function extractStructuredContacts(result) {
@@ -1089,6 +1196,7 @@ export function generateRawWhoisText(result) {
   const domain = (result.domain || raw.domain || raw.domainName || raw.ldhName || '').toUpperCase();
   const events = parseRdapEvents(result.events || raw.events, raw);
   const registrar = extractRegistrarInfo(result);
+  const abuse = extractAbuseInfo(result);
   const contacts = extractStructuredContacts(result);
   const statuses = extractStatusList(result);
   const nameservers = extractNameservers(result);
@@ -1105,15 +1213,17 @@ export function generateRawWhoisText(result) {
   if (events.expirationDate) lines.push(`Registry Expiry Date: ${events.expirationDate}`);
   if (registrar?.name) lines.push(`Registrar: ${registrar.name}`);
   if (registrar?.ianaId) lines.push(`Registrar IANA ID: ${registrar.ianaId}`);
-  if (registrar?.abuseEmail) lines.push(`Registrar Abuse Contact Email: ${registrar.abuseEmail}`);
-  if (registrar?.abusePhone) lines.push(`Registrar Abuse Contact Phone: ${registrar.abusePhone}`);
+  const abuseEmail = abuse?.email || registrar?.abuseEmail;
+  const abusePhone = abuse?.phone || registrar?.abusePhone;
+  if (abuseEmail) lines.push(`Registrar Abuse Contact Email: ${abuseEmail}`);
+  if (abusePhone) lines.push(`Registrar Abuse Contact Phone: ${abusePhone}`);
 
   statuses.forEach((st) => {
     const rawSt = String(st).split(/\s+/)[0].replace(/https?:\/\/\S+/g, '');
     lines.push(`Domain Status: ${rawSt} https://icann.org/epp#${rawSt}`);
   });
 
-  if (contacts.registrant) {
+  if (contacts.registrant && !contacts.registrant.isRedacted) {
     const reg = contacts.registrant;
     if (reg.name) lines.push(`Registrant Name: ${reg.name}`);
     if (reg.organization) lines.push(`Registrant Organization: ${reg.organization}`);
@@ -1126,7 +1236,7 @@ export function generateRawWhoisText(result) {
     if (reg.email) lines.push(`Registrant Email: ${reg.email}`);
   }
 
-  if (contacts.technical) {
+  if (contacts.technical && !contacts.technical.isRedacted) {
     const tech = contacts.technical;
     if (tech.name) lines.push(`Tech Name: ${tech.name}`);
     if (tech.organization) lines.push(`Tech Organization: ${tech.organization}`);
@@ -1169,6 +1279,7 @@ export function normalizeWhoisEntry(entry) {
   const nameservers = extractNameservers({ raw, result: raw });
   const secureDNS = raw.secureDNS || null;
   const registrar = raw.registrar || null;
+  const abuse = raw.abuse || entry.abuse || raw.contacts?.abuse || null;
   const contacts = raw.contacts || entry.contacts || {};
   const entities = Array.isArray(raw.entities)
     ? raw.entities
@@ -1203,6 +1314,7 @@ export function normalizeWhoisEntry(entry) {
     nameservers,
     secureDNS,
     registrar,
+    abuse,
     contacts,
     entities,
     status,

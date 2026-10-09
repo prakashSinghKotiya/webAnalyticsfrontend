@@ -56,7 +56,7 @@ function CopyButton({ text, label = 'Copy', className = '' }) {
 
 /* ── MX Record Table View (Expanded Dropdown) ────────────────────────────── */
 
-function MxRecordView({ records = [], hostname = '', extraIps = {} }) {
+function MxRecordView({ records = [], hostname = '', extraIps = {}, isDemo = false }) {
   if (!records.length) {
     return <EmptyRecordNotice type="MX" />;
   }
@@ -136,7 +136,7 @@ function MxRecordView({ records = [], hostname = '', extraIps = {} }) {
                 <CopyButton text={item.exchange || item.host} label="Copy Host" className="hidden sm:inline-flex" />
                 {displayIp && (
                   <Link
-                    to={`${ROUTES.WHOIS}?domain=${encodeURIComponent(displayIp)}`}
+                    to={isDemo ? `${ROUTES.DEMO_WHOIS}?url=${encodeURIComponent(displayIp)}` : `${ROUTES.WHOIS}?domain=${encodeURIComponent(displayIp)}`}
                     className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--cyan)]"
                     title="Lookup IP ownership"
                   >
@@ -154,7 +154,7 @@ function MxRecordView({ records = [], hostname = '', extraIps = {} }) {
 
 /* ── A / AAAA Record Table View (Expanded Dropdown) ───────────────────────── */
 
-function AddressRecordView({ type = 'A', records = [], hostname = '' }) {
+function AddressRecordView({ type = 'A', records = [], hostname = '', isDemo = false }) {
   if (!records.length) {
     return <EmptyRecordNotice type={type} />;
   }
@@ -206,7 +206,7 @@ function AddressRecordView({ type = 'A', records = [], hostname = '' }) {
               <CopyButton text={item.address} label="Copy IP" />
               {type === 'A' && (
                 <Link
-                  to={`${ROUTES.WHOIS}?domain=${encodeURIComponent(item.address)}`}
+                  to={isDemo ? `${ROUTES.DEMO_WHOIS}?url=${encodeURIComponent(item.address)}` : `${ROUTES.WHOIS}?domain=${encodeURIComponent(item.address)}`}
                   className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--cyan)]"
                 >
                   IP Whois
@@ -565,14 +565,14 @@ function EmptyRecordNotice({ type }) {
 
 /* ── Dynamic Dispatcher for Dropdown Body ────────────────────────────────── */
 
-function RecordDataDispatcher({ type, recordInfo, hostname, extraIps }) {
+function RecordDataDispatcher({ type, recordInfo, hostname, extraIps, isDemo = false }) {
   switch (type) {
     case 'MX':
-      return <MxRecordView records={recordInfo.data} hostname={hostname} extraIps={extraIps} />;
+      return <MxRecordView records={recordInfo.data} hostname={hostname} extraIps={extraIps} isDemo={isDemo} />;
     case 'A':
-      return <AddressRecordView type="A" records={recordInfo.data} hostname={hostname} />;
+      return <AddressRecordView type="A" records={recordInfo.data} hostname={hostname} isDemo={isDemo} />;
     case 'AAAA':
-      return <AddressRecordView type="AAAA" records={recordInfo.data} hostname={hostname} />;
+      return <AddressRecordView type="AAAA" records={recordInfo.data} hostname={hostname} isDemo={isDemo} />;
     case 'CNAME':
       return <CnameRecordView records={recordInfo.data} hostname={hostname} />;
     case 'NS':
@@ -715,6 +715,7 @@ function DnsResultSection({
   onReRun,
   selectedType = 'ALL',
   onSelectType,
+  isDemo = false,
 }) {
   // Map of which record type accordion dropdowns are currently open
   const [openMap, setOpenMap] = useState({ MX: true });
@@ -1080,6 +1081,7 @@ function DnsResultSection({
                       recordInfo={recordInfo}
                       hostname={hostname}
                       extraIps={extraIps}
+                      isDemo={isDemo}
                     />
                   </div>
                 )}

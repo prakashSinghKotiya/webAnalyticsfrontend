@@ -2,16 +2,17 @@ import { memo, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../../constants';
 import {
+  analyzeWhoisSecurity,
   calculateDaysRemaining,
   calculateDomainAge,
-  cleanNameserverString,
-  cleanStatusString,
   exportWhoisReport,
+  extractAbuseInfo,
   extractNameservers,
+  extractNotices,
   extractRegistrarInfo,
   extractStatusList,
-  extractStructuredContacts,
   formatCleanDate,
+  formatEppStatus,
   generateRawWhoisText,
   parseRdapEvents,
 } from '../whois.utils';
@@ -56,14 +57,25 @@ function CopyButton({ text, label = 'Copy', className = '' }) {
   );
 }
 
-/* ── Destructured Field Row ──────────────────────────────────────────────── */
+/* ── Destructured Field Row (Only Renders When Value Is Valid & Available) ─ */
 
-function WhoisField({ label, value, isMono = true, copyable = true }) {
-  const displayVal = value && String(value).trim() ? String(value).trim() : '—';
-  const hasValue = displayVal !== '—';
-  const isUrl = hasValue && /^https?:\/\//i.test(displayVal);
-  const isEmail = hasValue && /^[^@\s]+@[^@\s]+\.[^@\s]+$/i.test(displayVal);
-  const isPhone = hasValue && !isUrl && !isEmail && /^\+?[\d\s\-().]{7,}$/.test(displayVal);
+function WhoisField({ label, value, isMono = true, copyable = true, href = null }) {
+  if (value == null) return null;
+  const displayVal = String(value).trim();
+  if (
+    !displayVal ||
+    displayVal === '—' ||
+    displayVal === '-' ||
+    displayVal === 'null' ||
+    displayVal === 'undefined'
+  ) {
+    return null;
+  }
+
+  const isUrl = Boolean(href) || /^https?:\/\//i.test(displayVal);
+  const targetUrl = href || displayVal;
+  const isEmail = !isUrl && /^[^@\s]+@[^@\s]+\.[^@\s]+$/i.test(displayVal);
+  const isPhone = !isUrl && !isEmail && /^\+?[\d\s\-().]{7,}$/.test(displayVal);
 
   return (
     <div className="group flex flex-col py-2.5 border-b border-[var(--border)] last:border-b-0 min-w-0">
@@ -74,13 +86,17 @@ function WhoisField({ label, value, isMono = true, copyable = true }) {
         <div className="min-w-0 flex-1">
           {isUrl ? (
             <a
-              href={displayVal}
+              href={targetUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs sm:text-sm font-semibold text-[var(--cyan)] hover:underline break-all"
-              title={displayVal}
+              className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-[var(--cyan)] hover:underline break-all"
+              title={targetUrl}
             >
-              {displayVal}
+              <span className="break-all">{displayVal}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="flex-none">
+                <line x1="7" y1="17" x2="17" y2="7" />
+                <polyline points="7 7 17 7 17 17" />
+              </svg>
             </a>
           ) : isEmail ? (
             <a
@@ -107,7 +123,7 @@ function WhoisField({ label, value, isMono = true, copyable = true }) {
           )}
         </div>
 
-        {copyable && hasValue && (
+        {copyable && (
           <CopyButton text={displayVal} className="opacity-75 group-hover:opacity-100 flex-none self-start sm:self-center" />
         )}
       </div>
@@ -120,6 +136,7 @@ function WhoisField({ label, value, isMono = true, copyable = true }) {
 function DomainInfoCard({
   domain,
   registryDomainId,
+  unicodeDomain,
   registrationDate,
   expirationDate,
   lastChangedDate,
@@ -130,7 +147,7 @@ function DomainInfoCard({
   nameServers = [],
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)]">
+    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)]">
       <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
         <div className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)] text-sm">
@@ -141,74 +158,114 @@ function DomainInfoCard({
           </h3>
         </div>
         {daysRemaining != null && (
-          <span className="font-['JetBrains_Mono',monospace] text-[11px] font-semibold text-[var(--cyan)]">
+          <span
+            className={`rounded-full px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] font-semibold ${
+              daysRemaining > 0
+                ? 'bg-[var(--cyan-dim)] text-[var(--cyan)]'
+                : 'bg-[var(--red)]/15 text-[var(--red)]'
+            }`}
+          >
             {daysRemaining > 0 ? `${daysRemaining}d remaining` : 'Expired'}
           </span>
         )}
       </div>
 
       <div className="divide-y divide-[var(--border)]">
-        <WhoisField label="Domain" value={domain} />
+        <WhoisField label="Domain Name" value={domain} />
+        {unicodeDomain && unicodeDomain.toUpperCase() !== domain.toUpperCase() && (
+          <WhoisField label="Unicode Domain" value={unicodeDomain} />
+        )}
         {registryDomainId && <WhoisField label="Registry Domain ID" value={registryDomainId} />}
-        <WhoisField label="Registered On" value={formatCleanDate(registrationDate)} />
-        <WhoisField label="Expires On" value={formatCleanDate(expirationDate)} />
-        <WhoisField label="Updated On" value={formatCleanDate(lastChangedDate)} />
+        {registrationDate && <WhoisField label="Registered On" value={formatCleanDate(registrationDate)} />}
+        {expirationDate && <WhoisField label="Expires On" value={formatCleanDate(expirationDate)} />}
+        {lastChangedDate && <WhoisField label="Updated On" value={formatCleanDate(lastChangedDate)} />}
         {domainAge && <WhoisField label="Domain Age" value={domainAge} isMono={false} />}
         {dnssecStatus && <WhoisField label="DNSSEC" value={dnssecStatus} isMono={false} />}
 
-        {/* Status List */}
+        {/* Status List with EPP Status Tags */}
         <div className="py-2.5 border-b border-[var(--border)]">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
-              Status:
+              Domain Status ({statuses.length}):
             </span>
             {statuses.length > 0 && (
               <CopyButton text={statuses.join('\n')} label="Copy All" />
             )}
           </div>
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-2.5 space-y-2">
             {statuses.length > 0 ? (
-              statuses.map((st, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-xs font-['JetBrains_Mono',monospace] text-[var(--text)] break-all">
-                  <span className="h-1.5 w-1.5 flex-none rounded-full bg-[var(--green)]" />
-                  <span>{st}</span>
-                </div>
-              ))
+              statuses.map((st, idx) => {
+                const info = formatEppStatus(st);
+                let badgeColor = 'var(--cyan)';
+                if (info.level === 'safe') badgeColor = 'var(--green)';
+                if (info.level === 'warning') badgeColor = 'var(--orange)';
+                if (info.level === 'danger') badgeColor = 'var(--red)';
+
+                return (
+                  <div
+                    key={idx}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="h-2 w-2 flex-none rounded-full"
+                        style={{ backgroundColor: badgeColor }}
+                      />
+                      <span className="font-['JetBrains_Mono',monospace] font-semibold text-[var(--text)] break-all">
+                        {st}
+                      </span>
+                    </div>
+                    {info.label && (
+                      <span
+                        className="self-start sm:self-auto rounded px-2 py-0.5 text-[10px] font-bold tracking-tight uppercase"
+                        style={{
+                          backgroundColor: `${badgeColor}18`,
+                          color: badgeColor,
+                          border: `1px solid ${badgeColor}35`,
+                        }}
+                      >
+                        {info.label}
+                      </span>
+                    )}
+                  </div>
+                );
+              })
             ) : (
-              <span className="text-xs text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">
-                active
-              </span>
+              <div className="flex items-center gap-2 text-xs font-['JetBrains_Mono',monospace] text-[var(--green)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--green)]" />
+                <span>Active</span>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Name Servers List */}
+        {/* Authoritative Name Servers List */}
         <div className="py-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
-              Name Servers:
+              Name Servers ({nameServers.length}):
             </span>
             {nameServers.length > 0 && (
               <CopyButton text={nameServers.join('\n')} label="Copy All" />
             )}
           </div>
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-2.5 space-y-1.5">
             {nameServers.length > 0 ? (
               nameServers.map((ns, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between gap-2 rounded-lg bg-[var(--surface-3)] px-3 py-2 text-xs font-['JetBrains_Mono',monospace]"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-['JetBrains_Mono',monospace]"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="h-1.5 w-1.5 flex-none rounded-full bg-[var(--cyan)]" />
-                    <span className="truncate break-all text-[var(--text)]">{ns}</span>
+                    <span className="truncate break-all font-semibold text-[var(--text)]">{ns}</span>
                   </div>
                   <CopyButton text={ns} className="flex-none" />
                 </div>
               ))
             ) : (
               <span className="text-xs text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">
-                —
+                No nameservers found
               </span>
             )}
           </div>
@@ -222,9 +279,16 @@ function DomainInfoCard({
 
 function RegistrarInfoCard({ registrar }) {
   const r = registrar || {};
+  const hasAnyValue = Boolean(
+    r.name || r.ianaId || r.url || r.whoisServer || r.email || r.phone || r.handle
+  );
+
+  if (!hasAnyValue) {
+    return null;
+  }
 
   return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)]">
+    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)]">
       <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
         <div className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)] text-sm">
@@ -234,65 +298,196 @@ function RegistrarInfoCard({ registrar }) {
             Registrar Information
           </h3>
         </div>
-      </div>
-
-      <div className="divide-y divide-[var(--border)]">
-        <WhoisField label="Registrar" value={r.name || '—'} isMono={false} />
-        <WhoisField label="IANA ID" value={r.ianaId || '—'} />
-        <WhoisField label="Email" value={r.email || r.abuseEmail || '—'} />
-        <WhoisField label="Abuse Email" value={r.abuseEmail || r.email || '—'} />
-        <WhoisField label="Abuse Phone" value={r.abusePhone || '—'} />
-        {r.whoisServer && <WhoisField label="WHOIS Server" value={r.whoisServer} />}
-        {r.url && <WhoisField label="Registrar URL" value={r.url} />}
-      </div>
-    </div>
-  );
-}
-
-/* ── Sections 3 & 4: Contact Card (Registrant / Technical) ───────────────── */
-
-function ContactCard({ title, icon = '👤', contact }) {
-  const c = contact || {};
-  const isRedacted = Boolean(c.isRedacted);
-
-  return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)]">
-      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)] text-sm">
-            {icon}
-          </span>
-          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-            {title}
-          </h3>
-        </div>
-        {isRedacted && (
-          <span className="rounded-full bg-[var(--cyan-dim)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--cyan)]">
-            Privacy Protected
+        {r.ianaId && (
+          <span className="rounded-full bg-[var(--surface-3)] px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[10px] font-semibold text-[var(--cyan)]">
+            IANA ID: {r.ianaId}
           </span>
         )}
       </div>
 
       <div className="divide-y divide-[var(--border)]">
-        <WhoisField
-          label="Name"
-          value={c.name || (isRedacted ? 'Registration Private' : '—')}
-          isMono={false}
-        />
-        <WhoisField label="Organization" value={c.organization || (isRedacted ? 'Privacy Shield' : '—')} isMono={false} />
-        <WhoisField label="Street" value={c.street || '—'} isMono={false} />
-        <WhoisField label="City" value={c.city || '—'} isMono={false} />
-        <WhoisField label="State" value={c.state || '—'} isMono={false} />
-        <WhoisField label="Postal Code" value={c.postalCode || '—'} />
-        <WhoisField label="Country" value={c.country || '—'} />
-        <WhoisField label="Phone" value={c.phone || (isRedacted ? 'Private' : '—')} />
-        <WhoisField label="Email" value={c.email || c.contactUrl || (isRedacted ? 'Private / Contact Form' : '—')} />
+        {r.name && <WhoisField label="Registrar Name" value={r.name} isMono={false} />}
+        {r.ianaId && <WhoisField label="IANA Registrar ID" value={r.ianaId} />}
+        {r.url && <WhoisField label="Registrar Website" value={r.url} />}
+        {r.whoisServer && <WhoisField label="RDAP / WHOIS Server" value={r.whoisServer} />}
+        {r.email && <WhoisField label="Registrar Email" value={r.email} />}
+        {r.phone && <WhoisField label="Registrar Phone" value={r.phone} />}
+        {r.handle && r.handle !== r.ianaId && <WhoisField label="Registrar Handle" value={r.handle} />}
       </div>
     </div>
   );
 }
 
-/* ── Section 5: Raw WHOIS Record (Interactive Dropdown / Accordion) ─────── */
+/* ── Section 3: Abuse & Security Information Card ────────────────────────── */
+
+function AbuseInfoCard({ abuse }) {
+  const ab = abuse || {};
+  const hasData = Boolean(ab.email || ab.phone || ab.name || ab.organization || ab.contactUrl || ab.handle);
+
+  if (!hasData) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)]">
+      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--orange)]/15 text-[var(--orange)] text-sm">
+            🚨
+          </span>
+          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
+            Abuse & Security Contact
+          </h3>
+        </div>
+        <span className="rounded-full bg-[var(--orange)]/15 px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[10px] font-bold uppercase tracking-wider text-[var(--orange)]">
+          Abuse Hotline
+        </span>
+      </div>
+
+      <p className="mb-3 text-[11px] leading-relaxed text-[var(--muted-2)]">
+        Designated point of contact for reporting network abuse, phishing, copyright violations, or malicious domain activity.
+      </p>
+
+      <div className="divide-y divide-[var(--border)]">
+        {ab.email && <WhoisField label="Abuse Contact Email" value={ab.email} />}
+        {ab.phone && <WhoisField label="Abuse Contact Phone" value={ab.phone} />}
+        {ab.organization && <WhoisField label="Abuse Organization" value={ab.organization} isMono={false} />}
+        {ab.name && <WhoisField label="Contact Name" value={ab.name} isMono={false} />}
+        {ab.contactUrl && <WhoisField label="Abuse Web Form" value={ab.contactUrl} />}
+        {ab.handle && <WhoisField label="Abuse Entity Handle" value={ab.handle} />}
+      </div>
+    </div>
+  );
+}
+
+/* ── Section 4: Authoritative ICANN Notices & Verification Links ─────────── */
+
+function NoticesCard({ notices = [] }) {
+  if (!notices || notices.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)] lg:col-span-2">
+      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)] text-sm">
+            📋
+          </span>
+          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
+            Authoritative ICANN Notices & Registry Links
+          </h3>
+        </div>
+        <span className="rounded-full bg-[var(--surface-3)] px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[10px] font-semibold text-[var(--muted-2)]">
+          {notices.length} Notices
+        </span>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {notices.map((n, idx) => (
+          <div
+            key={idx}
+            className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4"
+          >
+            <div>
+              <h4 className="font-['Outfit',sans-serif] text-xs font-bold text-[var(--text)]">
+                {n.title}
+              </h4>
+              {n.description && (
+                <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-2)]">
+                  {n.description}
+                </p>
+              )}
+            </div>
+
+            {n.links && n.links.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-[var(--border)]/60">
+                {n.links.map((link, lIdx) => (
+                  <a
+                    key={lIdx}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--cyan)] hover:underline break-all"
+                  >
+                    <span>View Reference</span>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="7" y1="17" x2="17" y2="7" />
+                      <polyline points="7 7 17 7 17 17" />
+                    </svg>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Section 5: Security & Health Diagnostics Card ───────────────────────── */
+
+function DomainSecurityCard({ events, nameservers, secureDNS }) {
+  const diagnostics = useMemo(() => {
+    return analyzeWhoisSecurity({ events, nameservers, secureDNS });
+  }, [events, nameservers, secureDNS]);
+
+  if (!diagnostics || !diagnostics.length) return null;
+
+  return (
+    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)] lg:col-span-2">
+      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--green-dim)] text-[var(--green)] text-sm">
+            🛡️
+          </span>
+          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
+            Domain Security & Infrastructure Health
+          </h3>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {diagnostics.map((diag, idx) => {
+          let badgeColor = 'var(--cyan)';
+          if (diag.status === 'pass') badgeColor = 'var(--green)';
+          if (diag.status === 'warn') badgeColor = 'var(--orange)';
+          if (diag.status === 'fail') badgeColor = 'var(--red)';
+
+          return (
+            <div
+              key={idx}
+              className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="font-['Outfit',sans-serif] text-xs font-bold text-[var(--text)]">
+                    {diag.title}
+                  </h4>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                    style={{
+                      color: badgeColor,
+                      backgroundColor: `${badgeColor}15`,
+                    }}
+                  >
+                    {diag.badge}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-[var(--muted-2)]">
+                  {diag.desc}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Section 6: Raw WHOIS Record (Dropdown Accordion) ────────────────────── */
 
 function RawWhoisDropdown({ rawText, rawData, defaultOpen = false }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -310,7 +505,7 @@ function RawWhoisDropdown({ rawText, rawData, defaultOpen = false }) {
 
   return (
     <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden transition-all duration-200">
-      {/* Accordion Dropdown Trigger Header */}
+      {/* Accordion Trigger Header */}
       <div
         role="button"
         tabIndex={0}
@@ -338,7 +533,7 @@ function RawWhoisDropdown({ rawText, rawData, defaultOpen = false }) {
               </span>
             </div>
             <p className="mt-0.5 text-xs text-[var(--muted-2)]">
-              {isOpen ? 'Click to close raw record' : 'Click to open and inspect the full raw WHOIS database record'}
+              {isOpen ? 'Click to close raw record view' : 'Click to inspect authoritative raw text & RDAP JSON responses'}
             </p>
           </div>
         </div>
@@ -360,7 +555,6 @@ function RawWhoisDropdown({ rawText, rawData, defaultOpen = false }) {
       {/* Accordion Body */}
       {isOpen && (
         <div className="border-t border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-6">
-          {/* Format Sub-tab buttons */}
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] p-1 text-xs">
               <button
@@ -388,11 +582,10 @@ function RawWhoisDropdown({ rawText, rawData, defaultOpen = false }) {
             </div>
 
             <span className="font-['JetBrains_Mono',monospace] text-[10px] text-[var(--muted-2)]">
-              Authoritative Registry Response
+              Authoritative Registry Query Response
             </span>
           </div>
 
-          {/* Monospace Code Container */}
           <div className="relative rounded-xl border border-[var(--border)] bg-[#12141a] p-4 text-xs font-['JetBrains_Mono',monospace] leading-relaxed shadow-inner">
             <pre className="max-h-[500px] overflow-x-auto overflow-y-auto whitespace-pre text-[var(--text-2)] select-text">
               {activeContent}
@@ -404,7 +597,7 @@ function RawWhoisDropdown({ rawText, rawData, defaultOpen = false }) {
   );
 }
 
-/* ── Section 6: Actionable Next Steps Hub ────────────────────────────────── */
+/* ── Section 7: Actionable Next Steps Hub ────────────────────────────────── */
 
 function WhoisActionHub({ domain, isDemo = false }) {
   const cleanDomain = encodeURIComponent(domain || '');
@@ -518,7 +711,7 @@ function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun
             Querying ICANN WHOIS / RDAP Registry…
           </h3>
           <p className="mt-2 max-w-sm text-xs text-[var(--muted-2)]">
-            Fetching registrar accreditation, owner contacts, lifecycle events, and authoritative nameservers.
+            Fetching registrar accreditation, abuse contacts, lifecycle dates, and authoritative nameservers.
           </p>
           <div className="mt-5 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[var(--bar-track)]">
             <div className="h-full w-full rounded-full bg-gradient-to-r from-[var(--cyan)] to-blue-500 animate-[marquee_2s_linear_infinite]" />
@@ -571,14 +764,14 @@ function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun
           >
             <circle cx="12" cy="12" r="10" />
             <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z" />
           </svg>
         </span>
         <h3 className="font-['Outfit',sans-serif] text-lg font-bold text-[var(--text)]">
           No WHOIS Records Queried
         </h3>
         <p className="mx-auto mt-1.5 max-w-md text-xs text-[var(--muted-2)]">
-          Enter a domain name above to inspect official ICANN RDAP registration dates, owner contacts, registrar details, and raw WHOIS record.
+          Enter a domain name above to inspect official ICANN RDAP registration dates, registrar accreditation, abuse hotline, and raw WHOIS record.
         </p>
       </section>
     );
@@ -586,9 +779,11 @@ function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun
 
   const rawData = result.raw || result.result || result;
   const domain = (result.domain || rawData.domain || rawData.domainName || rawData.ldhName || result.url || '').toLowerCase();
+  const unicodeDomain = result.unicodeDomain || rawData.unicodeDomain || rawData.unicodeName || null;
   const events = parseRdapEvents(result.events || rawData.events, rawData);
   const registrar = extractRegistrarInfo(result);
-  const contacts = extractStructuredContacts(result);
+  const abuse = extractAbuseInfo(result);
+  const notices = extractNotices(result);
   const statuses = extractStatusList(result);
   const nameServers = extractNameservers(result);
   const registryDomainId = rawData.handle || rawData.registryDomainId || rawData.domainId || null;
@@ -639,7 +834,7 @@ function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun
             </span>
           </div>
           <p className="mt-1.5 text-xs text-[var(--muted-2)]">
-            Registered: {formatCleanDate(events.registrationDate)} {domainAge ? `(${domainAge} old)` : ''} • Checked via ICANN Protocol
+            Registered: {formatCleanDate(events.registrationDate)} {domainAge ? `(${domainAge} old)` : ''} • Checked via Official RDAP Protocol
           </p>
         </div>
 
@@ -673,12 +868,13 @@ function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun
         </div>
       </div>
 
-      {/* ── Main Destructured Grid: 2 Columns ────────────────────────────── */}
+      {/* ── Main Destructured Grid: Domain, Registrar, Abuse Contact ──────── */}
       <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Card 1: Domain Information */}
         <DomainInfoCard
           domain={domain}
           registryDomainId={registryDomainId}
+          unicodeDomain={unicodeDomain}
           registrationDate={events.registrationDate}
           expirationDate={events.expirationDate}
           lastChangedDate={events.lastChangedDate}
@@ -692,38 +888,32 @@ function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun
         {/* Card 2: Registrar Information */}
         <RegistrarInfoCard registrar={registrar} />
 
-        {/* Card 3: Registrant Contact */}
-        <ContactCard
-          title="Registrant Contact"
-          icon="👑"
-          contact={contacts.registrant}
-        />
-
-        {/* Card 4: Technical Contact */}
-        <ContactCard
-          title="Technical Contact"
-          icon="⚙️"
-          contact={contacts.technical}
-        />
-
-        {/* Card 5 (if Administrative Contact is present and distinct from Registrant/Tech) */}
-        {contacts.administrative && (contacts.administrative.name || contacts.administrative.organization || contacts.administrative.email) && (
-          <ContactCard
-            title="Administrative Contact"
-            icon="👤"
-            contact={contacts.administrative}
-          />
+        {/* Card 3: Abuse & Security Contact (Full width if only card in row, else fits grid) */}
+        {abuse && (
+          <div className={registrar ? 'lg:col-span-2' : 'lg:col-span-1'}>
+            <AbuseInfoCard abuse={abuse} />
+          </div>
         )}
+
+        {/* Card 4: Domain Security Diagnostics */}
+        <DomainSecurityCard
+          events={result.events || rawData.events}
+          nameservers={nameServers}
+          secureDNS={secureDNS}
+        />
+
+        {/* Card 5: Authoritative ICANN Notices & Links */}
+        {notices.length > 0 && <NoticesCard notices={notices} />}
       </div>
 
-      {/* ── Section 5: Raw WHOIS Record (Collapsible Dropdown Accordion) ──── */}
+      {/* ── Section 6: Raw WHOIS Record (Collapsible Dropdown Accordion) ──── */}
       <RawWhoisDropdown
         rawText={rawWhoisText}
         rawData={rawData}
         defaultOpen={false}
       />
 
-      {/* ── Section 6: Actionable Tools Hub ──────────────────────────────── */}
+      {/* ── Section 7: Actionable Tools Hub ──────────────────────────────── */}
       <WhoisActionHub domain={domain} isDemo={isDemo} />
     </div>
   );

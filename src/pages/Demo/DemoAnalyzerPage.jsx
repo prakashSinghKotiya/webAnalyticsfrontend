@@ -14,6 +14,7 @@ import { normalizeLighthouseEntry, rateScore } from '../Lighthouse/lighthouse.ut
 import { normalizeDnsEntry, normalizeDomain } from '../DnsType/dns.utils';
 import { normalizeRedirectEntry, normalizeRedirectUrl } from '../Redirects/redirects.utils';
 import { normalizeWhoisEntry } from '../Whois/whois.utils';
+import DnsResultSection from '../DnsType/components/DnsResultSection';
 import WhoisResultSection from '../Whois/components/WhoisResultSection';
 
 const TOOL_CONFIG = {
@@ -660,9 +661,9 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
           <section className="fade-up mt-6">
             {activeTool === 'ttfb' && <TtfbResult readings={result} />}
             {activeTool === 'lighthouse' && <LighthouseResult report={result} />}
-            {activeTool === 'dns' && <DnsResult data={result} />}
+            {activeTool === 'dns' && <DnsResultSection result={result} isDemo={true} onReRun={runDemo} />}
             {activeTool === 'redirects' && <RedirectsResult data={result} />}
-            {activeTool === 'whois' && <WhoisResult data={result} />}
+            {activeTool === 'whois' && <WhoisResultSection result={result} isDemo={true} onReRun={runDemo} />}
           </section>
         )}
 
@@ -770,49 +771,6 @@ function LighthouseResult({ report }) {
   );
 }
 
-function DnsResult({ data }) {
-  const records = data?.records || data?.result?.records || data?.result || {};
-  const hasRecords = Object.keys(records).length > 0;
-  return (
-    <div className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)]">
-      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-        <div>
-          <span className="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-wider text-[var(--green)]">
-            DNS RESOLUTION
-          </span>
-          <h2 className="font-['Outfit',sans-serif] mt-0.5 text-xl font-bold">Domain DNS Records</h2>
-        </div>
-        <span className="rounded-full bg-[var(--green-dim)] px-3 py-1 font-['JetBrains_Mono',monospace] text-xs font-bold text-[var(--green)]">
-          Complete
-        </span>
-      </div>
-      <div className="mt-5 space-y-3">
-        {hasRecords ? (
-          Object.entries(records).map(([type, values]) => {
-            const list = Array.isArray(values) ? values : [values];
-            return (
-              <div key={type} className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
-                <span className="rounded-md bg-[var(--green-dim)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-xs font-bold text-[var(--green)]">
-                  {type}
-                </span>
-                <div className="mt-2 space-y-1">
-                  {list.map((val, idx) => (
-                    <p key={idx} className="font-['JetBrains_Mono',monospace] text-xs text-[var(--text)] break-all">
-                      {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <p className="text-xs text-[var(--muted)]">No standard DNS records returned for this hostname.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function RedirectsResult({ data }) {
   const chain = data?.chain || data?.result?.chain || [];
   const hops = chain.length > 0 ? chain.length : 1;
@@ -858,8 +816,4 @@ function RedirectsResult({ data }) {
       </div>
     </div>
   );
-}
-
-function WhoisResult({ data }) {
-  return <WhoisResultSection result={data} isDemo={true} />;
 }
