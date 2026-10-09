@@ -22,10 +22,10 @@ function WhoisInputSection({ domain, onDomainChange, isLookingUp, onSubmit }) {
   );
 
   return (
-    <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-8">
+    <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-8 shadow-[var(--shadow-card)]">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-[var(--cyan-dim)] text-[var(--cyan)]">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="flex h-10 w-10 sm:h-11 sm:w-11 flex-none items-center justify-center rounded-xl bg-[var(--cyan-dim)] text-[var(--cyan)]">
             <svg
               width="22"
               height="22"
@@ -42,8 +42,8 @@ function WhoisInputSection({ domain, onDomainChange, isLookingUp, onSubmit }) {
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             </svg>
           </span>
-          <div>
-            <h1 className="font-['Outfit',sans-serif] text-2xl font-bold tracking-tight text-[var(--text)]">
+          <div className="min-w-0">
+            <h1 className="font-['Outfit',sans-serif] text-xl sm:text-2xl font-bold tracking-tight text-[var(--text)] truncate">
               WHOIS & RDAP Domain Inspector
             </h1>
             <p className="text-xs text-[var(--muted-2)]">
@@ -53,7 +53,7 @@ function WhoisInputSection({ domain, onDomainChange, isLookingUp, onSubmit }) {
         </div>
 
         {/* Live Engine Badges */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs text-[var(--text-2)]">
             <span
               className={`h-2 w-2 rounded-full ${

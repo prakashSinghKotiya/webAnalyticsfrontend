@@ -161,20 +161,42 @@ function pickArray(payload) {
   return null;
 }
 
+/** Extracts detailed metrics from an object. */
+function extractMetrics(source) {
+  if (!source || typeof source !== 'object') return {};
+  // Probe responses may wrap the detailed timing fields under `result` or
+  // `data`, while keeping only the region and headline TTFB on the outer row.
+  const details = source.result ?? source.data ?? source.metrics ?? source;
+  const fields = [
+    'totalToFirstByte', 'dns', 'tcp', 'tls', 'min', 'max', 'samples',
+    'reliable', 'statusCode',
+  ];
+  return Object.fromEntries(
+    fields
+      .filter((key) => details[key] !== undefined)
+      .map((key) => [key, details[key]]),
+  );
+}
+
 /**
- * Normalize a `ttfbCompleted` socket payload into `[{ region, ms }]`.
+ * Normalize a `ttfbCompleted` socket payload into `[{ region, ms, ...metrics }]`.
  *
  * Intentionally defensive: the backend emits once per probe for `find`, and
  * once (or once per queue) for `findAll`, so the shape varies. Unknown shapes
  * resolve to an empty array and are ignored by the caller.
  */
 export function extractReadings(payload) {
+
+ // console.log("rAW TTFB PAYLOAD ", payload)
   const list = pickArray(payload);
   if (list) {
     const readings = [];
     for (const item of list) {
       const ms = pickMs(item);
-      if (ms != null) readings.push({ region: pickRegion(item), ms });
+      if (ms != null) {
+        const detailSource = item?.result ?? item?.data ?? item?.metrics ?? item;
+        readings.push({ region: pickRegion(item), ms, ...extractMetrics(detailSource) });
+      }
     }
     if (readings.length) return readings;
   }
@@ -182,7 +204,9 @@ export function extractReadings(payload) {
   const nested = payload?.data ?? payload?.result ?? payload?.payload;
   const ms = pickMs(payload) ?? pickMs(nested);
   if (ms != null) {
-    return [{ region: pickRegion(payload, pickRegion(nested)), ms }];
+    const region = pickRegion(payload, pickRegion(nested));
+    const metrics = { ...extractMetrics(nested), ...extractMetrics(payload) };
+    return [{ region, ms, ...metrics }];
   }
 
   return [];
@@ -213,7 +237,17 @@ export function regionLabel(region) {
 export function normalizeDbEntry(doc) {
   if (!doc) return null;
   const ms = doc.result?.ttfb != null ? Number(doc.result.ttfb) : null;
-  const readings = ms != null ? [{ region: doc.region, ms, statusCode: doc.result?.statusCode }] : [];
+  const metrics = doc.result ? {
+    totalToFirstByte: doc.result.totalToFirstByte,
+    dns: doc.result.dns,
+    tcp: doc.result.tcp,
+    tls: doc.result.tls,
+    min: doc.result.min,
+    max: doc.result.max,
+    samples: doc.result.samples,
+    reliable: doc.result.reliable,
+  } : {};
+  const readings = ms != null ? [{ region: doc.region, ms, statusCode: doc.result?.statusCode, ...metrics }] : [];
   return {
     id: doc._id,
     dbId: doc._id,
@@ -245,15 +279,25 @@ export function groupDbRecords(records = []) {
     });
 
     const ms = doc.result?.ttfb != null ? Number(doc.result.ttfb) : null;
-    const reading = ms != null ? { region: doc.region, ms, statusCode: doc.result?.statusCode } : null;
+    const metrics = doc.result ? {
+      totalToFirstByte: doc.result.totalToFirstByte,
+      dns: doc.result.dns,
+      tcp: doc.result.tcp,
+      tls: doc.result.tls,
+      min: doc.result.min,
+      max: doc.result.max,
+      samples: doc.result.samples,
+      reliable: doc.result.reliable,
+    } : {};
+    const reading = ms != null ? { region: doc.region, ms, statusCode: doc.result?.statusCode, ...metrics } : null;
 
     if (existing) {
       if (reading) existing.readings.push(reading);
       existing.region = ALL_REGIONS;
-      const metrics = summarize(existing.readings);
-      existing.avg = metrics.avg;
-      existing.fastest = metrics.fastest;
-      existing.slowest = metrics.slowest;
+      const sums = summarize(existing.readings);
+      existing.avg = sums.avg;
+      existing.fastest = sums.fastest;
+      existing.slowest = sums.slowest;
       existing.docIds.push(doc._id);
       if (doc.status === 'failed') existing.status = 'failed';
     } else {

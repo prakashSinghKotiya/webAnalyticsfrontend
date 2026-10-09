@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { formatMs, rateLatency, regionLabel, relativeTime } from '../ttfb.utils';
 
 const CARD = 'rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-8';
@@ -21,37 +21,94 @@ function StatCard({ label, value, hint, token }) {
   );
 }
 
-/** One probe reading: region, latency and a relative bar. */
-function ReadingRow({ region, ms, slowest, statusCode }) {
+/** One probe reading: region, latency and a relative bar. Expandable for details. */
+function ReadingRow({ reading, slowest, isExpandedByDefault }) {
+  const { region, ms, statusCode, dns, tcp, tls, totalToFirstByte, min, max, samples, reliable } = reading;
+  const [expanded, setExpanded] = useState(isExpandedByDefault || false);
   const { label, token } = rateLatency(ms);
   const ratio = slowest ? (Number(ms) / slowest) * 100 : 100;
   const width = Math.max(6, Math.min(100, Number.isFinite(ratio) ? ratio : 100));
 
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_140px]">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-[var(--text)]">{regionLabel(region)}</p>
-        <p className="text-xs" style={{ color: token }}>
-          {label}
-        </p>
-      </div>
-      {statusCode ? (
-        <span className="rounded-md border border-[var(--border-mid)] bg-[var(--surface)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted-2)]">
-          HTTP {statusCode}
-        </span>
-      ) : <span />}
-      <span
-        className="font-['JetBrains_Mono',monospace] text-sm font-semibold tabular-nums"
-        style={{ color: token }}
+    <li className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden">
+      <div 
+        className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto_140px_auto] items-center gap-x-4 gap-y-2 px-4 py-3 cursor-pointer hover:bg-[var(--surface)] transition-colors"
+        onClick={() => setExpanded(!expanded)}
       >
-        {formatMs(ms)}
-      </span>
-      <div className="col-span-2 h-2 w-full overflow-hidden rounded-full bg-[var(--bar-track)] sm:col-span-1">
-        <div
-          className="h-full rounded-full transition-[width] duration-500 ease-out"
-          style={{ width: `${width}%`, backgroundColor: token }}
-        />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-[var(--text)]">{regionLabel(region)}</p>
+          <p className="text-xs" style={{ color: token }}>
+            {label}
+          </p>
+        </div>
+        {statusCode ? (
+          <span className="rounded-md border border-[var(--border-mid)] bg-[var(--surface)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted-2)]">
+            HTTP {statusCode}
+          </span>
+        ) : <span />}
+        <span
+          className="font-['JetBrains_Mono',monospace] text-sm font-semibold tabular-nums"
+          style={{ color: token }}
+        >
+          {formatMs(ms)}
+        </span>
+        <div className="hidden sm:block h-2 w-full overflow-hidden rounded-full bg-[var(--bar-track)]">
+          <div
+            className="h-full rounded-full transition-[width] duration-500 ease-out"
+            style={{ width: `${width}%`, backgroundColor: token }}
+          />
+        </div>
+        <div className="text-[var(--muted)] flex items-center justify-center">
+          {expanded ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          )}
+        </div>
       </div>
+      
+      {expanded && (
+        <div className="border-t border-[var(--border)] bg-[var(--surface)] p-4 sm:px-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">TTFB</span>
+              <span className="text-sm font-medium text-[var(--text)]">{formatMs(ms)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">Total to First Byte</span>
+              <span className="text-sm font-medium text-[var(--text)]">{formatMs(totalToFirstByte)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">DNS Lookup</span>
+              <span className="text-sm font-medium text-[var(--text)]">{formatMs(dns)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">TCP Connection</span>
+              <span className="text-sm font-medium text-[var(--text)]">{formatMs(tcp)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">TLS Handshake</span>
+              <span className="text-sm font-medium text-[var(--text)]">{formatMs(tls)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">Min / Max</span>
+              <span className="text-sm font-medium text-[var(--text)]">
+                {formatMs(min)} / {formatMs(max)}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">Samples</span>
+              <span className="text-sm font-medium text-[var(--text)]">{samples ?? '—'}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">Reliable</span>
+              <span className="text-sm font-medium text-[var(--text)]">
+                {reliable === true ? 'Yes' : reliable === false ? 'No' : '—'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </li>
   );
 }
@@ -185,11 +242,10 @@ function ResultPanel({ result, isScanning, progress, error }) {
       <ul className="flex flex-col gap-2">
         {readings.map((reading) => (
           <ReadingRow
-            key={reading.region}
-            region={reading.region}
-            ms={reading.ms}
+            key={`${result.id}-${reading.region}`}
+            reading={{ ...reading, statusCode: reading.statusCode || result.statusCode }}
             slowest={result.slowest}
-            statusCode={reading.statusCode || result.statusCode}
+            isExpandedByDefault={readings.length === 1 || reading.region === fastestRegion}
           />
         ))}
       </ul>

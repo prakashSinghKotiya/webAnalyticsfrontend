@@ -137,7 +137,7 @@ function WhoisHistorySection({
   const total = pagination?.total ?? history?.length ?? 0;
 
   return (
-    <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-8">
+    <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-8 shadow-[var(--shadow-card)]">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
         <div className="flex items-center gap-2">
           <h2 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">

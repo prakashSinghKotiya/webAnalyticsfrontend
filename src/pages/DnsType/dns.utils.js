@@ -301,15 +301,15 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   const aFound = aRaw?.status === 'found' && Boolean(aRaw?.data);
   const aData = aFound
     ? (Array.isArray(aRaw.data) ? aRaw.data : [aRaw.data]).map((item) => {
-        const address = typeof item === 'object' ? item.address || '' : String(item);
+        const address = typeof item === 'object' ? item.address || item.ip || '' : String(item);
         const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
         return {
-          host: hostname || '@',
+          host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
           address,
           ttl,
           class: 'IN',
           type: 'A',
-          country: detectIpCountry(address, hostname),
+          country: detectIpCountry(address, typeof item === 'object' ? item.name || hostname : hostname),
         };
       })
     : [];
@@ -326,10 +326,10 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   const aaaaFound = aaaaRaw?.status === 'found' && Boolean(aaaaRaw?.data);
   const aaaaData = aaaaFound
     ? (Array.isArray(aaaaRaw.data) ? aaaaRaw.data : [aaaaRaw.data]).map((item) => {
-        const address = typeof item === 'object' ? item.address || '' : String(item);
+        const address = typeof item === 'object' ? item.address || item.ip || '' : String(item);
         const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
         return {
-          host: hostname || '@',
+          host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
           address,
           ttl,
           class: 'IN',
@@ -349,13 +349,17 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   const cnameRaw = records.CNAME;
   const cnameFound = cnameRaw?.status === 'found' && Boolean(cnameRaw?.data);
   const cnameList = cnameFound
-    ? (Array.isArray(cnameRaw.data) ? cnameRaw.data : [cnameRaw.data]).map((target) => ({
-        host: hostname || '@',
-        target: String(target),
-        ttl: 300,
-        class: 'IN',
-        type: 'CNAME',
-      }))
+    ? (Array.isArray(cnameRaw.data) ? cnameRaw.data : [cnameRaw.data]).map((item) => {
+        const target = typeof item === 'object' ? item.value || item.target || '' : String(item);
+        const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
+        return {
+          host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
+          target,
+          ttl,
+          class: 'IN',
+          type: 'CNAME',
+        };
+      })
     : [];
   result.CNAME = {
     type: 'CNAME',
@@ -370,16 +374,16 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   const mxFound = mxRaw?.status === 'found' && Boolean(mxRaw?.data);
   const mxList = mxFound
     ? (Array.isArray(mxRaw.data) ? mxRaw.data : [mxRaw.data]).map((item) => {
-        const exchange = typeof item === 'object' ? item.exchange || '' : String(item);
-        const priority = typeof item === 'object' ? item.priority ?? 10 : 10;
+        const exchange = typeof item === 'object' ? item.exchange || item.mx || '' : String(item);
+        const priority = typeof item === 'object' ? item.priority ?? item.preference ?? 10 : 10;
         const ip = typeof item === 'object' ? item.ip || item.address || '' : '';
         const country = detectIpCountry(ip, exchange);
         return {
           priority,
           exchange,
-          host: exchange,
+          host: typeof item === 'object' ? item.name || exchange : exchange,
           ip,
-          ttl: typeof item === 'object' ? item.ttl ?? 300 : 300,
+          ttl: typeof item === 'object' ? item.ttl ?? item.mxTtl ?? 300 : 300,
           country,
           class: 'IN',
           type: 'MX',
@@ -398,13 +402,17 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   const nsRaw = records.NS;
   const nsFound = nsRaw?.status === 'found' && Boolean(nsRaw?.data);
   const nsList = nsFound
-    ? (Array.isArray(nsRaw.data) ? nsRaw.data : [nsRaw.data]).map((ns) => ({
-        host: hostname || '@',
-        nameserver: String(ns),
-        ttl: 300,
-        class: 'IN',
-        type: 'NS',
-      }))
+    ? (Array.isArray(nsRaw.data) ? nsRaw.data : [nsRaw.data]).map((ns) => {
+        const nameserver = typeof ns === 'object' ? ns.value || ns.nameserver || '' : String(ns);
+        const ttl = typeof ns === 'object' ? ns.ttl ?? 300 : 300;
+        return {
+          host: typeof ns === 'object' ? ns.name || hostname || '@' : hostname || '@',
+          nameserver,
+          ttl,
+          class: 'IN',
+          type: 'NS',
+        };
+      })
     : [];
   result.NS = {
     type: 'NS',
@@ -418,13 +426,17 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   const ptrRaw = records.PTR;
   const ptrFound = ptrRaw?.status === 'found' && Boolean(ptrRaw?.data);
   const ptrList = ptrFound
-    ? (Array.isArray(ptrRaw.data) ? ptrRaw.data : [ptrRaw.data]).map((target) => ({
-        host: hostname || '@',
-        target: String(target),
-        ttl: 300,
-        class: 'IN',
-        type: 'PTR',
-      }))
+    ? (Array.isArray(ptrRaw.data) ? ptrRaw.data : [ptrRaw.data]).map((item) => {
+        const target = typeof item === 'object' ? item.value || item.target || '' : String(item);
+        const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
+        return {
+          host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
+          target,
+          ttl,
+          class: 'IN',
+          type: 'PTR',
+        };
+      })
     : [];
   result.PTR = {
     type: 'PTR',
@@ -437,20 +449,30 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   // 7. SOA Records
   const soaRaw = records.SOA;
   const soaFound = soaRaw?.status === 'found' && Boolean(soaRaw?.data);
+  const soaDataRaw = soaFound ? (Array.isArray(soaRaw.data) ? soaRaw.data[0] : soaRaw.data) : null;
+  const mappedSoa = soaDataRaw ? {
+    nsname: soaDataRaw.nsname || soaDataRaw.mname || '',
+    hostmaster: soaDataRaw.hostmaster || soaDataRaw.rname || '',
+    serial: soaDataRaw.serial,
+    refresh: soaDataRaw.refresh,
+    retry: soaDataRaw.retry,
+    expire: soaDataRaw.expire,
+    minttl: soaDataRaw.minttl || soaDataRaw.minimum
+  } : null;
   result.SOA = {
     type: 'SOA',
-    count: soaFound ? 1 : 0,
-    label: soaFound ? 'SOA (1 Records)' : 'SOA',
+    count: mappedSoa ? 1 : 0,
+    label: mappedSoa ? 'SOA (1 Records)' : 'SOA',
     status: soaFound ? 'found' : soaRaw?.status || 'not_found',
-    data: soaFound ? soaRaw.data : null,
+    data: mappedSoa,
   };
 
   // 8. SPF (Extracted from TXT)
   const txtRaw = records.TXT;
-  const allTxtList =
-    txtRaw?.status === 'found' && Boolean(txtRaw?.data)
-      ? (Array.isArray(txtRaw.data) ? txtRaw.data : [txtRaw.data]).map(String)
-      : [];
+  const rawTxtArray = txtRaw?.status === 'found' && Boolean(txtRaw?.data)
+    ? (Array.isArray(txtRaw.data) ? txtRaw.data : [txtRaw.data])
+    : [];
+  const allTxtList = rawTxtArray.map((item) => typeof item === 'object' ? item.value || item.text || JSON.stringify(item) : String(item));
   const spfString = extractSpfRecord(allTxtList);
   const spfParsed = spfString ? parseSpfMechanisms(spfString) : null;
   result.SPF = {
@@ -462,18 +484,27 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   };
 
   // 9. TXT Records (remaining non-SPF records, or all TXT records)
-  const nonSpfTxtList = allTxtList.filter((t) => !/^v=spf1(\s|$)/i.test(t.trim()));
-  const txtDisplayList = nonSpfTxtList.length > 0 ? nonSpfTxtList : allTxtList;
+  const txtDisplayData = rawTxtArray.filter((item) => {
+    const textStr = typeof item === 'object' ? item.value || item.text || JSON.stringify(item) : String(item);
+    return !/^v=spf1(\s|$)/i.test(textStr.trim());
+  });
+  const finalTxtList = txtDisplayData.length > 0 ? txtDisplayData : rawTxtArray;
+
   result.TXT = {
     type: 'TXT',
-    count: txtDisplayList.length,
-    label: txtDisplayList.length > 0 ? `TXT (${txtDisplayList.length} Records)` : 'TXT',
-    status: txtDisplayList.length > 0 ? 'found' : txtRaw?.status || 'not_found',
-    data: txtDisplayList.map((txt) => ({
-      host: hostname || '@',
-      text: txt,
-      ...classifyTxtRecord(txt),
-    })),
+    count: finalTxtList.length,
+    label: finalTxtList.length > 0 ? `TXT (${finalTxtList.length} Records)` : 'TXT',
+    status: finalTxtList.length > 0 ? 'found' : txtRaw?.status || 'not_found',
+    data: finalTxtList.map((item) => {
+      const text = typeof item === 'object' ? item.value || item.text || JSON.stringify(item) : String(item);
+      const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
+      return {
+        host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
+        text,
+        ttl,
+        ...classifyTxtRecord(text),
+      };
+    }),
   };
 
   // 10. CAA Records
@@ -481,10 +512,11 @@ export function extractAllRecordTypes(records = {}, hostname = '') {
   const caaFound = caaRaw?.status === 'found' && Boolean(caaRaw?.data);
   const caaList = caaFound
     ? (Array.isArray(caaRaw.data) ? caaRaw.data : [caaRaw.data]).map((item) => ({
-        host: hostname || '@',
-        critical: item.critical ?? 0,
-        tag: item.issue ? 'issue' : item.issuewild ? 'issuewild' : item.iodef ? 'iodef' : 'tag',
-        value: item.issue || item.issuewild || item.iodef || JSON.stringify(item),
+        host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
+        critical: typeof item === 'object' ? item.critical ?? 0 : 0,
+        tag: typeof item === 'object' ? item.tag || (item.issue ? 'issue' : item.issuewild ? 'issuewild' : item.iodef ? 'iodef' : 'tag') : 'tag',
+        value: typeof item === 'object' ? item.value || item.issue || item.issuewild || item.iodef || JSON.stringify(item) : String(item),
+        ttl: typeof item === 'object' ? item.ttl ?? 300 : 300,
         class: 'IN',
         type: 'CAA',
       }))

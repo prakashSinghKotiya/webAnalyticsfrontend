@@ -81,15 +81,33 @@ export default function useTTFB() {
           const incoming = extractReadings(payload);
           if (!incoming.length) return;
 
-          // De-duplicate by region: `findAll` fans out to one queue per region.
+          // Merge by region: a worker can first emit the headline latency and
+          // later emit the same region with detailed timing metrics.
           for (const reading of incoming) {
             const key = reading.region.toLowerCase();
-            if (!pending.readings.some((r) => r.region.toLowerCase() === key)) {
+            const existingIndex = pending.readings.findIndex(
+              (r) => r.region.toLowerCase() === key,
+            );
+            if (existingIndex < 0) {
               pending.readings.push(reading);
+            } else {
+              pending.readings[existingIndex] = {
+                ...pending.readings[existingIndex],
+                ...reading,
+              };
             }
           }
 
           setProgress({ received: pending.readings.length, expected: pending.expected });
+          // Publish a fresh snapshot so React renders each incoming probe.
+          setResult({
+            id: 'live',
+            url: pending.url,
+            region: pending.region,
+            readings: [...pending.readings],
+            ...summarize(pending.readings),
+            createdAt: new Date().toISOString(),
+          });
 
           const complete =
             pending.readings.length >= pending.expected || isAggregatePayload(payload);
@@ -195,6 +213,8 @@ export default function useTTFB() {
         });
 
         pendingRef.current = {
+          url,
+          region: isAll ? ALL_REGIONS : region,
           expected: initialExpected,
           readings: [],
           resolve: resolveScan,

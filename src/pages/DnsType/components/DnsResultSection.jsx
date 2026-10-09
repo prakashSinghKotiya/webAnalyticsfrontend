@@ -67,8 +67,9 @@ function MxRecordView({ records = [], hostname = '', extraIps = {} }) {
       <div className="hidden grid-cols-12 items-center gap-3 border-b border-[var(--border)] pb-2 text-[11px] font-semibold tracking-wider text-[var(--muted-2)] uppercase sm:grid">
         <div className="col-span-2">Priority</div>
         <div className="col-span-4">Host / Mail Server</div>
-        <div className="col-span-3">IP Address</div>
-        <div className="col-span-3 text-right">Actions</div>
+        <div className="col-span-2">IP Address</div>
+        <div className="col-span-2">TTL</div>
+        <div className="col-span-2 text-right">Actions</div>
       </div>
 
       {/* Rows */}
@@ -83,38 +84,54 @@ function MxRecordView({ records = [], hostname = '', extraIps = {} }) {
               key={idx}
               className="flex flex-col gap-2.5 py-3 text-xs sm:grid sm:grid-cols-12 sm:items-center sm:gap-3"
             >
-              {/* Priority */}
-              <div className="col-span-2 flex items-center gap-2">
-                <span className="inline-flex min-w-[28px] items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-xs font-bold text-[var(--cyan)]">
-                  {item.priority ?? 10}
-                </span>
-                <span className="text-[11px] text-[var(--muted-2)] sm:hidden">Priority</span>
+              {/* Priority & Mobile TTL */}
+              <div className="col-span-2 flex items-center justify-between gap-2 sm:justify-start">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex min-w-[28px] items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-xs font-bold text-[var(--cyan)]">
+                    {item.priority ?? 10}
+                  </span>
+                  <span className="text-[11px] font-medium text-[var(--muted-2)] sm:hidden">Priority</span>
+                </div>
+                {/* Mobile TTL Tag */}
+                <div className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] sm:hidden">
+                  <span className="font-bold uppercase text-[var(--cyan)]">TTL:</span>
+                  <span className="font-semibold text-[var(--text)]">{item.ttl ? `${item.ttl}s` : '300s'}</span>
+                </div>
               </div>
 
               {/* Host / Exchange */}
-              <div className="col-span-4 flex items-center justify-between gap-2 sm:justify-start">
-                <span className="font-['JetBrains_Mono',monospace] font-semibold text-[var(--text)]">
-                  {item.exchange || item.host || String(item)}
-                </span>
-                <CopyButton text={item.exchange || item.host} label="Copy" className="sm:hidden" />
+              <div className="col-span-4 flex items-center justify-between gap-2 min-w-0 sm:justify-start">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[11px] font-medium text-[var(--muted-2)] sm:hidden">Host:</span>
+                  <span className="font-['JetBrains_Mono',monospace] font-semibold text-[var(--text)] truncate">
+                    {item.exchange || item.host || String(item)}
+                  </span>
+                </div>
+                <CopyButton text={item.exchange || item.host} label="Copy" className="sm:hidden flex-none" />
               </div>
 
               {/* IP Address with Flag */}
-              <div className="col-span-3 flex items-center gap-2">
+              <div className="col-span-2 flex items-center gap-2">
                 {displayIp ? (
                   <div className="flex items-center gap-1.5 font-['JetBrains_Mono',monospace]">
                     <span className="text-sm" title={displayCountry.name || 'Country'}>
                       {displayCountry.flag || getFlagEmoji(displayCountry.code)}
                     </span>
-                    <span className="font-semibold text-[var(--text)]">{displayIp}</span>
+                    <span className="text-[11px] font-medium text-[var(--muted-2)] sm:hidden">IP:</span>
+                    <span className="font-semibold text-[var(--text)] break-all">{displayIp}</span>
                   </div>
                 ) : (
                   <span className="text-xs text-[var(--muted-2)] italic">Resolving IP…</span>
                 )}
               </div>
 
+              {/* TTL (Desktop only) */}
+              <div className="hidden col-span-2 font-['JetBrains_Mono',monospace] text-[var(--muted-2)] sm:block">
+                {item.ttl ? `${item.ttl}s` : '300s'}
+              </div>
+
               {/* Actions */}
-              <div className="col-span-3 flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+              <div className="col-span-2 flex flex-wrap items-center justify-start sm:justify-end gap-1.5 sm:gap-2 pt-1 sm:pt-0">
                 {displayIp && <CopyButton text={displayIp} label="Copy IP" />}
                 <CopyButton text={item.exchange || item.host} label="Copy Host" className="hidden sm:inline-flex" />
                 {displayIp && (
@@ -157,8 +174,17 @@ function AddressRecordView({ type = 'A', records = [], hostname = '' }) {
             key={idx}
             className="flex flex-col gap-2.5 py-3 text-xs sm:grid sm:grid-cols-12 sm:items-center sm:gap-3"
           >
-            <div className="col-span-3 font-['JetBrains_Mono',monospace] font-medium text-[var(--text)]">
-              {item.host || hostname || '@'}
+            {/* Host & Mobile TTL */}
+            <div className="col-span-3 flex items-center justify-between gap-2 min-w-0 sm:justify-start">
+              <div className="flex items-center gap-1.5 min-w-0 font-['JetBrains_Mono',monospace]">
+                <span className="text-[11px] font-medium text-[var(--muted-2)] sm:hidden">Host:</span>
+                <span className="font-semibold text-[var(--text)] truncate">{item.host || hostname || '@'}</span>
+              </div>
+              {/* Mobile TTL Tag */}
+              <div className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] sm:hidden flex-none">
+                <span className="font-bold uppercase text-[var(--cyan)]">TTL:</span>
+                <span className="font-semibold text-[var(--text)]">{item.ttl ? `${item.ttl}s` : '300s'}</span>
+              </div>
             </div>
 
             <div className="col-span-4 flex items-center gap-2 font-['JetBrains_Mono',monospace]">
@@ -167,14 +193,16 @@ function AddressRecordView({ type = 'A', records = [], hostname = '' }) {
                   {item.country?.flag || '🇺🇸'}
                 </span>
               )}
+              <span className="text-[11px] font-medium text-[var(--muted-2)] sm:hidden">IP:</span>
               <span className="break-all font-semibold text-[var(--text)]">{item.address}</span>
             </div>
 
-            <div className="col-span-2 font-['JetBrains_Mono',monospace] text-[var(--muted-2)]">
+            {/* Desktop TTL */}
+            <div className="hidden col-span-2 font-['JetBrains_Mono',monospace] text-[var(--muted-2)] sm:block">
               {item.ttl ? `${item.ttl}s` : '300s'}
             </div>
 
-            <div className="col-span-3 flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+            <div className="col-span-3 flex flex-wrap items-center justify-start sm:justify-end gap-1.5 sm:gap-2 pt-1 sm:pt-0">
               <CopyButton text={item.address} label="Copy IP" />
               {type === 'A' && (
                 <Link
@@ -203,8 +231,9 @@ function CnameRecordView({ records = [], hostname = '' }) {
     <div className="flex flex-col gap-3">
       <div className="hidden grid-cols-12 items-center gap-3 border-b border-[var(--border)] pb-2 text-[11px] font-semibold tracking-wider text-[var(--muted-2)] uppercase sm:grid">
         <div className="col-span-4">Host / Alias</div>
-        <div className="col-span-5">Canonical Target</div>
-        <div className="col-span-3 text-right">Actions</div>
+        <div className="col-span-4">Canonical Target</div>
+        <div className="col-span-2">TTL</div>
+        <div className="col-span-2 text-right">Actions</div>
       </div>
 
       <div className="flex flex-col divide-y divide-[var(--border)]">
@@ -213,13 +242,29 @@ function CnameRecordView({ records = [], hostname = '' }) {
             key={idx}
             className="flex flex-col gap-2.5 py-3 text-xs sm:grid sm:grid-cols-12 sm:items-center sm:gap-3"
           >
-            <div className="col-span-4 font-['JetBrains_Mono',monospace] text-[var(--text)]">
-              {item.host || hostname || '@'}
+            {/* Host & Mobile TTL */}
+            <div className="col-span-4 flex items-center justify-between gap-2 min-w-0 sm:justify-start">
+              <div className="flex items-center gap-1.5 min-w-0 font-['JetBrains_Mono',monospace]">
+                <span className="text-[11px] font-medium text-[var(--muted-2)] sm:hidden">Host:</span>
+                <span className="text-[var(--text)] font-semibold truncate">{item.host || hostname || '@'}</span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] sm:hidden flex-none">
+                <span className="font-bold uppercase text-[var(--cyan)]">TTL:</span>
+                <span className="font-semibold text-[var(--text)]">{item.ttl ? `${item.ttl}s` : '300s'}</span>
+              </div>
             </div>
-            <div className="col-span-5 break-all font-['JetBrains_Mono',monospace] font-semibold text-[var(--cyan)]">
+
+            <div className="col-span-4 break-all font-['JetBrains_Mono',monospace] font-semibold text-[var(--cyan)]">
+              <span className="text-[11px] font-medium text-[var(--muted-2)] sm:hidden">Target: </span>
               {item.target}
             </div>
-            <div className="col-span-3 flex items-center justify-end">
+
+            {/* Desktop TTL */}
+            <div className="hidden col-span-2 font-['JetBrains_Mono',monospace] text-[var(--muted-2)] sm:block">
+              {item.ttl ? `${item.ttl}s` : '300s'}
+            </div>
+
+            <div className="col-span-2 flex items-center justify-start sm:justify-end pt-1 sm:pt-0">
               <CopyButton text={item.target} label="Copy Target" />
             </div>
           </div>
@@ -240,8 +285,9 @@ function NsRecordView({ records = [], hostname = '' }) {
     <div className="flex flex-col gap-3">
       <div className="hidden grid-cols-12 items-center gap-3 border-b border-[var(--border)] pb-2 text-[11px] font-semibold tracking-wider text-[var(--muted-2)] uppercase sm:grid">
         <div className="col-span-3">Host</div>
-        <div className="col-span-6">Authoritative Nameserver</div>
-        <div className="col-span-3 text-right">Actions</div>
+        <div className="col-span-5">Authoritative Nameserver</div>
+        <div className="col-span-2">TTL</div>
+        <div className="col-span-2 text-right">Actions</div>
       </div>
 
       <div className="flex flex-col divide-y divide-[var(--border)]">
@@ -250,14 +296,29 @@ function NsRecordView({ records = [], hostname = '' }) {
             key={idx}
             className="flex flex-col gap-2.5 py-3 text-xs sm:grid sm:grid-cols-12 sm:items-center sm:gap-3"
           >
-            <div className="col-span-3 font-['JetBrains_Mono',monospace] text-[var(--text)]">
-              {item.host || hostname || '@'}
+            {/* Host & Mobile TTL */}
+            <div className="col-span-3 flex items-center justify-between gap-2 min-w-0 sm:justify-start">
+              <div className="flex items-center gap-1.5 min-w-0 font-['JetBrains_Mono',monospace]">
+                <span className="text-[11px] font-medium text-[var(--muted-2)] sm:hidden">Host:</span>
+                <span className="text-[var(--text)] font-semibold truncate">{item.host || hostname || '@'}</span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] sm:hidden flex-none">
+                <span className="font-bold uppercase text-[var(--cyan)]">TTL:</span>
+                <span className="font-semibold text-[var(--text)]">{item.ttl ? `${item.ttl}s` : '300s'}</span>
+              </div>
             </div>
-            <div className="col-span-6 flex items-center gap-2 font-['JetBrains_Mono',monospace] font-semibold text-[var(--text)]">
+
+            <div className="col-span-5 flex items-center gap-2 font-['JetBrains_Mono',monospace] font-semibold text-[var(--text)] min-w-0">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--cyan)] flex-none" />
-              <span>{item.nameserver}</span>
+              <span className="break-all">{item.nameserver}</span>
             </div>
-            <div className="col-span-3 flex items-center justify-end">
+
+            {/* Desktop TTL */}
+            <div className="hidden col-span-2 font-['JetBrains_Mono',monospace] text-[var(--muted-2)] sm:block">
+              {item.ttl ? `${item.ttl}s` : '300s'}
+            </div>
+
+            <div className="col-span-2 flex items-center justify-start sm:justify-end pt-1 sm:pt-0">
               <CopyButton text={item.nameserver} label="Copy Nameserver" />
             </div>
           </div>
@@ -430,6 +491,7 @@ function TxtRecordView({ records = [] }) {
                 {item.badge}
               </span>
               <span className="text-[10px] text-[var(--muted-2)]">Entry #{idx + 1}</span>
+              {item.ttl && <span className="text-[10px] text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">TTL: {item.ttl}s</span>}
             </div>
             <div className="break-all font-['JetBrains_Mono',monospace] text-[var(--text)]">
               {item.text}
@@ -462,6 +524,7 @@ function CaaRecordView({ records = [] }) {
             <span className="rounded bg-[var(--surface-3)] px-2 py-0.5 text-[10px] font-bold text-[var(--cyan)]">
               {item.critical === 0 ? 'Normal (0)' : 'Critical (128)'}
             </span>
+            {item.ttl && <span className="text-[10px] text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">TTL: {item.ttl}s</span>}
             <span className="text-[var(--muted-2)]">{item.tag}:</span>
             <span className="font-semibold text-[var(--text)]">{item.value}</span>
           </div>
@@ -843,7 +906,7 @@ function DnsResultSection({
           <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-[var(--muted-2)]">Result for:</span>
-              <h2 className="font-['Outfit',sans-serif] text-xl font-bold tracking-tight text-[var(--cyan)]">
+              <h2 className="font-['Outfit',sans-serif] text-xl font-bold tracking-tight text-[var(--cyan)] break-all">
                 {hostname}
               </h2>
               <span

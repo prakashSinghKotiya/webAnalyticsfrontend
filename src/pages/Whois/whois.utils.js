@@ -55,6 +55,92 @@ export function formatDate(iso) {
   }
 }
 
+export function formatCleanDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      const match = String(iso).match(/^\d{4}-\d{2}-\d{2}/);
+      return match ? match[0] : String(iso);
+    }
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch {
+    return String(iso);
+  }
+}
+
+export function cleanStatusString(statusCode) {
+  if (!statusCode) return '';
+  // Strip URL parts (e.g. "clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited" -> "clientDeleteProhibited")
+  let s = String(statusCode).split(/\s+https?:\/\//i)[0].trim();
+  s = s.replace(/https?:\/\/\S+/gi, '').trim();
+  // Convert camelCase to space-separated words: "clientDeleteProhibited" -> "client delete prohibited"
+  s = s.replace(/([a-z])([A-Z])/g, '$1 $2');
+  return s.toLowerCase().trim();
+}
+
+export function cleanNameserverString(ns) {
+  if (!ns) return '';
+  const val = typeof ns === 'string' ? ns : ns.ldhName || ns.name || ns.host || String(ns);
+  return val.trim().toLowerCase();
+}
+
+export function extractNameservers(result) {
+  if (!result) return [];
+  const raw = result.raw || result.result || result;
+
+  const rawNs =
+    result.nameservers ||
+    raw.nameservers ||
+    raw.nameServers ||
+    raw.nameServer ||
+    raw.nserver ||
+    [];
+
+  let list = [];
+  if (Array.isArray(rawNs)) {
+    list = rawNs.map(cleanNameserverString);
+  } else if (typeof rawNs === 'string') {
+    list = rawNs
+      .split(/[\r\n,;\s]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  const unique = Array.from(new Set(list)).filter((ns) => ns && !ns.includes(' ') && ns.includes('.'));
+  return unique;
+}
+
+export function extractStatusList(result) {
+  if (!result) return [];
+  const raw = result.raw || result.result || result;
+
+  const rawStatus =
+    result.statusList ||
+    result.status ||
+    raw.statusList ||
+    raw.status ||
+    raw.domainStatus ||
+    raw.eppStatus ||
+    [];
+
+  let list = [];
+  if (Array.isArray(rawStatus)) {
+    list = rawStatus.map(cleanStatusString);
+  } else if (typeof rawStatus === 'string') {
+    list = rawStatus
+      .split(/[\r\n,;]+/)
+      .map(cleanStatusString)
+      .filter(Boolean);
+  }
+
+  const unique = Array.from(new Set(list)).filter(Boolean);
+  return unique;
+}
+
 export function relativeTime(iso) {
   if (!iso) return '';
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -70,14 +156,22 @@ export function relativeTime(iso) {
   return `${d}d ago`;
 }
 
-export function parseRdapEvents(events = []) {
-  if (!Array.isArray(events)) {
-    return {
-      registrationDate: null,
-      expirationDate: null,
-      lastChangedDate: null,
-      transferDate: null,
-    };
+export function parseRdapEvents(events = [], rawData = null) {
+  let evArray = Array.isArray(events) ? events : [];
+  let sourceObj = null;
+
+  if (events && !Array.isArray(events) && typeof events === 'object') {
+    sourceObj = events;
+    if (Array.isArray(events.events)) {
+      evArray = events.events;
+    }
+  }
+
+  if (rawData && typeof rawData === 'object') {
+    sourceObj = { ...(sourceObj || {}), ...rawData };
+    if (!evArray.length && Array.isArray(rawData.events)) {
+      evArray = rawData.events;
+    }
   }
 
   let registrationDate = null;
@@ -85,18 +179,57 @@ export function parseRdapEvents(events = []) {
   let lastChangedDate = null;
   let transferDate = null;
 
-  for (const item of events) {
-    const action = String(item.eventAction || '').toLowerCase();
-    const date = item.eventDate;
+  for (const item of evArray) {
+    if (!item) continue;
+    const action = String(item.eventAction || item.action || '').toLowerCase();
+    const date = item.eventDate || item.date;
 
-    if (action === 'registration') {
+    if (action.includes('registration') || action.includes('create')) {
       registrationDate = date;
-    } else if (action === 'expiration') {
+    } else if (action.includes('expiration') || action.includes('expire')) {
       expirationDate = date;
-    } else if (action === 'last changed' || action === 'last update') {
+    } else if (action.includes('last changed') || action.includes('last update') || action.includes('update') || action.includes('changed')) {
       lastChangedDate = date;
-    } else if (action === 'transfer') {
+    } else if (action.includes('transfer')) {
       transferDate = date;
+    }
+  }
+
+  // Fallbacks to standard flat WHOIS fields if not already found in events
+  if (sourceObj) {
+    if (!registrationDate) {
+      registrationDate =
+        sourceObj.registrationDate ||
+        sourceObj.creationDate ||
+        sourceObj.created ||
+        sourceObj.createdDate ||
+        sourceObj.registered ||
+        sourceObj.registeredDate ||
+        sourceObj.registryCreationDate ||
+        null;
+    }
+    if (!expirationDate) {
+      expirationDate =
+        sourceObj.expirationDate ||
+        sourceObj.registryExpiryDate ||
+        sourceObj.expires ||
+        sourceObj.expiryDate ||
+        sourceObj.expiresDate ||
+        sourceObj.expireDate ||
+        null;
+    }
+    if (!lastChangedDate) {
+      lastChangedDate =
+        sourceObj.lastChangedDate ||
+        sourceObj.updatedDate ||
+        sourceObj.updated ||
+        sourceObj.lastUpdate ||
+        sourceObj.lastUpdated ||
+        sourceObj.modifiedDate ||
+        null;
+    }
+    if (!transferDate) {
+      transferDate = sourceObj.transferDate || sourceObj.transferredDate || null;
     }
   }
 
@@ -396,6 +529,56 @@ export function getRawAddress(address) {
   return String(address);
 }
 
+export function parseAddressString(addressStr) {
+  if (!addressStr || typeof addressStr !== 'string') return null;
+  const parts = addressStr.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 4) {
+    return {
+      street: parts.slice(0, parts.length - 4).join(', ') || parts[0],
+      city: parts[parts.length - 4] || parts[1] || null,
+      state: parts[parts.length - 3] || parts[2] || null,
+      postalCode: parts[parts.length - 2] || parts[3] || null,
+      country: parts[parts.length - 1] || parts[4] || null,
+    };
+  }
+  return {
+    street: addressStr,
+    city: null,
+    state: null,
+    postalCode: null,
+    country: null,
+  };
+}
+
+export function parseVcardAddressComponents(rawValue) {
+  if (!rawValue) return null;
+  if (!Array.isArray(rawValue)) {
+    if (typeof rawValue === 'object') {
+      return {
+        street: rawValue.street || rawValue.streetAddress || null,
+        city: rawValue.city || rawValue.locality || null,
+        state: rawValue.state || rawValue.region || null,
+        postalCode: rawValue.postalCode || rawValue.postal_code || rawValue.zip || null,
+        country: rawValue.country || rawValue.countryCode || null,
+      };
+    }
+    if (typeof rawValue === 'string') {
+      return parseAddressString(rawValue);
+    }
+    return null;
+  }
+  const [poBox, extended, street, locality, region, postalCode, country] = rawValue;
+  return {
+    poBox: poBox || null,
+    extended: extended || null,
+    street: street || null,
+    city: locality || null,
+    state: region || null,
+    postalCode: postalCode || null,
+    country: country || null,
+  };
+}
+
 export function parseVcardAddress(rawValue) {
   if (!Array.isArray(rawValue)) return rawValue;
   const [poBox, extended, street, locality, region, postalCode, country] = rawValue;
@@ -404,7 +587,19 @@ export function parseVcardAddress(rawValue) {
 }
 
 export function readVCardFields(vcardArray) {
-  const fields = { name: null, organization: null, address: null, phone: null, email: null };
+  const fields = {
+    name: null,
+    organization: null,
+    address: null,
+    addressComponents: null,
+    street: null,
+    city: null,
+    state: null,
+    postalCode: null,
+    country: null,
+    phone: null,
+    email: null,
+  };
   if (!Array.isArray(vcardArray) || !Array.isArray(vcardArray[1])) return fields;
   for (const property of vcardArray[1]) {
     if (!Array.isArray(property) || property.length < 4) continue;
@@ -418,15 +613,27 @@ export function readVCardFields(vcardArray) {
       case 'org':
         fields.organization = value;
         break;
-      case 'adr':
+      case 'adr': {
+        const comps = parseVcardAddressComponents(rawValue);
+        fields.addressComponents = comps;
+        fields.street = comps?.street || null;
+        fields.city = comps?.city || null;
+        fields.state = comps?.state || null;
+        fields.postalCode = comps?.postalCode || null;
+        fields.country = comps?.country || null;
         fields.address = Array.isArray(rawValue) ? parseVcardAddress(rawValue) : value;
         break;
-      case 'tel':
-        fields.phone = fields.phone || value;
+      }
+      case 'tel': {
+        const cleanPhone = String(value).replace(/^tel:/i, '').trim();
+        fields.phone = fields.phone || cleanPhone;
         break;
-      case 'email':
-        fields.email = fields.email || value;
+      }
+      case 'email': {
+        const cleanEmail = String(value).replace(/^mailto:/i, '').trim();
+        fields.email = fields.email || cleanEmail;
         break;
+      }
       default:
         break;
     }
@@ -516,9 +723,21 @@ export function normalizeEntityForUi(entity, index = 0) {
   const rawAddr = entity.address || vcardFields.address || null;
   const address = getRawAddress(rawAddr);
   const formattedAddress = formatAddress(rawAddr);
-  const phone = entity.phone || vcardFields.phone || null;
-  const email = entity.email || vcardFields.email || null;
+
+  const comps = entity.addressComponents || vcardFields.addressComponents || parseAddressString(address);
+  const street = entity.street || entity.streetAddress || vcardFields.street || comps?.street || null;
+  const city = entity.city || entity.locality || vcardFields.city || comps?.city || null;
+  const state = entity.state || entity.region || vcardFields.state || comps?.state || null;
+  const postalCode = entity.postalCode || entity.postal_code || entity.zip || vcardFields.postalCode || comps?.postalCode || null;
+  const country = entity.country || entity.countryCode || vcardFields.country || comps?.country || null;
+
+  const rawPhone = entity.phone || vcardFields.phone || null;
+  const phone = rawPhone ? String(rawPhone).replace(/^tel:/i, '').trim() : null;
+
+  const rawEmail = entity.email || vcardFields.email || null;
   const contactUrl = extractEntityContactUrl(entity);
+  const email = (rawEmail ? String(rawEmail).replace(/^mailto:/i, '').trim() : null) || contactUrl || null;
+
   const handle = entity.handle || null;
   const format = entity.format || (entity.vcardArray || entity.rawVcard ? 'jCard' : 'jCard');
 
@@ -546,6 +765,11 @@ export function normalizeEntityForUi(entity, index = 0) {
     organization,
     address,
     formattedAddress,
+    street,
+    city,
+    state,
+    postalCode,
+    country,
     phone,
     email,
     contactUrl,
@@ -645,6 +869,288 @@ export function exportWhoisReport(report) {
   URL.revokeObjectURL(url);
 }
 
+export function extractRegistrarInfo(result) {
+  if (!result) return null;
+  const raw = result.raw || result.result || result;
+  const r = raw.registrar || result.registrar || raw.sponsoringRegistrar || {};
+  const isStringR = typeof r === 'string' && r.trim();
+
+  const entities = Array.isArray(raw.entities) ? raw.entities : Array.isArray(result.entities) ? result.entities : [];
+  const registrarEntity = entities.find((e) =>
+    Array.isArray(e.roles) && e.roles.map((s) => String(s).toLowerCase()).includes('registrar')
+  );
+
+  const regVcard = registrarEntity?.vcardArray ? readVCardFields(registrarEntity.vcardArray) : {};
+
+  let ianaId =
+    (!isStringR && (r.ianaId || r.publicId)) ||
+    raw.registrarIanaId ||
+    raw.ianaId ||
+    raw.sponsoringRegistrarIanaId ||
+    raw.registrarId ||
+    null;
+
+  if (!ianaId && (registrarEntity?.publicIds || (!isStringR && r.publicIds))) {
+    const pids = registrarEntity?.publicIds || r.publicIds;
+    const found = pids?.find((p) => String(p.type || '').toLowerCase().includes('iana') || p.identifier);
+    if (found) ianaId = found.identifier;
+  }
+
+  const name = isStringR
+    ? r.trim()
+    : r.name ||
+      r.organization ||
+      regVcard.name ||
+      regVcard.organization ||
+      registrarEntity?.handle ||
+      raw.registrarName ||
+      raw.sponsoringRegistrar ||
+      (typeof raw.registrar === 'string' ? raw.registrar : null) ||
+      null;
+
+  const abuseEmail =
+    (!isStringR && (r.abuseEmail || r.abuseContactEmail)) ||
+    raw.registrarAbuseEmail ||
+    raw.registrarAbuseContactEmail ||
+    raw.abuseContactEmail ||
+    raw.abuseEmail ||
+    (!isStringR && r.email) ||
+    regVcard.email ||
+    raw.registrarEmail ||
+    null;
+
+  const email = (!isStringR && r.email) || raw.registrarEmail || regVcard.email || abuseEmail || null;
+
+  const abusePhone =
+    (!isStringR && (r.abusePhone || r.abuseContactPhone)) ||
+    raw.registrarAbusePhone ||
+    raw.registrarAbuseContactPhone ||
+    raw.abuseContactPhone ||
+    raw.abusePhone ||
+    (!isStringR && r.phone) ||
+    regVcard.phone ||
+    null;
+
+  const whoisServer =
+    (!isStringR && r.whoisServer) ||
+    raw.registrarWhoisServer ||
+    raw.whoisServer ||
+    raw.registrarServer ||
+    null;
+
+  const url =
+    (!isStringR && r.url) ||
+    raw.registrarUrl ||
+    raw.url ||
+    raw.referralUrl ||
+    raw.registrarReferralUrl ||
+    null;
+
+  return {
+    name,
+    ianaId,
+    email,
+    abuseEmail,
+    abusePhone,
+    whoisServer,
+    url,
+  };
+}
+
+export function extractStructuredContacts(result) {
+  if (!result) return { registrant: null, technical: null, administrative: null, billing: null };
+  const raw = result.raw || result.result || result;
+  const entities = extractNormalizedEntities(result);
+
+  const findByRole = (roleKeyword) => {
+    return entities.find((e) => {
+      const roles = Array.isArray(e.roles) ? e.roles.map((r) => String(r).toLowerCase()) : [];
+      return roles.some((r) => r.includes(roleKeyword));
+    });
+  };
+
+  let registrant = findByRole('registrant');
+  let technical = findByRole('tech');
+  let administrative = findByRole('admin');
+  let billing = findByRole('bill');
+
+  const c = result.contacts || raw.contacts;
+  if (c && typeof c === 'object') {
+    if (!registrant && c.registrant) registrant = normalizeEntityForUi(c.registrant, 0);
+    if (!technical && c.technical) technical = normalizeEntityForUi(c.technical, 1);
+    if (!administrative && c.administrative) administrative = normalizeEntityForUi(c.administrative, 2);
+    if (!billing && c.billing) billing = normalizeEntityForUi(c.billing, 3);
+  }
+
+  // Fallbacks to flat properties found in many WHOIS JSON schemas
+  if (
+    !registrant &&
+    (raw.registrantName ||
+      raw.registrantOrganization ||
+      raw.registrantCountry ||
+      raw.registrantEmail ||
+      raw.registrant ||
+      raw.registrant_name)
+  ) {
+    registrant = normalizeEntityForUi(
+      {
+        name: raw.registrantName || raw.registrant_name || (typeof raw.registrant === 'string' ? raw.registrant : null),
+        organization: raw.registrantOrganization || raw.registrant_organization || raw.registrantOrg || null,
+        street: raw.registrantStreet || raw.registrant_street || raw.registrantAddress || null,
+        city: raw.registrantCity || raw.registrant_city || null,
+        state: raw.registrantState || raw.registrant_state || raw.registrantProvince || null,
+        postalCode: raw.registrantPostalCode || raw.registrant_postal_code || raw.registrantZip || null,
+        country: raw.registrantCountry || raw.registrant_country || null,
+        phone: raw.registrantPhone || raw.registrant_phone || null,
+        email: raw.registrantEmail || raw.registrant_email || null,
+        roles: ['registrant'],
+      },
+      0,
+    );
+  }
+
+  if (
+    !administrative &&
+    (raw.adminName ||
+      raw.adminOrganization ||
+      raw.adminCountry ||
+      raw.adminEmail ||
+      raw.admin_name)
+  ) {
+    administrative = normalizeEntityForUi(
+      {
+        name: raw.adminName || raw.admin_name || null,
+        organization: raw.adminOrganization || raw.admin_organization || null,
+        street: raw.adminStreet || raw.admin_street || null,
+        city: raw.adminCity || raw.admin_city || null,
+        state: raw.adminState || raw.admin_state || null,
+        postalCode: raw.adminPostalCode || raw.admin_postal_code || null,
+        country: raw.adminCountry || raw.admin_country || null,
+        phone: raw.adminPhone || raw.admin_phone || null,
+        email: raw.adminEmail || raw.admin_email || null,
+        roles: ['administrative'],
+      },
+      1,
+    );
+  }
+
+  if (
+    !technical &&
+    (raw.techName ||
+      raw.techOrganization ||
+      raw.techCountry ||
+      raw.techEmail ||
+      raw.tech_name)
+  ) {
+    technical = normalizeEntityForUi(
+      {
+        name: raw.techName || raw.tech_name || null,
+        organization: raw.techOrganization || raw.tech_organization || null,
+        street: raw.techStreet || raw.tech_street || null,
+        city: raw.techCity || raw.tech_city || null,
+        state: raw.techState || raw.tech_state || null,
+        postalCode: raw.techPostalCode || raw.tech_postal_code || null,
+        country: raw.techCountry || raw.tech_country || null,
+        phone: raw.techPhone || raw.tech_phone || null,
+        email: raw.techEmail || raw.tech_email || null,
+        roles: ['technical'],
+      },
+      2,
+    );
+  }
+
+  // Fallbacks:
+  if (!registrant && entities.length > 0) {
+    registrant = entities[0];
+  }
+  if (!technical) {
+    if (entities.length > 1) {
+      technical = entities[1];
+    } else if (registrant) {
+      technical = registrant;
+    }
+  }
+
+  return { registrant, technical, administrative, billing };
+}
+
+export function generateRawWhoisText(result) {
+  if (!result) return '';
+  const raw = result.raw || result.result || result;
+
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  if (raw.rawWhois && typeof raw.rawWhois === 'string') return raw.rawWhois.trim();
+  if (raw.rawText && typeof raw.rawText === 'string') return raw.rawText.trim();
+  if (raw.whoisRecord && typeof raw.whoisRecord === 'string') return raw.whoisRecord.trim();
+  if (raw.rawRecord && typeof raw.rawRecord === 'string') return raw.rawRecord.trim();
+  if (result.rawWhois && typeof result.rawWhois === 'string') return result.rawWhois.trim();
+  if (result.rawText && typeof result.rawText === 'string') return result.rawText.trim();
+
+  const domain = (result.domain || raw.domain || raw.domainName || raw.ldhName || '').toUpperCase();
+  const events = parseRdapEvents(result.events || raw.events, raw);
+  const registrar = extractRegistrarInfo(result);
+  const contacts = extractStructuredContacts(result);
+  const statuses = extractStatusList(result);
+  const nameservers = extractNameservers(result);
+  const secureDNS = result.secureDNS || raw.secureDNS;
+  const isSigned = Boolean(secureDNS?.delegationSigned);
+
+  const lines = [];
+  lines.push(`Domain Name: ${domain}`);
+  if (raw.handle || raw.registryDomainId) lines.push(`Registry Domain ID: ${raw.handle || raw.registryDomainId}`);
+  if (registrar?.whoisServer) lines.push(`Registrar WHOIS Server: ${registrar.whoisServer}`);
+  if (registrar?.url) lines.push(`Registrar URL: ${registrar.url}`);
+  if (events.lastChangedDate) lines.push(`Updated Date: ${events.lastChangedDate}`);
+  if (events.registrationDate) lines.push(`Creation Date: ${events.registrationDate}`);
+  if (events.expirationDate) lines.push(`Registry Expiry Date: ${events.expirationDate}`);
+  if (registrar?.name) lines.push(`Registrar: ${registrar.name}`);
+  if (registrar?.ianaId) lines.push(`Registrar IANA ID: ${registrar.ianaId}`);
+  if (registrar?.abuseEmail) lines.push(`Registrar Abuse Contact Email: ${registrar.abuseEmail}`);
+  if (registrar?.abusePhone) lines.push(`Registrar Abuse Contact Phone: ${registrar.abusePhone}`);
+
+  statuses.forEach((st) => {
+    const rawSt = String(st).split(/\s+/)[0].replace(/https?:\/\/\S+/g, '');
+    lines.push(`Domain Status: ${rawSt} https://icann.org/epp#${rawSt}`);
+  });
+
+  if (contacts.registrant) {
+    const reg = contacts.registrant;
+    if (reg.name) lines.push(`Registrant Name: ${reg.name}`);
+    if (reg.organization) lines.push(`Registrant Organization: ${reg.organization}`);
+    if (reg.street) lines.push(`Registrant Street: ${reg.street}`);
+    if (reg.city) lines.push(`Registrant City: ${reg.city}`);
+    if (reg.state) lines.push(`Registrant State/Province: ${reg.state}`);
+    if (reg.postalCode) lines.push(`Registrant Postal Code: ${reg.postalCode}`);
+    if (reg.country) lines.push(`Registrant Country: ${reg.country}`);
+    if (reg.phone) lines.push(`Registrant Phone: ${reg.phone}`);
+    if (reg.email) lines.push(`Registrant Email: ${reg.email}`);
+  }
+
+  if (contacts.technical) {
+    const tech = contacts.technical;
+    if (tech.name) lines.push(`Tech Name: ${tech.name}`);
+    if (tech.organization) lines.push(`Tech Organization: ${tech.organization}`);
+    if (tech.street) lines.push(`Tech Street: ${tech.street}`);
+    if (tech.city) lines.push(`Tech City: ${tech.city}`);
+    if (tech.state) lines.push(`Tech State/Province: ${tech.state}`);
+    if (tech.postalCode) lines.push(`Tech Postal Code: ${tech.postalCode}`);
+    if (tech.country) lines.push(`Tech Country: ${tech.country}`);
+    if (tech.phone) lines.push(`Tech Phone: ${tech.phone}`);
+    if (tech.email) lines.push(`Tech Email: ${tech.email}`);
+  }
+
+  nameservers.forEach((ns) => {
+    const nsName = (typeof ns === 'string' ? ns : ns.ldhName || ns.name || String(ns)).toUpperCase();
+    lines.push(`Name Server: ${nsName}`);
+  });
+
+  lines.push(`DNSSEC: ${isSigned ? 'signedDelegation' : 'unsigned'}`);
+  lines.push(`URL of the ICANN Whois Inaccuracy Complaint Form: https://www.icann.org/wicf/`);
+  lines.push(`>>> Last update of whois database: ${new Date(result.lookedUpAt || Date.now()).toISOString()} <<<`);
+
+  return lines.join('\n');
+}
+
 /**
  * Standardize MongoDB record, socket response, or raw RDAP result into a unified UI report object.
  * @param {object} entry - Raw document or socket payload
@@ -656,10 +1162,11 @@ export function normalizeWhoisEntry(entry) {
   const id = entry._id ? String(entry._id) : entry.id || entry.jobId || createId();
   const dbId = entry._id ? String(entry._id) : entry.whoisDbId ? String(entry.whoisDbId) : null;
 
-  const domain = (raw.domain || entry.url || entry.domain || raw.ldhName || '').toUpperCase();
+  const domain = (raw.domain || entry.url || entry.domain || raw.domainName || raw.ldhName || '').toUpperCase();
   const unicodeDomain = raw.unicodeDomain || raw.unicodeName || null;
   const events = Array.isArray(raw.events) ? raw.events : [];
-  const nameservers = Array.isArray(raw.nameservers) ? raw.nameservers : [];
+  const parsedEvents = parseRdapEvents(events, raw);
+  const nameservers = extractNameservers({ raw, result: raw });
   const secureDNS = raw.secureDNS || null;
   const registrar = raw.registrar || null;
   const contacts = raw.contacts || entry.contacts || {};
@@ -668,17 +1175,22 @@ export function normalizeWhoisEntry(entry) {
     : Array.isArray(entry.entities)
       ? entry.entities
       : [];
-  const status = Array.isArray(raw.status)
-    ? raw.status
-    : typeof raw.status === 'string'
-      ? [raw.status]
-      : [];
+  const status = extractStatusList({ raw, result: raw });
   const notices = Array.isArray(raw.notices) ? raw.notices : [];
 
   const lookedUpAt =
     entry.completedAt || entry.createdAt || raw.lookedUpAt || new Date().toISOString();
   const jobStatus = entry.status || raw.status || 'completed';
   const error = entry.error || raw.error?.message || raw.error || null;
+
+  const rawWhois =
+    entry.rawWhois ||
+    entry.rawText ||
+    raw.rawWhois ||
+    raw.rawText ||
+    raw.whoisRecord ||
+    raw.rawRecord ||
+    (typeof raw === 'string' ? raw : null);
 
   return {
     id,
@@ -687,6 +1199,7 @@ export function normalizeWhoisEntry(entry) {
     unicodeDomain,
     url: entry.url || domain,
     events,
+    parsedEvents,
     nameservers,
     secureDNS,
     registrar,
@@ -699,6 +1212,7 @@ export function normalizeWhoisEntry(entry) {
     statusList: status,
     error,
     success: jobStatus === 'completed' && !error,
+    rawWhois,
     raw,
   };
 }
