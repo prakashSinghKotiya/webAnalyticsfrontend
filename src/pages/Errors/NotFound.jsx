@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Logo } from '../../components';
+import Logo from '../../components/Logo';
 import { ROUTES } from '../../constants';
 import { useAuthState } from '../../context/AuthContext';
 
