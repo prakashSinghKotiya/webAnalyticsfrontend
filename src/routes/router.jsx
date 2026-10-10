@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { RouteErrorElement } from '../components/ErrorBoundary';
 
 import RootLayout from './RootLayout';
@@ -33,6 +33,7 @@ const NotFound      = lazy(() => import('../pages/Errors/NotFound'));
  *
  *  /                  → RootLayout (providers + error boundary + suspense)
  *    index            → LandingPage          (public)
+ *    /demo            → Navigate to /demo/ttfb
  *    /demo/ttfb       → DemoTTFBPage         (public demo)
  *    /demo/lighthouse → DemoLighthousePage   (public demo)
  *    /demo/dns        → DemoDnsPage          (public demo)
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
     children: [
       // ── PUBLIC ─────────────────────────────────────────────────────────
       { index: true, element: <LandingPage /> },
+      { path: 'demo', element: <Navigate to="/demo/ttfb" replace /> },
       { path: 'demo/ttfb', element: <DemoTTFBPage /> },
       { path: 'demo/lighthouse', element: <DemoLighthousePage /> },
       { path: 'demo/dns', element: <DemoDnsPage /> },

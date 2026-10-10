@@ -23,7 +23,7 @@ function ErrorFallback({ title, message, detail, showHomeLink = true }) {
         {showHomeLink ? (
           <div className="mt-6 flex items-center justify-center gap-3">
             <Link
-              to={ROUTES.HOME}
+              to={ROUTES.PUBLIC_HOME}
               className="inline-block rounded-[10px] bg-gradient-to-br from-[var(--cyan)] to-[#0099ff] px-5 py-2.5 text-sm font-bold text-white no-underline shadow-[0_0_20px_var(--cyan-mid)] transition hover:-translate-y-px"
             >
               Back to home

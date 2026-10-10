@@ -667,27 +667,87 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
           </section>
         )}
 
-        {/* CTA Footer */}
-        <div className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-6 text-center">
-          <h2 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-            Need persistent monitoring & full site history?
-          </h2>
-          <p className="mt-1 text-xs text-[var(--muted-2)]">
-            Create an account to monitor uptime 24/7, track latency regressions, and export white-label audit reports.
-          </p>
-          <div className="mt-4 flex items-center justify-center gap-3">
-            <Link
-              to={ROUTES.REGISTER}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--cyan)] px-4 py-2 text-xs font-bold text-white shadow-sm hover:brightness-110"
-            >
-              Get Free Account
-            </Link>
-            <Link
-              to={ROUTES.LOGIN}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:border-[var(--border-bright)]"
-            >
-              Sign In
-            </Link>
+        {/* CTA Footer - Unlock Full Analytics & Complete Reports */}
+        <div className="relative mt-10 overflow-hidden rounded-2xl border border-[var(--border-mid)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-6 sm:p-8 text-center shadow-[var(--shadow-card)]">
+          {/* Subtle background ambient glow */}
+          <div className="pointer-events-none absolute -top-24 left-1/2 h-36 w-96 -translate-x-1/2 rounded-full bg-[var(--cyan)]/10 blur-3xl" />
+
+          <div className="relative z-10 flex flex-col items-center">
+            {/* Top pill badge */}
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--cyan)]/30 bg-[var(--cyan-dim)] px-3 py-1 font-['JetBrains_Mono',monospace] text-[11px] font-semibold text-[var(--cyan)]">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>FULL REPORTS &amp; RAW DIAGNOSTICS ACCESS</span>
+            </span>
+
+            {/* Headline */}
+            <h2 className="mt-3 font-['Outfit',sans-serif] text-base sm:text-xl font-bold tracking-tight text-[var(--text)]">
+              To get full analytics results and responses, log in first to get full access to reports
+            </h2>
+
+            {/* Subtitle */}
+            <p className="mt-2 max-w-xl text-xs sm:text-sm leading-relaxed text-[var(--muted-2)]">
+              Free demo mode provides an instant preview. Sign in or create a free account to unlock comprehensive diagnostic responses, multi-region latency telemetry, persistent uptime tracking, and downloadable white-label audit reports.
+            </p>
+
+            {/* Highlights Feature Pills */}
+            <div className="mt-5 grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2 text-left">
+              <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 px-3.5 py-2.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+                <span className="text-xs font-medium text-[var(--text)]">Complete raw response payloads &amp; headers</span>
+              </div>
+              <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 px-3.5 py-2.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--green-dim)] text-[var(--green)]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+                <span className="text-xs font-medium text-[var(--text)]">Full global probe nodes &amp; latency percentiles</span>
+              </div>
+              <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 px-3.5 py-2.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--purple-dim)] text-[var(--purple)]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+                <span className="text-xs font-medium text-[var(--text)]">Full historical records &amp; trend analysis</span>
+              </div>
+              <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 px-3.5 py-2.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--orange-dim)] text-[var(--orange)]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+                <span className="text-xs font-medium text-[var(--text)]">White-label PDF exports &amp; instant alerts</span>
+              </div>
+            </div>
+
+            {/* CTA Action Buttons */}
+            <div className="mt-6 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
+              <Link
+                to={ROUTES.LOGIN}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[#0099ff] px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-[0_0_20px_var(--cyan-mid)] transition hover:brightness-110 sm:w-auto"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                <span>Log In for Full Access</span>
+              </Link>
+              <Link
+                to={ROUTES.REGISTER}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-6 py-2.5 text-xs sm:text-sm font-semibold text-[var(--text)] transition hover:border-[var(--border-bright)] hover:bg-[var(--surface-2)] sm:w-auto"
+              >
+                <span>Create Free Account</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
