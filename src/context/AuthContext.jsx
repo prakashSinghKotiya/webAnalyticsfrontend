@@ -6,8 +6,15 @@ import {
   registerUser as apiRegister,
   sendOtp as apiSendOtp,
 } from '../api';
-import { connectSocket, disconnectSocket } from '../api/socket';
+import { connectSocket, reconnectSocket, disconnectSocket } from '../api/socket';
 import { onAuthExpired } from '../utils/authEvents';
+import {
+  getAuthToken,
+  setAuthToken,
+  removeAuthToken,
+  getGuestId,
+  removeGuestId,
+} from '../utils/tokenStorage';
 
 /**
  * Auth is split into two contexts:
@@ -36,7 +43,7 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  /** Fetch the session from the backend (cookie-based auth). */
+  /** Fetch the session from the backend (dual-auth: token header + cookie). */
   const checkAuth = useCallback(async () => {
     try {
       const userData = await getUserDetails();
@@ -47,6 +54,8 @@ export function AuthProvider({ children }) {
       return userData;
     } catch {
       if (!mountedRef.current) return null;
+      // If token is invalid or session has expired, clean up token
+      removeAuthToken();
       setUser(null);
       setIsAuthenticated(false);
       return null;
@@ -66,28 +75,66 @@ export function AuthProvider({ children }) {
   // Protected routes then redirect automatically via the guards — no
   // navigation code needed and no stale session anywhere in the UI.
   useEffect(() => onAuthExpired(() => {
+    removeAuthToken();
     setUser(null);
     setIsAuthenticated(false);
-    disconnectSocket();
+    reconnectSocket();
   }), []);
+
+  // Cross-tab authentication synchronization (syncs login/logout across tabs)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'authToken') {
+        if (e.newValue) {
+          checkAuth();
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+          reconnectSocket();
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [checkAuth]);
 
   /* ------------------------- actions (stable) ------------------------- */
 
   const sendOtp = useCallback(async (email) => apiSendOtp(email), []);
 
   const register = useCallback(
-    async ({ name, email, password, otp }) => apiRegister({ name, email, password, otp }),
+    async ({ name, email, password, otp }) => {
+      const guestId = getGuestId();
+      return apiRegister({ name, email, password, otp, guestId });
+    },
     [],
   );
 
   const login = useCallback(
     async (credentials) => {
-      const response = await apiLogin(credentials);
-      // A guest socket is authenticated from its initial handshake. Recreate it
-      // after login so it joins the authenticated user room (and retains the
-      // guest room server-side for any in-flight demo job).
-      disconnectSocket();
-      await checkAuth(); // hydrate user + connect socket after login
+      const guestId = getGuestId();
+      const response = await apiLogin({ ...credentials, guestId });
+
+      // Save token for cross-domain headers (iOS Safari support)
+      const token = response?.token || response?.sessionId;
+      if (token) {
+        setAuthToken(token);
+        removeGuestId(); // Clean up guest state once user is authenticated
+      }
+
+      // Immediately hydrate user object if returned by login payload
+      if (response?.user) {
+        setUser(response.user);
+        setIsAuthenticated(true);
+      }
+
+      // Reconnect socket with the new token to join the user's room
+      reconnectSocket();
+
+      // Hydrate full session details from backend
+      await checkAuth();
+
       return response;
     },
     [checkAuth],
@@ -100,9 +147,11 @@ export function AuthProvider({ children }) {
       // Even if the server call fails, clear local state — never trap the user.
       console.error('[auth] logout error:', error);
     } finally {
+      removeAuthToken();
       setUser(null);
       setIsAuthenticated(false);
-      disconnectSocket();
+      // Reconnect socket without auth tokens (can connect as guest when demo is used)
+      reconnectSocket();
     }
   }, []);
 

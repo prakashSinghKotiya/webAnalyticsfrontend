@@ -10,6 +10,7 @@ export { getAllUsers, forceLogoutUser, deleteUser } from './admin';
 // Demo API (Guest session, unified polling, infrastructure health)
 export {
   initializeDemoSession,
+  initDemoSession,
   resetDemoSessionCache,
   getDemoSessionData,
   runDemoJob,
@@ -80,6 +81,7 @@ export {
 export {
   getSocket,
   connectSocket,
+  reconnectSocket,
   disconnectSocket,
   subscribeToEvents,
   getConnectionState,
@@ -100,4 +102,4 @@ export {
 } from './socket';
 
 // Axios instances
-export { axiosWithCreds, axiosWithoutCreds } from './axiosInstance';
+export { axiosWithCreds, axiosWithoutCreds, api } from './axiosInstance';

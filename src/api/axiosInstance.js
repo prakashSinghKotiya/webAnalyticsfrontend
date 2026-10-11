@@ -1,18 +1,24 @@
 import axios from "axios";
 import { notifyAuthExpired } from "../utils/authEvents";
+import {
+  getAuthToken,
+  getGuestId,
+  setGuestId,
+  removeAuthToken,
+} from "../utils/tokenStorage";
 
-const BASE_URL = import.meta.env.VITE_API_URL ;
+const BASE_URL = import.meta.env.VITE_API_URL || "https://your-railway-app.up.railway.app";
 
-// Axios instance WITH credentials (for authenticated routes)
+// Axios instance WITH credentials (for authenticated & session routes)
 export const axiosWithCreds = axios.create({
   baseURL: BASE_URL,
-  withCredentials: true,
+  withCredentials: true, // Sends cookies for PC / Android while supporting iOS via dual-auth headers
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Axios instance WITHOUT credentials (for public routes)
+// Axios instance WITHOUT credentials (for OTP/public auth routes)
 export const axiosWithoutCreds = axios.create({
   baseURL: BASE_URL,
   headers: {
@@ -20,22 +26,69 @@ export const axiosWithoutCreds = axios.create({
   },
 });
 
-// Request interceptor for logging (dev only)
-if (import.meta.env.DEV) {
-  axiosWithCreds.interceptors.request.use((config) => {
+// Alias for convenience and alignment with standard API client patterns
+export const api = axiosWithCreds;
+
+// Helper to attach dual-auth headers to request config
+function attachAuthHeaders(config) {
+  // Ensure headers object exists
+  if (!config.headers) {
+    config.headers = {};
+  }
+
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+    config.headers["x-session-id"] = token;
+  }
+
+  const guestId = getGuestId();
+  if (guestId) {
+    config.headers["x-guest-id"] = guestId;
+  }
+
+  if (import.meta.env.DEV) {
     console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
-    return config;
-  });
-  
-  axiosWithoutCreds.interceptors.request.use((config) => {
-    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
-    return config;
-  });
+  }
+
+  return config;
 }
 
-// Response interceptors with better error handling
+// Helper to extract header value safely across Axios versions
+function extractHeader(headers, name) {
+  if (!headers) return null;
+  if (typeof headers.get === "function") {
+    return headers.get(name) || headers.get(name.toLowerCase());
+  }
+  return headers[name] || headers[name.toLowerCase()] || null;
+}
+
+// Attach dual-auth headers to outgoing requests
+axiosWithCreds.interceptors.request.use(attachAuthHeaders, (error) => Promise.reject(error));
+
+// Also allow public/OTP requests to attach guestId if available
+axiosWithoutCreds.interceptors.request.use((config) => {
+  if (!config.headers) config.headers = {};
+  const guestId = getGuestId();
+  if (guestId) {
+    config.headers["x-guest-id"] = guestId;
+  }
+  if (import.meta.env.DEV) {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+  }
+  return config;
+}, (error) => Promise.reject(error));
+
+// Response interceptors with dual-auth capture and robust error handling
 axiosWithCreds.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Capture any new or refreshed x-guest-id returned by the server (iOS fallback)
+    const returnedGuestId = extractHeader(response.headers, "x-guest-id");
+    if (returnedGuestId && !getAuthToken()) {
+      setGuestId(returnedGuestId);
+    }
+    return response;
+  },
   (error) => {
     const status = error?.response?.status;
     const data = error?.response?.data;
@@ -45,6 +98,7 @@ axiosWithCreds.interceptors.response.use(
     // Requests with _skipAuthExpired (e.g. initial guest checkAuth) bypass this.
     if (status === 401 && !error?.config?._skipAuthExpired) {
       console.warn("[API] Unauthorized - session may have expired");
+      removeAuthToken();
       notifyAuthExpired();
     }
 
@@ -58,7 +112,13 @@ axiosWithCreds.interceptors.response.use(
 );
 
 axiosWithoutCreds.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const returnedGuestId = extractHeader(response.headers, "x-guest-id");
+    if (returnedGuestId && !getAuthToken()) {
+      setGuestId(returnedGuestId);
+    }
+    return response;
+  },
   (error) => {
     const data = error?.response?.data;
     return Promise.reject(
@@ -68,3 +128,5 @@ axiosWithoutCreds.interceptors.response.use(
     );
   }
 );
+
+export default api;

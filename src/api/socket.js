@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client'
+import { getAuthToken, getGuestId } from '../utils/tokenStorage'
 
 const IS_DEV = Boolean(import.meta.env.DEV)
 const IS_BROWSER = typeof window !== 'undefined'
@@ -58,6 +59,7 @@ export const ON = Object.freeze({
   WHOIS_FAILED_ALT: 'whoisLookup-failed',
   UPTIME_COMPLETED: 'uptimeCompleted',
   UPTIME_FAILED: 'uptimeMonitor-failed',
+  ROOM_MIGRATED: 'roomMigrated',
   CONNECT: 'connect',
   DISCONNECT: 'disconnect',
   CONNECT_ERROR: 'connect_error',
@@ -84,6 +86,40 @@ export function getConnectionState() {
 export function subscribeToConnectionState(callback) {
   stateSubscribers.add(callback)
   return () => stateSubscribers.delete(callback)
+}
+
+/* ------------------------------------------------------------------ */
+/* Auth payload synchronization                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Constructs the multi-source auth payload for Socket.IO handshake.
+ * Provides token/sessionId for authenticated users and guestId for demo visitors.
+ */
+function getSocketAuthPayload() {
+  const token = getAuthToken()
+  const guestId = getGuestId()
+  return {
+    token: token || undefined,
+    sessionId: token || undefined,
+    guestId: guestId || undefined,
+  }
+}
+
+/** Synchronizes the latest auth credentials onto the socket instance */
+function syncSocketAuth(instance) {
+  if (!instance) return
+  const auth = getSocketAuthPayload()
+  instance.auth = auth
+
+  if (instance.io?.opts) {
+    instance.io.opts.auth = auth
+    const query = {
+      ...(auth.token ? { token: auth.token } : {}),
+      ...(auth.guestId ? { guestId: auth.guestId } : {}),
+    }
+    instance.io.opts.query = query
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -119,13 +155,21 @@ export function emitCatchup(jobs) {
 }
 
 function createSocket() {
+  const auth = getSocketAuthPayload()
+  const query = {
+    ...(auth.token ? { token: auth.token } : {}),
+    ...(auth.guestId ? { guestId: auth.guestId } : {}),
+  }
+
   const instance = io(SOCKET_URL, {
     autoConnect: false,
-    transports: ['websocket', 'polling'],
+    auth,
+    query,
+    transports: ['websocket', 'polling'], // Ensures fast WebSocket connection on iOS
     tryAllTransports: true,
     withCredentials: true,
     reconnection: true,
-    reconnectionAttempts: Infinity,
+    reconnectionAttempts: 10,
     reconnectionDelay: 1_000,
     reconnectionDelayMax: 15_000,
     randomizationFactor: 0.5,
@@ -133,7 +177,7 @@ function createSocket() {
   })
 
   instance.on('connect', () => {
-    log('connected', instance.id)
+    log('connected with ID:', instance.id)
     setConnectionState({ status: 'connected', error: null, attempt: 0 })
 
     // Rejoin rooms on reconnect if necessary
@@ -149,6 +193,11 @@ function createSocket() {
       log('requesting catchup for in-flight jobs:', jobs)
       instance.emit('catchup', { jobs })
     }
+  })
+
+  // Handle server-side socket migration from guest to user room
+  instance.on('roomMigrated', (data) => {
+    log('Room migrated by backend:', data?.roomId)
   })
 
   instance.on('disconnect', (reason) => {
@@ -184,6 +233,8 @@ function createSocket() {
   })
 
   instance.io.on('reconnect_attempt', (attempt) => {
+    // Keep auth in sync during reconnect attempts
+    syncSocketAuth(instance)
     setConnectionState({ status: 'reconnecting', attempt })
   })
 
@@ -197,6 +248,7 @@ function createSocket() {
 
 function ensureConnected() {
   const instance = getSocket()
+  syncSocketAuth(instance)
   if (!instance.connected && !instance.active) {
     setConnectionState({ status: 'connecting', error: null })
     instance.connect()
@@ -233,10 +285,27 @@ export function disconnectSocket() {
   socket = null
   instance.disconnect()
   instance.removeAllListeners()
-  instance.io.removeAllListeners()
+  if (instance.io) instance.io.removeAllListeners()
   activeRooms.clear()
   listenerRegistry.clear()
   setConnectionState({ status: 'idle', error: null, attempt: 0 })
+}
+
+/**
+ * Completely tears down the current socket instance and reconnects fresh
+ * using current credentials (e.g. after login, logout, or guest session init).
+ * All event subscriptions registered via subscribeToEvents are preserved.
+ */
+export function reconnectSocket() {
+  if (socket) {
+    const prevSocket = socket
+    socket = null
+    prevSocket.disconnect()
+    prevSocket.removeAllListeners()
+    if (prevSocket.io) prevSocket.io.removeAllListeners()
+  }
+  resetSocketAuth()
+  return ensureConnected()
 }
 
 export function isSocketConnected() {
@@ -281,7 +350,7 @@ export function waitForSocket(timeoutMs = 15_000) {
 
 /**
  * Subscribe to socket events. Returns cleanup function.
- * Usage: useEffect(() => subscribeToEvents({ [ON.TTFB_COMPLETED]: handler }), [])
+ * Registered handlers survive reconnects and socket rebuilds.
  */
 export function subscribeToEvents(handlers) {
   const entries = Object.entries(handlers ?? {})
@@ -365,6 +434,7 @@ export function leaveRoom(key) {
 if (IS_BROWSER) {
   window.addEventListener('online', () => {
     if (socket && !socket.connected && connectionState.status !== 'unauthorized') {
+      syncSocketAuth(socket)
       socket.connect()
     }
   })
@@ -377,6 +447,7 @@ if (import.meta.hot) {
 export default {
   getSocket,
   connectSocket,
+  reconnectSocket,
   disconnectSocket,
   isSocketConnected,
   waitForSocket,

@@ -4,22 +4,27 @@ import { generateLighthouseReport } from './lighthouse';
 import { lookupDnsRecords } from './dnsType';
 import { checkRedirects } from './redirectCheck';
 import { whoisLookup } from './whoisLookup';
-import { connectSocket, resetSocketAuth } from './socket';
+import { connectSocket, resetSocketAuth, getSocket } from './socket';
+import { getGuestId, setGuestId, getAuthToken } from '../utils/tokenStorage';
 
 let inFlightSessionPromise = null;
 let isSessionEstablished = false;
 let currentSessionData = null;
 
 /**
- * Establishes the signed guest cookie required by Socket.IO demo sessions.
+ * Establishes or restores the guest session required by Socket.IO demo services.
  * Concurrency-safe: sharing in-flight promises guarantees zero duplicate calls and race-free handshake.
  *
- * Flow per DEMO_FLOW.md:
- * 1. Call POST /demo/session with credentials: "include" -> sets signed HttpOnly 'gid' cookie.
- * 2. Connect Socket.IO -> socket joins room "guest:<guestId>".
+ * Flow:
+ * 1. Checks localStorage for existing guestId (retains iOS Safari guest session across page loads).
+ * 2. If missing or forced, calls POST /demo/session. Dual-auth request interceptor passes x-guest-id if present.
+ * 3. Captures guestId from response payload or x-guest-id response header, persists to localStorage.
+ * 4. Ensures Socket.IO connects with guestId in the handshake auth payload and joins guest:<guestId> room.
  */
 export async function initializeDemoSession({ force = false } = {}) {
-  if (isSessionEstablished && currentSessionData && !force) {
+  const existingGuestId = getGuestId();
+
+  if (isSessionEstablished && currentSessionData && existingGuestId && !force) {
     return Promise.resolve(currentSessionData);
   }
 
@@ -27,21 +32,34 @@ export async function initializeDemoSession({ force = false } = {}) {
     return inFlightSessionPromise;
   }
 
-  // Clear any stale unauthorized socket state before establishing fresh guest cookie
+  // Clear any stale unauthorized socket state
   resetSocketAuth();
 
   inFlightSessionPromise = axiosWithCreds
-    .post('/demo/session')
+    .post('/demo/session', {
+      ...(existingGuestId ? { guestId: existingGuestId } : {}),
+    })
     .then((res) => {
       isSessionEstablished = true;
       currentSessionData = res.data;
-      // Connect Socket.IO immediately now that the signed HttpOnly gid cookie is established
+
+      const returnedGuestId = res.data?.guestId || existingGuestId;
+      if (returnedGuestId && !getAuthToken()) {
+        setGuestId(returnedGuestId);
+      }
+
+      // Connect Socket.IO immediately with the valid guestId credentials
       connectSocket({ force: true });
       return res.data;
     })
     .catch((err) => {
-      isSessionEstablished = false;
-      currentSessionData = null;
+      // If server error occurred but we have an existing guestId, still attempt socket connect
+      if (existingGuestId) {
+        connectSocket();
+      } else {
+        isSessionEstablished = false;
+        currentSessionData = null;
+      }
       throw err;
     })
     .finally(() => {
@@ -49,6 +67,18 @@ export async function initializeDemoSession({ force = false } = {}) {
     });
 
   return inFlightSessionPromise;
+}
+
+/** Standalone alias for initializing demo session */
+export async function initDemoSession() {
+  try {
+    const data = await initializeDemoSession();
+    getSocket({ autoConnect: true });
+    return data?.guestId || getGuestId();
+  } catch (err) {
+    console.error('Failed to initialize demo session:', err);
+    return getGuestId();
+  }
 }
 
 /** Resets local session cache (e.g. after login or explicit reset). */

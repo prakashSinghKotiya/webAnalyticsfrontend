@@ -45,6 +45,8 @@ export const ADMIN_ROLES = Object.freeze([
 /** localStorage keys (prefixed to avoid collisions). */
 export const STORAGE_KEYS = Object.freeze({
   THEME: 'wp-theme',
+  AUTH_TOKEN: 'authToken',
+  GUEST_ID: 'guestId',
 });
 
 /** Supported themes. */
