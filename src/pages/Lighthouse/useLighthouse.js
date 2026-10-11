@@ -3,12 +3,14 @@ import {
   generateLighthouseReport,
   getLighthouseById,
   getLighthouseResults,
+  getLighthouseStatus,
 } from '../../api/lighthouse';
 import {
-  EMIT,
   ON,
-  emitSocketEvent,
+  emitCatchup,
+  registerCatchupJob,
   subscribeToEvents,
+  unregisterCatchupJob,
   waitForSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
@@ -29,7 +31,7 @@ export default function useLighthouse() {
   const [strategy, setStrategy] = useState('mobile'); // mobile | desktop
   const [auditStep, setAuditStep] = useState('');
 
-  // Backend database results and pagination state (no client localStorage)
+  // Backend database results and pagination state
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPagination, setHistoryPagination] = useState({
@@ -52,6 +54,15 @@ export default function useLighthouse() {
       mountedRef.current = false;
       if (pendingRef.current?.timer) {
         clearTimeout(pendingRef.current.timer);
+      }
+      if (pendingRef.current?.watchdogTimer) {
+        clearTimeout(pendingRef.current.watchdogTimer);
+      }
+      if (pendingRef.current?.pollingInterval) {
+        clearInterval(pendingRef.current.pollingInterval);
+      }
+      if (pendingRef.current?.dbId) {
+        unregisterCatchupJob(pendingRef.current.dbId);
       }
       if (stepIntervalRef.current) {
         clearInterval(stepIntervalRef.current);
@@ -96,6 +107,11 @@ export default function useLighthouse() {
     if (!pending) return;
 
     if (pending.timer) clearTimeout(pending.timer);
+    if (pending.watchdogTimer) clearTimeout(pending.watchdogTimer);
+    if (pending.pollingInterval) clearInterval(pending.pollingInterval);
+    if (pending.dbId) unregisterCatchupJob(pending.dbId);
+    if (pending.jobId) unregisterCatchupJob(pending.jobId);
+
     pendingRef.current = null;
 
     if (err) {
@@ -122,8 +138,8 @@ export default function useLighthouse() {
       }
 
       const auditResult = payload?.result || payload;
-      if (auditResult?.status === 'failed') {
-        settle(new Error(auditResult?.error || 'Lighthouse audit execution failed on server.'));
+      if (payload?.status === 'failed' || auditResult?.status === 'failed') {
+        settle(new Error(payload?.error || auditResult?.error || 'Lighthouse audit execution failed on server.'));
         return;
       }
 
@@ -150,15 +166,15 @@ export default function useLighthouse() {
     };
 
     const unsub = subscribeToEvents({
+      [ON.LIGHTHOUSE_RESULT]: handleCompleted,
       [ON.LIGHTHOUSE_COMPLETED]: handleCompleted,
-      lighthouseCompleted: handleCompleted, // Support alternate emission format
+      [ON.LIGHTHOUSE_COMPLETED_ALT]: handleCompleted,
+      lighthouseCompleted: handleCompleted,
       [ON.LIGHTHOUSE_FAILED]: handleFailed,
     });
 
     return () => unsub();
   }, [settle]);
-
-
 
   /**
    * Fetch paginated results from MongoDB backend API.
@@ -194,7 +210,6 @@ export default function useLighthouse() {
             setHistoryPagination(res.pagination);
           }
 
-          // If requested and report is not yet set, automatically load the latest result
           if (selectFirstIfEmpty && normalizedList.length > 0) {
             setReport((current) => current || normalizedList[0]);
           }
@@ -226,7 +241,6 @@ export default function useLighthouse() {
           if (res.pagination) {
             setHistoryPagination(res.pagination);
           }
-          // Display the latest result immediately on UI
           if (normalizedList.length > 0) {
             setReport(normalizedList[0]);
           }
@@ -260,15 +274,16 @@ export default function useLighthouse() {
       startStepProgress();
 
       try {
+        await waitForSocket();
+
         const res = await generateLighthouseReport(normalized, auditStrategy);
-        const roomId = res?.roomId;
         const jobId = res?.jobId || res?.data?._id;
         const lighthousedbId = res?.lighthousedbId || res?.data?._id;
+        const targetId = String(lighthousedbId || jobId);
 
-        // Join user room via socket to receive live updates
-        const socketOk = await waitForSocket();
-        if (socketOk && roomId) {
-          emitSocketEvent(EMIT.LIGHTHOUSE_JOB, { roomId, jobId });
+        // Register job ID for automatic socket catchup recovery on reconnect
+        if (targetId) {
+          registerCatchupJob('lighthouse', targetId);
         }
 
         const rawResult = await new Promise((resolve, reject) => {
@@ -278,26 +293,57 @@ export default function useLighthouse() {
             resolve,
             reject,
             timer: setTimeout(async () => {
-              // Graceful fallback: Check if DB doc already finished before giving up
-              if (lighthousedbId) {
+              // Graceful fallback: Check status endpoint before timing out
+              if (targetId) {
                 try {
-                  const check = await getLighthouseById(lighthousedbId);
-                  if (check?.success && check?.data?.status === 'completed' && check?.data?.result) {
-                    settle(null, check.data);
+                  const check = await getLighthouseStatus(targetId);
+                  if (check?.success && check?.status === 'completed' && check?.result) {
+                    settle(null, check);
                     return;
                   }
                 } catch {
-                  // Ignore and proceed to timeout error
+                  // Ignore and proceed
                 }
               }
-              settle(new Error('Audit timed out. Google PageSpeed API took too long to respond.'));
+              settle(new Error('Audit timed out waiting for Lighthouse response.'));
             }, LIGHTHOUSE_SCAN_TIMEOUT_MS),
           };
+
+          // Watchdog 1: At 10s, proactively emit socket catchup
+          const watchdogTimer = setTimeout(() => {
+            if (pendingRef.current && targetId) {
+              emitCatchup({ service: 'lighthouse', id: targetId });
+            }
+
+            // Watchdog 2: At 15s, start fallback status polling
+            const pollingInterval = setInterval(async () => {
+              if (!pendingRef.current || !targetId) return;
+              try {
+                const check = await getLighthouseStatus(targetId);
+                if (check?.success && (check.status === 'completed' || check.status === 'failed')) {
+                  if (check.status === 'failed') {
+                    settle(new Error(check.error || 'Lighthouse audit failed.'));
+                    return;
+                  }
+                  settle(null, check);
+                }
+              } catch {
+                // Ignore transient polling errors
+              }
+            }, 3000);
+
+            if (pendingRef.current) {
+              pendingRef.current.pollingInterval = pollingInterval;
+            }
+          }, 10000);
+
+          if (pendingRef.current) {
+            pendingRef.current.watchdogTimer = watchdogTimer;
+          }
         });
 
         if (!mountedRef.current) return;
 
-        // Normalize result using the centralized schema normalizer
         const newEntry = normalizeLighthouseEntry({
           _id: lighthousedbId,
           url: normalized,

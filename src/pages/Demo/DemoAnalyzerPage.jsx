@@ -1,21 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { initializeDemoSession, runDemoJob } from '../../api/demo';
+import {
+  getDemoHealth,
+  getDemoStatus,
+  initializeDemoSession,
+  runDemoJob,
+} from '../../api/demo';
 import {
   ON,
+  emitCatchup,
   isSocketConnected,
+  registerCatchupJob,
   subscribeToEvents,
+  unregisterCatchupJob,
   waitForSocket,
 } from '../../api/socket';
 import { ROUTES } from '../../constants';
 import { useAuthState } from '../../context';
 import { extractReadings, formatMs, normalizeUrl, rateLatency } from '../TTFB/ttfb.utils';
-import { normalizeLighthouseEntry, rateScore } from '../Lighthouse/lighthouse.utils';
+import { normalizeLighthouseEntry, rateScore, AUDIT_CATEGORIES } from '../Lighthouse/lighthouse.utils';
 import { normalizeDnsEntry, normalizeDomain } from '../DnsType/dns.utils';
 import { normalizeRedirectEntry, normalizeRedirectUrl } from '../Redirects/redirects.utils';
 import { normalizeWhoisEntry } from '../Whois/whois.utils';
 import DnsResultSection from '../DnsType/components/DnsResultSection';
 import WhoisResultSection from '../Whois/components/WhoisResultSection';
+import RedirectResultSection from '../Redirects/components/RedirectResultSection';
 
 const TOOL_CONFIG = {
   ttfb: {
@@ -25,6 +34,7 @@ const TOOL_CONFIG = {
     description: 'Measure server response times across global edge probe nodes.',
     placeholder: 'https://example.com',
     authRoute: ROUTES.TTFB,
+    demoRoute: ROUTES.DEMO_TTFB,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -38,6 +48,7 @@ const TOOL_CONFIG = {
     description: 'Run deep Performance, Accessibility, Best Practices, and SEO audits.',
     placeholder: 'https://example.com',
     authRoute: ROUTES.LIGHTHOUSE,
+    demoRoute: ROUTES.DEMO_LIGHTHOUSE,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
@@ -52,6 +63,7 @@ const TOOL_CONFIG = {
     description: 'Lookup and inspect authoritative A, AAAA, CNAME, MX, TXT, and NS records.',
     placeholder: 'example.com',
     authRoute: ROUTES.DNS,
+    demoRoute: ROUTES.DEMO_DNS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="4" width="20" height="7" rx="2" />
@@ -68,6 +80,7 @@ const TOOL_CONFIG = {
     description: 'Trace 301/302 HTTP redirect hops, detect loops, and inspect destination status.',
     placeholder: 'https://example.com',
     authRoute: ROUTES.REDIRECTS,
+    demoRoute: ROUTES.DEMO_REDIRECTS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="17 1 21 5 17 9" />
@@ -84,6 +97,7 @@ const TOOL_CONFIG = {
     description: 'Query authoritative registrar data, domain registration dates, and nameservers.',
     placeholder: 'example.com',
     authRoute: ROUTES.WHOIS,
+    demoRoute: ROUTES.DEMO_WHOIS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
@@ -95,11 +109,11 @@ const TOOL_CONFIG = {
 };
 
 const TIMEOUT_CONFIG = {
-  ttfb: 45_000,
-  lighthouse: 90_000,
-  dns: 30_000,
-  redirects: 30_000,
-  whois: 30_000,
+  ttfb: 40_000,
+  lighthouse: 85_000,
+  dns: 25_000,
+  redirects: 25_000,
+  whois: 25_000,
 };
 
 function Logo() {
@@ -115,18 +129,58 @@ function Logo() {
   );
 }
 
-function ScoreCard({ name, value }) {
-  const score = Number(value);
+function CircularGauge({ score, label, description }) {
   const rating = rateScore(score);
+  const numericScore = score != null ? Math.round(Number(score)) : 0;
+  const size = 96;
+  const strokeWidth = 8;
+  const center = size / 2;
+  const radius = center - strokeWidth;
+  const circumference = 2 * Math.PI * radius;
+  const offset = score != null ? circumference - (numericScore / 100) * circumference : circumference;
+
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-center">
-      <p className="text-xs text-[var(--muted)]">{name}</p>
-      <p className="mt-2 text-2xl font-bold" style={{ color: rating.color }}>
-        {Number.isFinite(score) ? score : '—'}
-      </p>
-      <p className="mt-1 text-xs" style={{ color: rating.color }}>
-        {rating.label}
-      </p>
+    <div className="flex flex-col items-center rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-center transition hover:border-[var(--border-mid)]">
+      <div className="relative mb-2 flex items-center justify-center">
+        <svg width={size} height={size} className="-rotate-90">
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke="var(--ring-track, rgba(255,255,255,0.08))"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke={rating.color}
+            strokeWidth={strokeWidth}
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            fill="transparent"
+            className="transition-all duration-1000 ease-out"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="font-['Outfit',sans-serif] text-xl font-black" style={{ color: rating.color }}>
+            {score != null ? numericScore : '—'}
+          </span>
+          <span className="text-[10px] font-semibold" style={{ color: rating.color }}>
+            {rating.label}
+          </span>
+        </div>
+      </div>
+      <h3 className="font-['Outfit',sans-serif] text-xs font-bold text-[var(--text)]">
+        {label}
+      </h3>
+      {description && (
+        <p className="mt-0.5 line-clamp-1 text-[10px] text-[var(--muted-2)]">
+          {description}
+        </p>
+      )}
     </div>
   );
 }
@@ -141,7 +195,9 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
   const [phase, setPhase] = useState('preparing'); // preparing | ready | running | complete | error
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
-  const [quota, setQuota] = useState({ remaining: 6, total: 6, isLimited: false });
+  const [quota, setQuota] = useState({ remaining: 6, total: 6, isLimited: false, nextAvailableAt: null });
+  const [infraHealth, setInfraHealth] = useState(null);
+  const [sessionRoom, setSessionRoom] = useState(null);
 
   // Tool specific options
   const [ttfbMode, setTtfbMode] = useState('all');
@@ -155,7 +211,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     activeToolRef.current = activeTool;
   }, [activeTool]);
 
-  // Sync initial kind prop changes
+  // Sync initial kind prop changes from router
   const [prevInitialKind, setPrevInitialKind] = useState(initialKind);
   if (prevInitialKind !== initialKind) {
     setPrevInitialKind(initialKind);
@@ -163,6 +219,14 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     setResult(null);
     setError('');
   }
+
+  // Keep url in sync if search parameter changes externally
+  useEffect(() => {
+    const paramUrl = searchParams.get('url');
+    if (paramUrl && paramUrl !== url) {
+      setUrl(paramUrl);
+    }
+  }, [searchParams]);
 
   // If already authenticated, redirect to the full workspace tool
   useEffect(() => {
@@ -173,7 +237,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     }
   }, [isAuthenticated, loading, activeTool, navigate]);
 
-  // Robust session bootstrap & socket readiness with zero race conditions
+  // 1. Session bootstrap & Socket-First flow per DEMO_FLOW.md
   useEffect(() => {
     if (loading || isAuthenticated) return;
     let cancelled = false;
@@ -182,20 +246,30 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
       try {
         setPhase('preparing');
         setError('');
-        await initializeDemoSession();
-        const connected = await waitForSocket(12_000);
 
-        if (!cancelled) {
-          if (connected || isSocketConnected()) {
-            setPhase('ready');
-          } else {
-            // Still allow interaction; socket will attempt reconnect
-            setPhase('ready');
-          }
+        // Step 1: Initialize demo session (sets HttpOnly signed gid cookie)
+        const session = await initializeDemoSession();
+        if (cancelled) return;
+
+        if (session?.roomId) {
+          setSessionRoom(session.roomId);
         }
+
+        // Step 2: Ensure socket connected with the gid cookie
+        await waitForSocket(6_000);
+        if (cancelled) return;
+
+        // Fetch infrastructure health in the background
+        getDemoHealth()
+          .then((health) => {
+            if (!cancelled && health?.status) setInfraHealth(health);
+          })
+          .catch(() => {});
+
+        setPhase('ready');
       } catch {
         if (!cancelled) {
-          setPhase('ready'); // Degrade gracefully so user can submit request
+          setPhase('ready'); // Graceful degradation allowing submission
         }
       }
     })();
@@ -205,7 +279,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     };
   }, [isAuthenticated, loading]);
 
-  // Unified Real-Time Socket Event Subscriptions for all 5 tools
+  // Unified Real-Time Socket Event Subscriptions (Standardized + Legacy) per DEMO_FLOW.md
   useEffect(() => {
     const checkMatchingJob = (payload, expectedKind) => {
       const pending = pendingRef.current;
@@ -213,6 +287,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
       const incomingId = String(
         payload?.jobId ||
+          payload?.ttfbdbId ||
           payload?.dnsRecordId ||
           payload?.redirectCheckId ||
           payload?.recordId ||
@@ -224,47 +299,79 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
       return pending.jobIds.includes(incomingId) || !pending.jobIds.length;
     };
 
-    const unsubscribe = subscribeToEvents({
-      // 1. TTFB
-      [ON.TTFB_COMPLETED]: (payload) => {
-        const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'ttfb')) return;
+    const handleTtfbResult = (payload) => {
+      const pending = pendingRef.current;
+      if (!pending || !checkMatchingJob(payload, 'ttfb')) return;
 
-        const data = payload?.result || payload;
-        if (data?.status === 'failed') {
-          pending.reject(new Error(data.error || 'TTFB measurement failed.'));
-          return;
-        }
+      const data = payload?.result || payload;
+      if (payload?.status === 'failed' || data?.status === 'failed') {
+        pending.reject(new Error(payload?.error || data?.error || 'TTFB measurement failed.'));
+        return;
+      }
 
-        const reading = extractReadings(payload)[0];
-        if (!reading) return;
+      const reading = extractReadings(payload)[0];
+      if (!reading) return;
 
-        if (!pending.readings.some((item) => item.region === reading.region)) {
-          pending.readings.push(reading);
-        }
+      if (!pending.readings.some((item) => item.region === reading.region)) {
+        pending.readings.push(reading);
+      }
 
-        setProgress({ received: pending.readings.length, expected: pending.expected });
-        if (pending.readings.length >= pending.expected) {
-          pending.resolve(pending.readings);
-        }
-      },
+      setProgress({ received: pending.readings.length, expected: pending.expected });
+      if (pending.readings.length >= pending.expected) {
+        pending.resolve(pending.readings);
+      }
+    };
 
-      // 2. Lighthouse
-      [ON.LIGHTHOUSE_COMPLETED]: (payload) => {
-        const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'lighthouse')) return;
-        const res = payload?.result || payload;
-        if (res?.status === 'failed') {
-          pending.reject(new Error(payload?.error || 'Lighthouse audit execution failed.'));
-        } else {
-          pending.resolve(payload);
-        }
-      },
-      [ON.LIGHTHOUSE_COMPLETED_ALT]: (payload) => {
-        const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'lighthouse')) return;
+    const handleLighthouseResult = (payload) => {
+      const pending = pendingRef.current;
+      if (!pending || !checkMatchingJob(payload, 'lighthouse')) return;
+      const res = payload?.result || payload;
+      if (payload?.status === 'failed' || res?.status === 'failed') {
+        pending.reject(new Error(payload?.error || 'Lighthouse audit execution failed.'));
+      } else {
         pending.resolve(payload);
-      },
+      }
+    };
+
+    const handleDnsResult = (payload) => {
+      const pending = pendingRef.current;
+      if (!pending || !checkMatchingJob(payload, 'dns')) return;
+      if (payload?.status === 'failed') {
+        pending.reject(new Error(payload?.error || 'DNS query resolution failed.'));
+      } else {
+        pending.resolve(payload?.result || payload);
+      }
+    };
+
+    const handleRedirectResult = (payload) => {
+      const pending = pendingRef.current;
+      if (!pending || !checkMatchingJob(payload, 'redirects')) return;
+      if (payload?.status === 'failed') {
+        pending.reject(new Error(payload?.error || 'Redirect chain check failed.'));
+      } else {
+        pending.resolve(payload?.result || payload);
+      }
+    };
+
+    const handleWhoisResult = (payload) => {
+      const pending = pendingRef.current;
+      if (!pending || !checkMatchingJob(payload, 'whois')) return;
+      if (payload?.status === 'failed') {
+        pending.reject(new Error(payload?.error || 'WHOIS lookup failed.'));
+      } else {
+        pending.resolve(payload?.result || payload);
+      }
+    };
+
+    const unsubscribe = subscribeToEvents({
+      // TTFB: standard & legacy
+      [ON.TTFB_RESULT]: handleTtfbResult,
+      [ON.TTFB_COMPLETED]: handleTtfbResult,
+
+      // Lighthouse: standard & legacy
+      [ON.LIGHTHOUSE_RESULT]: handleLighthouseResult,
+      [ON.LIGHTHOUSE_COMPLETED]: handleLighthouseResult,
+      [ON.LIGHTHOUSE_COMPLETED_ALT]: handleLighthouseResult,
       [ON.LIGHTHOUSE_FAILED]: (payload) => {
         const pending = pendingRef.current;
         if (pending && checkMatchingJob(payload, 'lighthouse')) {
@@ -272,16 +379,15 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         }
       },
 
-      // 3. DNS
-      [ON.DNS_COMPLETED]: (payload) => {
+      // DNS: standard & legacy
+      [ON.DNS_RESULT]: handleDnsResult,
+      [ON.DNS_COMPLETED]: handleDnsResult,
+      [ON.DNS_COMPLETED_ALT]: handleDnsResult,
+      [ON.DNS_FAILED]: (payload) => {
         const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'dns')) return;
-        pending.resolve(payload?.result || payload);
-      },
-      [ON.DNS_COMPLETED_ALT]: (payload) => {
-        const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'dns')) return;
-        pending.resolve(payload?.result || payload);
+        if (pending && checkMatchingJob(payload, 'dns')) {
+          pending.reject(new Error(payload?.error || 'DNS query failed.'));
+        }
       },
       [ON.DNS_FAILED_ALT]: (payload) => {
         const pending = pendingRef.current;
@@ -290,16 +396,15 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         }
       },
 
-      // 4. Redirects
-      [ON.REDIRECT_COMPLETED]: (payload) => {
+      // Redirect: standard & legacy
+      [ON.REDIRECT_RESULT]: handleRedirectResult,
+      [ON.REDIRECT_COMPLETED]: handleRedirectResult,
+      [ON.REDIRECT_COMPLETED_ALT]: handleRedirectResult,
+      [ON.REDIRECT_FAILED]: (payload) => {
         const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'redirects')) return;
-        pending.resolve(payload?.result || payload);
-      },
-      [ON.REDIRECT_COMPLETED_ALT]: (payload) => {
-        const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'redirects')) return;
-        pending.resolve(payload?.result || payload);
+        if (pending && checkMatchingJob(payload, 'redirects')) {
+          pending.reject(new Error(payload?.error || 'Redirect chain check failed.'));
+        }
       },
       [ON.REDIRECT_FAILED_ALT]: (payload) => {
         const pending = pendingRef.current;
@@ -308,16 +413,15 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         }
       },
 
-      // 5. WHOIS
-      [ON.WHOIS_COMPLETED]: (payload) => {
+      // WHOIS: standard & legacy
+      [ON.WHOIS_RESULT]: handleWhoisResult,
+      [ON.WHOIS_COMPLETED]: handleWhoisResult,
+      [ON.WHOIS_COMPLETED_ALT]: handleWhoisResult,
+      [ON.WHOIS_FAILED]: (payload) => {
         const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'whois')) return;
-        pending.resolve(payload?.result || payload);
-      },
-      [ON.WHOIS_COMPLETED_ALT]: (payload) => {
-        const pending = pendingRef.current;
-        if (!pending || !checkMatchingJob(payload, 'whois')) return;
-        pending.resolve(payload?.result || payload);
+        if (pending && checkMatchingJob(payload, 'whois')) {
+          pending.reject(new Error(payload?.error || 'WHOIS lookup failed.'));
+        }
       },
       [ON.WHOIS_FAILED_ALT]: (payload) => {
         const pending = pendingRef.current;
@@ -329,6 +433,19 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
     return unsubscribe;
   }, []);
+
+  const handleSelectTool = useCallback(
+    (toolId) => {
+      if (phase === 'running') return;
+      setActiveTool(toolId);
+      setResult(null);
+      setError('');
+      const targetRoute = TOOL_CONFIG[toolId]?.demoRoute || `/demo/${toolId}`;
+      const trimmed = url.trim();
+      navigate(trimmed ? `${targetRoute}?url=${encodeURIComponent(trimmed)}` : targetRoute, { replace: true });
+    },
+    [navigate, phase, url],
+  );
 
   const runDemo = useCallback(
     async (event) => {
@@ -354,12 +471,22 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
       setResult(null);
       setPhase('running');
 
+      const targetRoute = TOOL_CONFIG[activeTool]?.demoRoute || `/demo/${activeTool}`;
+      navigate(`${targetRoute}?url=${encodeURIComponent(target)}`, { replace: true });
+
       const expectedCount = activeTool === 'ttfb' && ttfbMode === 'all' ? 3 : 1;
       setProgress({ received: 0, expected: expectedCount });
 
+      let watchdogTimer = null;
+      let pollingInterval = null;
+      let inFlightJobIds = [];
+
       try {
-        // Fast-path: ensure guest cookie is active and socket ready
-        await initializeDemoSession();
+        // Step 1: Ensure demo session is initialized before request
+        const session = await initializeDemoSession();
+        if (session?.roomId) setSessionRoom(session.roomId);
+
+        // Step 2: Ensure socket connected
         await waitForSocket(5_000);
 
         const options = {
@@ -367,62 +494,128 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
           strategy: lighthouseStrategy,
         };
 
+        // Step 3: Submit analysis job (returns 202 Accepted)
         const response = await runDemoJob(activeTool, target, options);
 
-        // Update quota state from server response if available
+        // Synchronize quota metadata from response
         if (response?.remaining !== undefined) {
           setQuota({
             remaining: response.remaining,
             total: response.totalLimit || 6,
             isLimited: response.remaining <= 0,
+            nextAvailableAt: null,
           });
         }
 
-        // Collect matching jobIds for correlation
-        let jobIds = [];
+        // Collect matching jobIds
         if (activeTool === 'ttfb' && ttfbMode === 'all') {
-          jobIds = response?.jobs?.map((j) => String(j.jobId)).filter(Boolean) || [];
+          inFlightJobIds = response?.jobs?.map((j) => String(j.jobId)).filter(Boolean) || [];
         } else {
           const singleId = String(
             response?.jobId ||
+              response?.ttfbdbId ||
               response?.dnsRecordId ||
               response?.redirectCheckId ||
               response?.whoisDbId ||
               response?.lighthousedbId ||
               '',
           );
-          if (singleId) jobIds = [singleId];
+          if (singleId) inFlightJobIds = [singleId];
+        }
+
+        // Register with socket catchup manager (for reconnect auto-recovery)
+        for (const jId of inFlightJobIds) {
+          registerCatchupJob(activeTool, jId);
         }
 
         const waitDuration = TIMEOUT_CONFIG[activeTool] || 35_000;
 
+        // Step 4 & 5: Guaranteed delivery via socket events + catchup watchdog + fallback HTTP polling
         const rawData = await new Promise((resolve, reject) => {
-          const timer = setTimeout(() => {
-            if (pendingRef.current) {
-              pendingRef.current = null;
-              reject(new Error('The request timed out waiting for backend worker response.'));
-            }
+          const timeoutTimer = setTimeout(() => {
+            cleanupFailsafe();
+            reject(new Error('The request timed out waiting for backend worker response.'));
           }, waitDuration);
+
+          const cleanupFailsafe = () => {
+            clearTimeout(timeoutTimer);
+            if (watchdogTimer) clearTimeout(watchdogTimer);
+            if (pollingInterval) clearInterval(pollingInterval);
+            pendingRef.current = null;
+            for (const jId of inFlightJobIds) {
+              unregisterCatchupJob(jId);
+            }
+          };
 
           pendingRef.current = {
             kind: activeTool,
-            jobIds,
+            jobIds: inFlightJobIds,
             readings: [],
             expected: expectedCount,
             resolve: (val) => {
-              clearTimeout(timer);
-              pendingRef.current = null;
+              cleanupFailsafe();
               resolve(val);
             },
             reject: (err) => {
-              clearTimeout(timer);
-              pendingRef.current = null;
+              cleanupFailsafe();
               reject(err);
             },
           };
+
+          // Watchdog 1: At 8s, proactively emit socket 'catchup'
+          watchdogTimer = setTimeout(() => {
+            if (pendingRef.current && inFlightJobIds.length > 0) {
+              const catchupPayload = inFlightJobIds.map((id) => ({
+                service: activeTool === 'redirects' ? 'redirect' : activeTool,
+                id,
+              }));
+              emitCatchup(catchupPayload);
+            }
+
+            // Watchdog 2: At 12s, initiate fallback HTTP status polling (GET /demo/status/:service/:id)
+            pollingInterval = setInterval(async () => {
+              if (!pendingRef.current || !inFlightJobIds.length) return;
+              try {
+                for (const jId of inFlightJobIds) {
+                  const statusData = await getDemoStatus(activeTool, jId);
+                  if (statusData?.success && (statusData.status === 'completed' || statusData.status === 'failed')) {
+                    if (statusData.status === 'failed') {
+                      pendingRef.current?.reject(
+                        new Error(statusData.error || `${activeTool} analysis failed.`)
+                      );
+                      return;
+                    }
+
+                    if (activeTool === 'ttfb') {
+                      const reading = {
+                        region: statusData.result?.region || 'probe',
+                        ms: statusData.result?.ttfbMs || statusData.result?.ms || 0,
+                        raw: statusData.result,
+                      };
+                      if (!pendingRef.current.readings.some((r) => r.region === reading.region)) {
+                        pendingRef.current.readings.push(reading);
+                      }
+                      setProgress({
+                        received: pendingRef.current.readings.length,
+                        expected: pendingRef.current.expected,
+                      });
+                      if (pendingRef.current.readings.length >= pendingRef.current.expected) {
+                        pendingRef.current.resolve(pendingRef.current.readings);
+                      }
+                    } else {
+                      pendingRef.current?.resolve(statusData.result || statusData);
+                      return;
+                    }
+                  }
+                }
+              } catch {
+                // Ignore transient polling errors and wait for next interval or socket
+              }
+            }, 3000);
+          }, 8000);
         });
 
-        // Normalize result data per tool
+        // Normalize result per service schema
         let parsed = rawData;
         if (activeTool === 'lighthouse') {
           parsed = normalizeLighthouseEntry(rawData);
@@ -438,26 +631,63 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         setPhase('complete');
       } catch (err) {
         pendingRef.current = null;
+        for (const jId of inFlightJobIds) {
+          unregisterCatchupJob(jId);
+        }
 
-        // Catch 429 quota exhaustion specifically
-        if (err?.code === 'GUEST_DEMO_LIMIT_EXCEEDED' || err?.status === 429) {
-          setQuota((prev) => ({ ...prev, remaining: 0, isLimited: true }));
+        // Catch 429 quota exhaustion specifically (GUEST_DEMO_LIMIT_EXCEEDED)
+        const isQuotaError =
+          err?.code === 'GUEST_DEMO_LIMIT_EXCEEDED' ||
+          err?.response?.data?.code === 'GUEST_DEMO_LIMIT_EXCEEDED' ||
+          err?.status === 429 ||
+          err?.response?.status === 429;
+
+        if (isQuotaError) {
+          const nextReset =
+            err?.nextAvailableAt ||
+            err?.response?.data?.nextAvailableAt ||
+            null;
+
+          setQuota((prev) => ({
+            ...prev,
+            remaining: 0,
+            isLimited: true,
+            nextAvailableAt: nextReset,
+          }));
+
           setError(
-            err?.message ||
-              'You have reached your daily quota of 6 free demo tests. Create a free account for unlimited runs!',
+            err?.response?.data?.message ||
+              err?.message ||
+              'Daily guest demo limit exceeded. You have reached 6 free demo tests today.'
           );
         } else {
-          setError(err?.error || err?.message || 'The diagnostic check could not be completed.');
+          setError(
+            err?.response?.data?.error ||
+              err?.response?.data?.message ||
+              err?.error ||
+              err?.message ||
+              'The diagnostic check could not be completed.'
+          );
         }
 
         setPhase('error');
       }
     },
-    [activeTool, lighthouseStrategy, phase, ttfbMode, url],
+    [activeTool, lighthouseStrategy, navigate, phase, ttfbMode, url],
   );
 
   const currentTool = TOOL_CONFIG[activeTool] || TOOL_CONFIG.ttfb;
   const isRunning = phase === 'running';
+
+  const formatResetTime = (isoString) => {
+    if (!isoString) return 'midnight UTC';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+    } catch {
+      return 'midnight UTC';
+    }
+  };
 
   return (
     <main className="min-h-screen bg-[var(--bg)] px-4 py-8 text-[var(--text)] sm:px-6 lg:px-8">
@@ -466,15 +696,53 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         <header className="mb-8 flex items-center justify-between border-b border-[var(--border)] pb-4">
           <Logo />
           <div className="flex items-center gap-3">
-            <span className="hidden items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 font-['JetBrains_Mono',monospace] text-xs sm:inline-flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--cyan)] animate-pulse" />
-              <span>Demo Quota: {quota.remaining}/{quota.total}</span>
+            {/* Live Quota Pill */}
+            <span
+              className={`hidden items-center gap-2 rounded-full border px-3 py-1 font-['JetBrains_Mono',monospace] text-xs sm:inline-flex ${
+                quota.remaining <= 1
+                  ? 'border-[var(--red)]/40 bg-[var(--red)]/10 text-[var(--red)]'
+                  : quota.remaining <= 3
+                  ? 'border-[var(--orange)]/40 bg-[var(--orange)]/10 text-[var(--orange)]'
+                  : 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)]'
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  quota.remaining <= 1
+                    ? 'bg-[var(--red)]'
+                    : quota.remaining <= 3
+                    ? 'bg-[var(--orange)]'
+                    : 'bg-[var(--cyan)] animate-pulse'
+                }`}
+              />
+              <span>Daily Quota: {quota.remaining}/{quota.total}</span>
             </span>
-            <Link to={ROUTES.LOGIN} className="text-sm font-semibold text-[var(--muted-2)] hover:text-[var(--text)]">
+
+            {/* Socket Health Indicator */}
+            <span
+              className="hidden items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] text-[var(--muted-2)] md:inline-flex"
+              title={sessionRoom ? `Room: ${sessionRoom}` : 'Socket session'}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isSocketConnected() ? 'bg-[var(--green)]' : 'bg-[var(--orange)] animate-pulse'
+                }`}
+              />
+              <span className="font-['JetBrains_Mono',monospace]">
+                {isSocketConnected() ? 'Live Socket' : 'Connecting'}
+              </span>
+            </span>
+
+            <Link
+              to={ROUTES.LOGIN}
+              state={{ from: { pathname: currentTool.authRoute } }}
+              className="text-sm font-semibold text-[var(--muted-2)] hover:text-[var(--text)]"
+            >
               Sign in
             </Link>
             <Link
               to={ROUTES.REGISTER}
+              state={{ from: { pathname: currentTool.authRoute } }}
               className="rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
             >
               Sign up
@@ -491,11 +759,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                 key={tool.id}
                 type="button"
                 disabled={isRunning}
-                onClick={() => {
-                  setActiveTool(tool.id);
-                  setResult(null);
-                  setError('');
-                }}
+                onClick={() => handleSelectTool(tool.id)}
                 className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
                   isActive
                     ? 'border-[var(--cyan)] bg-[var(--cyan-dim)] text-[var(--cyan)] shadow-sm'
@@ -509,16 +773,66 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
           })}
         </nav>
 
+        {/* Quota Exhaustion Alert Card (429) */}
+        {quota.isLimited && (
+          <div
+            role="alert"
+            className="mb-6 overflow-hidden rounded-2xl border border-[var(--orange)]/40 bg-gradient-to-br from-[var(--orange)]/15 via-[var(--surface)] to-[var(--surface-2)] p-6 shadow-lg"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--orange)]/20 text-[var(--orange)]">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </span>
+                <div>
+                  <h2 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)] sm:text-lg">
+                    Daily Free Demo Limit Reached (6/6 used)
+                  </h2>
+                  <p className="mt-1 text-xs sm:text-sm text-[var(--muted-2)]">
+                    Guests receive a free quota of 6 tests per day across all diagnostic tools.
+                    {quota.nextAvailableAt ? (
+                      <span> Your quota resets at <strong className="text-[var(--text)]">{formatResetTime(quota.nextAvailableAt)}</strong>.</span>
+                    ) : (
+                      <span> Sign in or create a free account to bypass limits with unlimited instant runs.</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 sm:shrink-0">
+                <Link
+                  to={ROUTES.REGISTER}
+                  state={{ from: { pathname: currentTool.authRoute } }}
+                  className="rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:brightness-110"
+                >
+                  Create Free Account
+                </Link>
+                <Link
+                  to={ROUTES.LOGIN}
+                  state={{ from: { pathname: currentTool.authRoute } }}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
+                >
+                  Log In
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main Card */}
         <section className="relative overflow-hidden rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-9">
           <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[var(--cyan-dim)] blur-3xl" />
           <div className="relative">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="rounded-full bg-[var(--cyan-dim)] px-3 py-1 font-['JetBrains_Mono',monospace] text-xs font-semibold text-[var(--cyan)]">
-                FREE DEMO · NO LOGIN REQUIRED
+                FREE GUEST DEMO · ZERO SIGNUP REQUIRED
               </span>
               <span className="font-['JetBrains_Mono',monospace] text-xs text-[var(--muted)]">
-                {quota.remaining} of {quota.total} tests available today
+                {quota.remaining} of {quota.total} tests remaining today
               </span>
             </div>
 
@@ -526,7 +840,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
               {currentTool.title}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-[var(--muted-2)]">
-              {currentTool.description} Sign up to unlock historical graphs, custom alerts, and unlimited runs.
+              {currentTool.description} Free guest runs are delivered live via Socket.IO with failsafe recovery.
             </p>
 
             {/* TTFB Mode Options */}
@@ -612,31 +926,23 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             </form>
 
             {/* Error Message */}
-            {error && (
+            {error && !quota.isLimited && (
               <div role="alert" className="mt-4 rounded-xl border border-[var(--red)]/30 bg-[var(--red)]/10 p-4 text-sm text-[var(--red)]">
                 <p className="font-semibold">{error}</p>
-                {quota.isLimited && (
-                  <p className="mt-2 text-xs text-[var(--muted-2)]">
-                    Create a free account in 30 seconds to run unlimited checks across all diagnostic services.{' '}
-                    <Link to={ROUTES.REGISTER} className="font-bold text-[var(--cyan)] underline">
-                      Sign up free
-                    </Link>
-                  </p>
-                )}
               </div>
             )}
 
-            {/* In-Flight Progress Animation */}
+            {/* In-Flight Live Progress Animation */}
             {isRunning && (
               <div className="mt-6 rounded-2xl border border-[var(--cyan-mid)] bg-[var(--cyan-dim)] p-4">
                 <div className="flex items-center gap-3">
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--cyan-mid)] border-t-[var(--cyan)]" />
                   <div>
-                    <p className="text-sm font-bold text-[var(--text)]">Streaming Live Analysis…</p>
+                    <p className="text-sm font-bold text-[var(--text)]">Streaming Live Analysis via Socket.IO…</p>
                     <p className="text-xs text-[var(--muted-2)]">
                       {activeTool === 'ttfb'
                         ? `Awaiting probe responses (${progress.received}/${progress.expected})`
-                        : 'Worker process is executing live diagnostics.'}
+                        : 'BullMQ worker process is executing diagnostics with 100% failsafe delivery guarantee.'}
                     </p>
                   </div>
                 </div>
@@ -656,20 +962,25 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
           </div>
         </section>
 
-        {/* Results Panels */}
+        {/* Results Panels for All 5 Tools */}
         {result && (
           <section className="fade-up mt-6">
             {activeTool === 'ttfb' && <TtfbResult readings={result} />}
             {activeTool === 'lighthouse' && <LighthouseResult report={result} />}
-            {activeTool === 'dns' && <DnsResultSection result={result} isDemo={true} onReRun={runDemo} />}
-            {activeTool === 'redirects' && <RedirectsResult data={result} />}
-            {activeTool === 'whois' && <WhoisResultSection result={result} isDemo={true} onReRun={runDemo} />}
+            {activeTool === 'dns' && (
+              <DnsResultSection result={result} isDemo={true} onReRun={runDemo} />
+            )}
+            {activeTool === 'redirects' && (
+              <RedirectResultSection result={result} isDemo={true} onReRun={runDemo} />
+            )}
+            {activeTool === 'whois' && (
+              <WhoisResultSection result={result} isDemo={true} onReRun={runDemo} />
+            )}
           </section>
         )}
 
         {/* CTA Footer - Unlock Full Analytics & Complete Reports */}
         <div className="relative mt-10 overflow-hidden rounded-2xl border border-[var(--border-mid)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-6 sm:p-8 text-center shadow-[var(--shadow-card)]">
-          {/* Subtle background ambient glow */}
           <div className="pointer-events-none absolute -top-24 left-1/2 h-36 w-96 -translate-x-1/2 rounded-full bg-[var(--cyan)]/10 blur-3xl" />
 
           <div className="relative z-10 flex flex-col items-center">
@@ -732,6 +1043,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             <div className="mt-6 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
               <Link
                 to={ROUTES.LOGIN}
+                state={{ from: { pathname: currentTool.authRoute } }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[#0099ff] px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-[0_0_20px_var(--cyan-mid)] transition hover:brightness-110 sm:w-auto"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -743,6 +1055,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
               </Link>
               <Link
                 to={ROUTES.REGISTER}
+                state={{ from: { pathname: currentTool.authRoute } }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-6 py-2.5 text-xs sm:text-sm font-semibold text-[var(--text)] transition hover:border-[var(--border-bright)] hover:bg-[var(--surface-2)] sm:w-auto"
               >
                 <span>Create Free Account</span>
@@ -756,7 +1069,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
-/* Result Renderers for All 5 Tools                                          */
+/* Result Renderers                                                           */
 /* ────────────────────────────────────────────────────────────────────────── */
 
 function TtfbResult({ readings }) {
@@ -780,7 +1093,7 @@ function TtfbResult({ readings }) {
           return (
             <article key={r?.region || i} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
               <span className="font-['JetBrains_Mono',monospace] text-xs font-semibold uppercase text-[var(--muted)]">
-                {r?.region || 'India Probe'}
+                {r?.region || 'Probe'}
               </span>
               <p className="mt-2 text-3xl font-extrabold tracking-tight" style={{ color: rating.token }}>
                 {formatMs(r?.ms)}
@@ -798,12 +1111,6 @@ function TtfbResult({ readings }) {
 
 function LighthouseResult({ report }) {
   const scores = report?.scores || {};
-  const labels = [
-    ['Performance', scores.performance],
-    ['Accessibility', scores.accessibility],
-    ['Best Practices', scores['best-practices'] ?? scores.bestPractices],
-    ['SEO', scores.seo],
-  ];
   return (
     <div className="overflow-hidden rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] shadow-[var(--shadow-card)]">
       <div className="border-b border-[var(--border)] bg-gradient-to-r from-[var(--cyan-dim)] to-transparent p-6">
@@ -812,7 +1119,9 @@ function LighthouseResult({ report }) {
             <span className="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-wider text-[var(--cyan)]">
               LIGHTHOUSE SCORECARD
             </span>
-            <h2 className="font-['Outfit',sans-serif] mt-0.5 text-xl font-bold">Mobile Experience Snapshot</h2>
+            <h2 className="font-['Outfit',sans-serif] mt-0.5 text-xl font-bold">
+              {report?.strategy === 'desktop' ? 'Desktop' : 'Mobile'} Experience Snapshot
+            </h2>
           </div>
           <span className="rounded-full bg-[var(--green-dim)] px-3 py-1 font-['JetBrains_Mono',monospace] text-xs font-bold text-[var(--green)]">
             Complete
@@ -823,56 +1132,14 @@ function LighthouseResult({ report }) {
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3 p-6 sm:grid-cols-4">
-        {labels.map(([name, value]) => (
-          <ScoreCard key={name} name={name} value={value} />
+        {AUDIT_CATEGORIES.map((cat) => (
+          <CircularGauge
+            key={cat.key}
+            score={scores[cat.key]}
+            label={cat.label}
+            description={cat.description}
+          />
         ))}
-      </div>
-    </div>
-  );
-}
-
-function RedirectsResult({ data }) {
-  const chain = data?.chain || data?.result?.chain || [];
-  const hops = chain.length > 0 ? chain.length : 1;
-  return (
-    <div className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)]">
-      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-        <div>
-          <span className="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-wider text-[var(--orange)]">
-            REDIRECT CHAIN INSPECTION
-          </span>
-          <h2 className="font-['Outfit',sans-serif] mt-0.5 text-xl font-bold">
-            {hops} Hop{hops === 1 ? '' : 's'} to Destination
-          </h2>
-        </div>
-        <span className="rounded-full bg-[var(--green-dim)] px-3 py-1 font-['JetBrains_Mono',monospace] text-xs font-bold text-[var(--green)]">
-          Complete
-        </span>
-      </div>
-      <div className="mt-5 space-y-2">
-        {chain.length > 0 ? (
-          chain.map((hop, idx) => (
-            <div key={idx} className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-              <span className="font-['JetBrains_Mono',monospace] text-xs text-[var(--muted)]">
-                {String(idx + 1).padStart(2, '0')}
-              </span>
-              <span
-                className={`rounded-md px-2 py-0.5 font-['JetBrains_Mono',monospace] text-xs font-bold ${
-                  String(hop?.statusCode || hop?.status || '200').startsWith('2')
-                    ? 'bg-[var(--green-dim)] text-[var(--green)]'
-                    : 'bg-[var(--orange-dim)] text-[var(--orange)]'
-                }`}
-              >
-                {hop?.statusCode || hop?.status || '200 OK'}
-              </span>
-              <span className="flex-1 truncate font-['JetBrains_Mono',monospace] text-xs text-[var(--text)]">
-                {hop?.url || String(hop)}
-              </span>
-            </div>
-          ))
-        ) : (
-          <p className="text-xs text-[var(--muted)]">Direct response, no redirect hops detected.</p>
-        )}
       </div>
     </div>
   );

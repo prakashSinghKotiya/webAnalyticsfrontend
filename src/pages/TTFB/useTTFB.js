@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ALL_REGIONS, TTFB_REGIONS, findTTFB, findTTFBAllRegions, getTtfbResults, getTtfbById } from '../../api/ttfb';
 import {
-  EMIT,
+  ALL_REGIONS,
+  TTFB_REGIONS,
+  findTTFB,
+  findTTFBAllRegions,
+  getTtfbById,
+  getTtfbResults,
+  getTtfbStatus,
+} from '../../api/ttfb';
+import {
   ON,
-  emitSocketEvent,
+  emitCatchup,
+  registerCatchupJob,
   subscribeToEvents,
+  unregisterCatchupJob,
   waitForSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
@@ -49,6 +58,11 @@ export default function useTTFB() {
       const pending = pendingRef.current;
       if (pending) {
         clearTimeout(pending.timer);
+        if (pending.watchdogTimer) clearTimeout(pending.watchdogTimer);
+        if (pending.pollingInterval) clearInterval(pending.pollingInterval);
+        if (Array.isArray(pending.jobIds)) {
+          pending.jobIds.forEach((id) => unregisterCatchupJob(id));
+        }
         pendingRef.current = null;
       }
     };
@@ -60,64 +74,68 @@ export default function useTTFB() {
     if (!pending) return;
     pendingRef.current = null;
     clearTimeout(pending.timer);
+    if (pending.watchdogTimer) clearTimeout(pending.watchdogTimer);
+    if (pending.pollingInterval) clearInterval(pending.pollingInterval);
+    if (Array.isArray(pending.jobIds)) {
+      pending.jobIds.forEach((id) => unregisterCatchupJob(id));
+    }
     if (err) pending.reject(err);
     else pending.resolve(readings);
   }, []);
 
-  // Live probe results — subscribed once for the page's lifetime.
-  useEffect(
-    () =>
-      subscribeToEvents({
-        [ON.TTFB_COMPLETED]: (payload) => {
-          const pending = pendingRef.current;
-          if (!pending) return;
+  // Live probe results — subscribed once for the page's lifetime (both standard & legacy events).
+  useEffect(() => {
+    const handleResult = (payload) => {
+      const pending = pendingRef.current;
+      if (!pending) return;
 
-          const reportData = payload?.result || payload;
-          if (reportData?.status === 'failed') {
-            settle(new Error(reportData?.error || 'TTFB measurement failed on target server.'));
-            return;
-          }
+      const reportData = payload?.result || payload;
+      if (payload?.status === 'failed' || reportData?.status === 'failed') {
+        settle(new Error(payload?.error || reportData?.error || 'TTFB measurement failed on target server.'));
+        return;
+      }
 
-          const incoming = extractReadings(payload);
-          if (!incoming.length) return;
+      const incoming = extractReadings(payload);
+      if (!incoming.length) return;
 
-          // Merge by region: a worker can first emit the headline latency and
-          // later emit the same region with detailed timing metrics.
-          for (const reading of incoming) {
-            const key = reading.region.toLowerCase();
-            const existingIndex = pending.readings.findIndex(
-              (r) => r.region.toLowerCase() === key,
-            );
-            if (existingIndex < 0) {
-              pending.readings.push(reading);
-            } else {
-              pending.readings[existingIndex] = {
-                ...pending.readings[existingIndex],
-                ...reading,
-              };
-            }
-          }
+      // Merge by region: a worker can first emit the headline latency and
+      // later emit the same region with detailed timing metrics.
+      for (const reading of incoming) {
+        const key = reading.region.toLowerCase();
+        const existingIndex = pending.readings.findIndex(
+          (r) => r.region.toLowerCase() === key,
+        );
+        if (existingIndex < 0) {
+          pending.readings.push(reading);
+        } else {
+          pending.readings[existingIndex] = {
+            ...pending.readings[existingIndex],
+            ...reading,
+          };
+        }
+      }
 
-          setProgress({ received: pending.readings.length, expected: pending.expected });
-          // Publish a fresh snapshot so React renders each incoming probe.
-          setResult({
-            id: 'live',
-            url: pending.url,
-            region: pending.region,
-            readings: [...pending.readings],
-            ...summarize(pending.readings),
-            createdAt: new Date().toISOString(),
-          });
+      setProgress({ received: pending.readings.length, expected: pending.expected });
+      // Publish a fresh snapshot so React renders each incoming probe.
+      setResult({
+        id: 'live',
+        url: pending.url,
+        region: pending.region,
+        readings: [...pending.readings],
+        ...summarize(pending.readings),
+        createdAt: new Date().toISOString(),
+      });
 
-          const complete =
-            pending.readings.length >= pending.expected || isAggregatePayload(payload);
-          if (complete) settle(null, pending.readings);
-        },
-      }),
-    [settle],
-  );
+      const complete =
+        pending.readings.length >= pending.expected || isAggregatePayload(payload);
+      if (complete) settle(null, pending.readings);
+    };
 
-
+    return subscribeToEvents({
+      [ON.TTFB_RESULT]: handleResult,
+      [ON.TTFB_COMPLETED]: handleResult,
+    });
+  }, [settle]);
 
   /** Fetch past measurement results directly from backend MongoDB API. */
   const fetchHistory = useCallback(
@@ -217,6 +235,7 @@ export default function useTTFB() {
           region: isAll ? ALL_REGIONS : region,
           expected: initialExpected,
           readings: [],
+          jobIds: [],
           resolve: resolveScan,
           reject: rejectScan,
           timer: setTimeout(
@@ -227,21 +246,75 @@ export default function useTTFB() {
 
         const job = isAll ? await findTTFBAllRegions(url) : await findTTFB(url, region);
 
-        const roomId = job?.roomId;
         const jobId = job?.jobId;
+        const jobIds = isAll
+          ? (Array.isArray(job?.jobs) ? job.jobs.map((j) => j.jobId) : (Array.isArray(jobId) ? jobId : [jobId])).filter(Boolean)
+          : (jobId ? [jobId] : []);
+
         const expected = isAll
-          ? Math.max(1, Array.isArray(jobId) ? jobId.length : TTFB_REGIONS.length)
+          ? Math.max(1, jobIds.length || TTFB_REGIONS.length)
           : 1;
 
         if (pendingRef.current) {
           pendingRef.current.expected = expected;
+          pendingRef.current.jobIds = jobIds;
         }
 
-        const payload = isAll
-          ? { jobIds: Array.isArray(jobId) ? jobId : [], jobId, roomId, url, region: ALL_REGIONS }
-          : { jobId, roomId, url, region };
+        // Register in-flight job IDs for automatic socket catchup recovery
+        for (const jId of jobIds) {
+          registerCatchupJob('ttfb', jId);
+        }
 
-        emitSocketEvent(isAll ? EMIT.TTFB_JOB_ALL : EMIT.TTFB_JOB, payload);
+        // Failsafe Watchdog: at 8s, proactively emit socket catchup
+        const watchdogTimer = setTimeout(() => {
+          if (pendingRef.current && jobIds.length > 0) {
+            emitCatchup(jobIds.map((id) => ({ service: 'ttfb', id })));
+          }
+
+          // Fallback HTTP status polling at 12s if socket event hasn't arrived
+          const pollingInterval = setInterval(async () => {
+            if (!pendingRef.current || !jobIds.length) return;
+            try {
+              for (const jId of jobIds) {
+                const check = await getTtfbStatus(jId);
+                if (check?.success && (check.status === 'completed' || check.status === 'failed')) {
+                  if (check.status === 'failed') {
+                    settle(new Error(check.error || 'TTFB measurement failed.'));
+                    return;
+                  }
+                  if (check.result) {
+                    const reading = {
+                      region: check.region || check.result.region || 'probe',
+                      ms: check.result.ttfbMs || check.result.ms || 0,
+                      raw: check.result,
+                    };
+                    if (!pendingRef.current.readings.some((r) => r.region === reading.region)) {
+                      pendingRef.current.readings.push(reading);
+                    }
+                    setProgress({
+                      received: pendingRef.current.readings.length,
+                      expected: pendingRef.current.expected,
+                    });
+                    if (pendingRef.current.readings.length >= pendingRef.current.expected) {
+                      settle(null, pendingRef.current.readings);
+                      return;
+                    }
+                  }
+                }
+              }
+            } catch {
+              // Ignore transient polling error
+            }
+          }, 3000);
+
+          if (pendingRef.current) {
+            pendingRef.current.pollingInterval = pollingInterval;
+          }
+        }, 8000);
+
+        if (pendingRef.current) {
+          pendingRef.current.watchdogTimer = watchdogTimer;
+        }
 
         const readings = await scanPromise;
 

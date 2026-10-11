@@ -7,11 +7,35 @@ export { registerUser, loginUser, logoutUser, getUserDetails } from './user';
 // Admin API
 export { getAllUsers, forceLogoutUser, deleteUser } from './admin';
 
+// Demo API (Guest session, unified polling, infrastructure health)
+export {
+  initializeDemoSession,
+  resetDemoSessionCache,
+  getDemoSessionData,
+  runDemoJob,
+  getDemoStatus,
+  getDemoHealth,
+  pollDemoResult,
+} from './demo';
+
 // TTFB API
-export { findTTFB, findTTFBAllRegions, getTtfbResults, getTtfbById, TTFB_REGIONS, ALL_REGIONS } from './ttfb';
+export {
+  findTTFB,
+  findTTFBAllRegions,
+  getTtfbResults,
+  getTtfbById,
+  getTtfbStatus,
+  TTFB_REGIONS,
+  ALL_REGIONS,
+} from './ttfb';
 
 // Lighthouse API
-export { generateLighthouseReport, getLighthouseResults, getLighthouseById } from './lighthouse';
+export {
+  generateLighthouseReport,
+  getLighthouseResults,
+  getLighthouseById,
+  getLighthouseStatus,
+} from './lighthouse';
 
 // Uptime API
 export { 
@@ -28,13 +52,29 @@ export {
 } from './uptime';
 
 // DNS API
-export { dnsLookup, lookupDnsRecords, getDnsResults, getDnsById } from './dnsType';
+export {
+  dnsLookup,
+  lookupDnsRecords,
+  getDnsResults,
+  getDnsById,
+  getDnsStatus,
+} from './dnsType';
 
 // Redirect Check API
-export { checkRedirects, getRedirectResults } from './redirectCheck';
+export {
+  checkRedirects,
+  getRedirectResults,
+  getRedirectById,
+  getRedirectStatus,
+} from './redirectCheck';
 
 // WHOIS API
-export { whoisLookup, getWhoisResults } from './whoisLookup';
+export {
+  whoisLookup,
+  getWhoisResults,
+  getWhoisById,
+  getWhoisStatus,
+} from './whoisLookup';
 
 // Socket
 export {
@@ -49,6 +89,11 @@ export {
   joinRoom,
   leaveRoom,
   isSocketConnected,
+  waitForSocket,
+  registerCatchupJob,
+  unregisterCatchupJob,
+  emitCatchup,
+  resetSocketAuth,
   SOCKET_URL,
   EMIT,
   ON,

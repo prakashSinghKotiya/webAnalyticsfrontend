@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getDnsById, getDnsResults, lookupDnsRecords } from '../../api/dnsType';
+import { getDnsById, getDnsResults, getDnsStatus, lookupDnsRecords } from '../../api/dnsType';
 import {
-  EMIT,
   ON,
-  emitSocketEvent,
+  emitCatchup,
+  registerCatchupJob,
   subscribeToEvents,
+  unregisterCatchupJob,
   waitForSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
@@ -23,7 +24,7 @@ export default function useDns() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
-  // Backend database results and pagination state (no client localStorage)
+  // Backend database results and pagination state
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPagination, setHistoryPagination] = useState({
@@ -45,6 +46,15 @@ export default function useDns() {
       if (pendingRef.current?.timer) {
         clearTimeout(pendingRef.current.timer);
       }
+      if (pendingRef.current?.watchdogTimer) {
+        clearTimeout(pendingRef.current.watchdogTimer);
+      }
+      if (pendingRef.current?.pollingInterval) {
+        clearInterval(pendingRef.current.pollingInterval);
+      }
+      if (pendingRef.current?.dbId) {
+        unregisterCatchupJob(pendingRef.current.dbId);
+      }
       pendingRef.current = null;
     };
   }, []);
@@ -54,6 +64,11 @@ export default function useDns() {
     if (!pending) return;
 
     if (pending.timer) clearTimeout(pending.timer);
+    if (pending.watchdogTimer) clearTimeout(pending.watchdogTimer);
+    if (pending.pollingInterval) clearInterval(pending.pollingInterval);
+    if (pending.dbId) unregisterCatchupJob(pending.dbId);
+    if (pending.jobId) unregisterCatchupJob(pending.jobId);
+
     pendingRef.current = null;
 
     if (err) {
@@ -63,7 +78,7 @@ export default function useDns() {
     }
   }, []);
 
-  /** Real-time socket event subscription */
+  /** Real-time socket event subscription (standardized & legacy events) */
   useEffect(() => {
     const handleCompleted = (payload) => {
       const pending = pendingRef.current;
@@ -80,8 +95,8 @@ export default function useDns() {
       }
 
       const reportData = payload?.result || payload;
-      if (reportData?.status === 'failed') {
-        settle(new Error(reportData?.error || 'DNS query resolution failed.'));
+      if (payload?.status === 'failed' || reportData?.status === 'failed') {
+        settle(new Error(payload?.error || reportData?.error || 'DNS query resolution failed.'));
         return;
       }
 
@@ -111,21 +126,19 @@ export default function useDns() {
     };
 
     const unsub = subscribeToEvents({
+      [ON.DNS_RESULT]: handleCompleted,
       [ON.DNS_COMPLETED]: handleCompleted,
-      dnsRecordCompleted: handleCompleted, // Support alternate emission naming
+      [ON.DNS_COMPLETED_ALT]: handleCompleted,
+      dnsRecordCompleted: handleCompleted,
       [ON.DNS_FAILED]: handleFailed,
-      dnsRecordCheckFailed: handleFailed, // Support alternate failure naming
+      [ON.DNS_FAILED_ALT]: handleFailed,
+      dnsRecordCheckFailed: handleFailed,
     });
 
     return () => unsub();
   }, [settle]);
 
-
-
-  /**
-   * Fetch paginated results from MongoDB backend API.
-   * Scalable with request sequencing to eliminate race conditions.
-   */
+  /** Fetch paginated results from MongoDB backend API. */
   const fetchHistory = useCallback(
     async (customParams = {}) => {
       const seq = ++fetchReqSeqRef.current;
@@ -164,7 +177,7 @@ export default function useDns() {
     [historyFilter.url, historyPagination.limit, historyPagination.page],
   );
 
-  /** Initial load of history on mount — automatically loads the latest DNS result */
+  /** Initial load of history on mount */
   useEffect(() => {
     let ignore = false;
     getDnsResults({ page: 1, limit: DNS_PAGE_LIMIT, status: 'completed' })
@@ -178,7 +191,6 @@ export default function useDns() {
             setHistoryPagination(res.pagination);
           }
 
-          // Display the latest DNS result immediately on UI
           if (normalizedList.length > 0) {
             setResult(normalizedList[0]);
           }
@@ -211,14 +223,16 @@ export default function useDns() {
       setError(null);
 
       try {
+        await waitForSocket();
+
         const res = await lookupDnsRecords(domain);
         const jobId = res?.jobId;
         const dnsRecordId = res?.dnsRecordId || res?.data?._id;
-        const roomId = res?.roomId;
+        const targetId = String(dnsRecordId || jobId);
 
-        const socketOk = await waitForSocket();
-        if (socketOk && roomId) {
-          emitSocketEvent(EMIT.DNS_JOB, { roomId, jobId, domain });
+        // Register job ID for automatic socket catchup recovery
+        if (targetId) {
+          registerCatchupJob('dns', targetId);
         }
 
         const rawReport = await new Promise((resolve, reject) => {
@@ -228,21 +242,52 @@ export default function useDns() {
             resolve,
             reject,
             timer: setTimeout(async () => {
-              // Graceful fallback: check if DB document finished before giving up
-              if (dnsRecordId) {
+              if (targetId) {
                 try {
-                  const check = await getDnsById(dnsRecordId);
-                  if (check?.success && check?.data?.status === 'completed' && check?.data?.result) {
-                    settle(null, check.data);
+                  const check = await getDnsStatus(targetId);
+                  if (check?.success && check?.status === 'completed' && check?.result) {
+                    settle(null, check);
                     return;
                   }
                 } catch {
-                  // Fall through to error
+                  // Fall through
                 }
               }
               settle(new Error('DNS query timed out waiting for resolver worker.'));
             }, DNS_SCAN_TIMEOUT_MS),
           };
+
+          // Watchdog 1: At 8s emit catchup
+          const watchdogTimer = setTimeout(() => {
+            if (pendingRef.current && targetId) {
+              emitCatchup({ service: 'dns', id: targetId });
+            }
+
+            // Watchdog 2: At 12s poll status
+            const pollingInterval = setInterval(async () => {
+              if (!pendingRef.current || !targetId) return;
+              try {
+                const check = await getDnsStatus(targetId);
+                if (check?.success && (check.status === 'completed' || check.status === 'failed')) {
+                  if (check.status === 'failed') {
+                    settle(new Error(check.error || 'DNS lookup failed.'));
+                    return;
+                  }
+                  settle(null, check);
+                }
+              } catch {
+                // Ignore transient polling error
+              }
+            }, 3000);
+
+            if (pendingRef.current) {
+              pendingRef.current.pollingInterval = pollingInterval;
+            }
+          }, 8000);
+
+          if (pendingRef.current) {
+            pendingRef.current.watchdogTimer = watchdogTimer;
+          }
         });
 
         if (!mountedRef.current) return;
@@ -282,7 +327,6 @@ export default function useDns() {
       setError(null);
       setStatus('done');
 
-      // Fetch fresh details if record data is shallow
       if (entry.dbId && (!entry.records || Object.keys(entry.records).length === 0)) {
         try {
           const detailRes = await getDnsById(entry.dbId);

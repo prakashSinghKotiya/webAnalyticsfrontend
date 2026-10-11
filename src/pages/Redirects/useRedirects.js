@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { checkRedirects, getRedirectResults } from '../../api/redirectCheck';
 import {
-  EMIT,
+  checkRedirects,
+  getRedirectById,
+  getRedirectResults,
+  getRedirectStatus,
+} from '../../api/redirectCheck';
+import {
   ON,
-  emitSocketEvent,
+  emitCatchup,
+  registerCatchupJob,
   subscribeToEvents,
+  unregisterCatchupJob,
   waitForSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
@@ -23,7 +29,7 @@ export default function useRedirects() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
-  // Backend database results and pagination state (no client localStorage)
+  // Backend database results and pagination state
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPagination, setHistoryPagination] = useState({
@@ -45,6 +51,15 @@ export default function useRedirects() {
       if (pendingRef.current?.timer) {
         clearTimeout(pendingRef.current.timer);
       }
+      if (pendingRef.current?.watchdogTimer) {
+        clearTimeout(pendingRef.current.watchdogTimer);
+      }
+      if (pendingRef.current?.pollingInterval) {
+        clearInterval(pendingRef.current.pollingInterval);
+      }
+      if (pendingRef.current?.dbId) {
+        unregisterCatchupJob(pendingRef.current.dbId);
+      }
       pendingRef.current = null;
     };
   }, []);
@@ -54,6 +69,11 @@ export default function useRedirects() {
     if (!pending) return;
 
     if (pending.timer) clearTimeout(pending.timer);
+    if (pending.watchdogTimer) clearTimeout(pending.watchdogTimer);
+    if (pending.pollingInterval) clearInterval(pending.pollingInterval);
+    if (pending.dbId) unregisterCatchupJob(pending.dbId);
+    if (pending.jobId) unregisterCatchupJob(pending.jobId);
+
     pendingRef.current = null;
 
     if (err) {
@@ -63,7 +83,7 @@ export default function useRedirects() {
     }
   }, []);
 
-  /** Real-time socket event subscription */
+  /** Real-time socket event subscription (standardized & legacy events) */
   useEffect(() => {
     const handleCompleted = (payload) => {
       const pending = pendingRef.current;
@@ -81,6 +101,7 @@ export default function useRedirects() {
 
       const reportData = payload?.result || payload;
       if (
+        payload?.status === 'failed' ||
         reportData?.status === 'failed' ||
         (reportData?.success === false && !reportData?.chain?.length)
       ) {
@@ -115,21 +136,19 @@ export default function useRedirects() {
     };
 
     const unsub = subscribeToEvents({
+      [ON.REDIRECT_RESULT]: handleCompleted,
       [ON.REDIRECT_COMPLETED]: handleCompleted,
-      redirectCheckCompleted: handleCompleted, // Support alternate emission naming
+      [ON.REDIRECT_COMPLETED_ALT]: handleCompleted,
+      redirectCheckCompleted: handleCompleted,
       [ON.REDIRECT_FAILED]: handleFailed,
-      redirectCheckFailed: handleFailed, // Support alternate failure naming
+      [ON.REDIRECT_FAILED_ALT]: handleFailed,
+      redirectCheckFailed: handleFailed,
     });
 
     return () => unsub();
   }, [settle]);
 
-
-
-  /**
-   * Fetch paginated results from MongoDB backend API.
-   * Scalable with request sequencing to eliminate race conditions.
-   */
+  /** Fetch paginated results from MongoDB backend API. */
   const fetchHistory = useCallback(
     async (customParams = {}) => {
       const seq = ++fetchReqSeqRef.current;
@@ -168,7 +187,7 @@ export default function useRedirects() {
     [historyFilter.url, historyPagination.limit, historyPagination.page],
   );
 
-  /** Initial load of history on mount — automatically loads the latest redirect check */
+  /** Initial load of history on mount */
   useEffect(() => {
     let ignore = false;
     getRedirectResults({ page: 1, limit: REDIRECTS_PAGE_LIMIT, status: 'completed' })
@@ -182,7 +201,6 @@ export default function useRedirects() {
             setHistoryPagination(res.pagination);
           }
 
-          // Display the latest redirect inspection immediately on UI
           if (normalizedList.length > 0) {
             setResult(normalizedList[0]);
           }
@@ -215,14 +233,16 @@ export default function useRedirects() {
       setError(null);
 
       try {
+        await waitForSocket();
+
         const res = await checkRedirects(normalized);
         const jobId = res?.jobId;
         const redirectCheckId = res?.redirectCheckId || res?.data?._id;
-        const roomId = res?.roomId;
+        const targetId = String(redirectCheckId || jobId);
 
-        const socketOk = await waitForSocket();
-        if (socketOk && roomId) {
-          emitSocketEvent(EMIT.REDIRECT_JOB, { roomId, jobId, url: normalized });
+        // Register job ID for automatic socket catchup recovery on reconnect
+        if (targetId) {
+          registerCatchupJob('redirect', targetId);
         }
 
         const rawReport = await new Promise((resolve, reject) => {
@@ -231,10 +251,53 @@ export default function useRedirects() {
             dbId: redirectCheckId,
             resolve,
             reject,
-            timer: setTimeout(() => {
+            timer: setTimeout(async () => {
+              if (targetId) {
+                try {
+                  const check = await getRedirectStatus(targetId);
+                  if (check?.success && check?.status === 'completed' && check?.result) {
+                    settle(null, check);
+                    return;
+                  }
+                } catch {
+                  // Fall through
+                }
+              }
               settle(new Error('Redirect tracer timed out waiting for backend worker.'));
             }, REDIRECTS_SCAN_TIMEOUT_MS),
           };
+
+          // Watchdog 1: At 8s emit catchup
+          const watchdogTimer = setTimeout(() => {
+            if (pendingRef.current && targetId) {
+              emitCatchup({ service: 'redirect', id: targetId });
+            }
+
+            // Watchdog 2: At 12s poll status
+            const pollingInterval = setInterval(async () => {
+              if (!pendingRef.current || !targetId) return;
+              try {
+                const check = await getRedirectStatus(targetId);
+                if (check?.success && (check.status === 'completed' || check.status === 'failed')) {
+                  if (check.status === 'failed') {
+                    settle(new Error(check.error || 'Redirect check failed.'));
+                    return;
+                  }
+                  settle(null, check);
+                }
+              } catch {
+                // Ignore transient polling error
+              }
+            }, 3000);
+
+            if (pendingRef.current) {
+              pendingRef.current.pollingInterval = pollingInterval;
+            }
+          }, 8000);
+
+          if (pendingRef.current) {
+            pendingRef.current.watchdogTimer = watchdogTimer;
+          }
         });
 
         if (!mountedRef.current) return;
@@ -268,11 +331,23 @@ export default function useRedirects() {
   );
 
   /** Select an entry from history */
-  const selectEntry = useCallback((entry) => {
+  const selectEntry = useCallback(async (entry) => {
     if (!entry) return;
     setResult(entry);
     setError(null);
     setStatus('done');
+
+    if (entry.dbId && (!entry.chain || entry.chain.length === 0)) {
+      try {
+        const detailRes = await getRedirectById(entry.dbId);
+        if (mountedRef.current && detailRes?.success && detailRes?.data) {
+          const fresh = normalizeRedirectEntry(detailRes.data);
+          if (fresh) setResult(fresh);
+        }
+      } catch (detailErr) {
+        console.error('[Redirects] Failed to fetch full details by ID:', detailErr);
+      }
+    }
   }, []);
 
   /** Handle pagination page change */

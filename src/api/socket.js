@@ -27,25 +27,35 @@ export const EMIT = Object.freeze({
   DNS_JOB: 'dnsRecordCheck-job',
   REDIRECT_JOB: 'redirect-job',
   WHOIS_JOB: 'whois-job',
+  CATCHUP: 'catchup',
 })
 
 export const ON = Object.freeze({
+  // Standardized events (DEMO_FLOW.md)
+  TTFB_RESULT: 'ttfb:result',
+  LIGHTHOUSE_RESULT: 'lighthouse:result',
+  DNS_RESULT: 'dns:result',
+  REDIRECT_RESULT: 'redirect:result',
+  WHOIS_RESULT: 'whois:result',
+  UPTIME_RESULT: 'uptime:result',
+
+  // Legacy events & compatibility aliases
   TTFB_COMPLETED: 'ttfbCompleted',
   LIGHTHOUSE_COMPLETED: 'lighthouseCompleted',
   LIGHTHOUSE_COMPLETED_ALT: 'Lighthouse-completed',
   LIGHTHOUSE_FAILED: 'Lighthouse-failed',
-  DNS_COMPLETED: 'dnsRecordCheck-completed',
-  DNS_COMPLETED_ALT: 'dnsRecordCompleted',
-  DNS_FAILED: 'dnsRecordCheck-failed',
-  DNS_FAILED_ALT: 'dnsRecordCheckFailed',
-  REDIRECT_COMPLETED: 'redirectQueue-completed',
-  REDIRECT_COMPLETED_ALT: 'redirectCheckCompleted',
-  REDIRECT_FAILED: 'redirectQueue-failed',
-  REDIRECT_FAILED_ALT: 'redirectCheckFailed',
-  WHOIS_COMPLETED: 'whoisLookup-completed',
-  WHOIS_COMPLETED_ALT: 'whoisLookupCompleted',
-  WHOIS_FAILED: 'whoisLookup-failed',
-  WHOIS_FAILED_ALT: 'whoisLookupFailed',
+  DNS_COMPLETED: 'dnsRecordCompleted',
+  DNS_COMPLETED_ALT: 'dnsRecordCheck-completed',
+  DNS_FAILED: 'dnsRecordFailed',
+  DNS_FAILED_ALT: 'dnsRecordCheck-failed',
+  REDIRECT_COMPLETED: 'redirectCheckCompleted',
+  REDIRECT_COMPLETED_ALT: 'redirect-completed',
+  REDIRECT_FAILED: 'redirectCheckFailed',
+  REDIRECT_FAILED_ALT: 'redirect-failed',
+  WHOIS_COMPLETED: 'whoisLookupCompleted',
+  WHOIS_COMPLETED_ALT: 'whoisLookup-completed',
+  WHOIS_FAILED: 'whoisLookupFailed',
+  WHOIS_FAILED_ALT: 'whoisLookup-failed',
   UPTIME_COMPLETED: 'uptimeCompleted',
   UPTIME_FAILED: 'uptimeMonitor-failed',
   CONNECT: 'connect',
@@ -83,6 +93,30 @@ export function subscribeToConnectionState(callback) {
 let socket = null
 const listenerRegistry = new Map() // event -> Set<handler>
 const activeRooms = new Map() // key -> { joinEvent, payload }
+const inFlightCatchupJobs = new Map() // id -> { service, id }
+
+/** Register an in-flight job for automatic catchup recovery on connect/reconnect */
+export function registerCatchupJob(service, id) {
+  if (!id) return
+  inFlightCatchupJobs.set(String(id), { service: service.toLowerCase(), id: String(id) })
+}
+
+/** Unregister a finished job from catchup recovery */
+export function unregisterCatchupJob(id) {
+  if (!id) return
+  inFlightCatchupJobs.delete(String(id))
+}
+
+/** Proactively emit catchup request to replay finished job results */
+export function emitCatchup(jobs) {
+  const instance = getSocket()
+  if (!instance?.connected) return false
+  const list = Array.isArray(jobs)
+    ? jobs.map((j) => ({ service: j.service?.toLowerCase(), id: String(j.id || j.jobId) }))
+    : [{ service: jobs.service?.toLowerCase(), id: String(jobs.id || jobs.jobId) }]
+  instance.emit('catchup', { jobs: list })
+  return true
+}
 
 function createSocket() {
   const instance = io(SOCKET_URL, {
@@ -107,6 +141,13 @@ function createSocket() {
       for (const { joinEvent, payload } of activeRooms.values()) {
         instance.emit(joinEvent, payload)
       }
+    }
+
+    // Auto-replay in-flight jobs on connection or reconnect (DEMO_FLOW.md catchup)
+    if (inFlightCatchupJobs.size > 0) {
+      const jobs = Array.from(inFlightCatchupJobs.values())
+      log('requesting catchup for in-flight jobs:', jobs)
+      instance.emit('catchup', { jobs })
     }
   })
 
@@ -173,7 +214,16 @@ export function getSocket({ autoConnect = false } = {}) {
   return socket
 }
 
-export function connectSocket() {
+export function resetSocketAuth() {
+  if (connectionState.status === 'unauthorized') {
+    setConnectionState({ status: 'idle', error: null, attempt: 0 })
+  }
+}
+
+export function connectSocket({ force = false } = {}) {
+  if (force) {
+    resetSocketAuth()
+  }
   return ensureConnected()
 }
 
@@ -337,4 +387,8 @@ export default {
   emitWithAck,
   joinRoom,
   leaveRoom,
+  registerCatchupJob,
+  unregisterCatchupJob,
+  emitCatchup,
+  resetSocketAuth,
 }

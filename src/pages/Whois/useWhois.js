@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getWhoisResults, whoisLookup } from '../../api/whoisLookup';
 import {
-  EMIT,
+  getWhoisById,
+  getWhoisResults,
+  getWhoisStatus,
+  whoisLookup,
+} from '../../api/whoisLookup';
+import {
   ON,
-  emitSocketEvent,
+  emitCatchup,
+  registerCatchupJob,
   subscribeToEvents,
+  unregisterCatchupJob,
   waitForSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
@@ -45,6 +51,15 @@ export default function useWhois() {
       if (pendingRef.current?.timer) {
         clearTimeout(pendingRef.current.timer);
       }
+      if (pendingRef.current?.watchdogTimer) {
+        clearTimeout(pendingRef.current.watchdogTimer);
+      }
+      if (pendingRef.current?.pollingInterval) {
+        clearInterval(pendingRef.current.pollingInterval);
+      }
+      if (pendingRef.current?.dbId) {
+        unregisterCatchupJob(pendingRef.current.dbId);
+      }
       pendingRef.current = null;
     };
   }, []);
@@ -54,6 +69,11 @@ export default function useWhois() {
     if (!pending) return;
 
     if (pending.timer) clearTimeout(pending.timer);
+    if (pending.watchdogTimer) clearTimeout(pending.watchdogTimer);
+    if (pending.pollingInterval) clearInterval(pending.pollingInterval);
+    if (pending.dbId) unregisterCatchupJob(pending.dbId);
+    if (pending.jobId) unregisterCatchupJob(pending.jobId);
+
     pendingRef.current = null;
 
     if (err) {
@@ -63,7 +83,7 @@ export default function useWhois() {
     }
   }, []);
 
-  /** Real-time socket event subscription */
+  /** Real-time socket event subscription (standardized & legacy events) */
   useEffect(() => {
     const handleCompleted = (payload) => {
       const pending = pendingRef.current;
@@ -80,7 +100,11 @@ export default function useWhois() {
       }
 
       const reportData = payload?.result || payload;
-      if (reportData?.status === 'failed' || (reportData?.success === false && !reportData?.domain)) {
+      if (
+        payload?.status === 'failed' ||
+        reportData?.status === 'failed' ||
+        (reportData?.success === false && !reportData?.domain)
+      ) {
         const errMsg =
           payload?.error ||
           reportData?.error?.message ||
@@ -112,21 +136,19 @@ export default function useWhois() {
     };
 
     const unsub = subscribeToEvents({
+      [ON.WHOIS_RESULT]: handleCompleted,
       [ON.WHOIS_COMPLETED]: handleCompleted,
-      whoisLookupCompleted: handleCompleted, // Support alternate emission naming
+      [ON.WHOIS_COMPLETED_ALT]: handleCompleted,
+      whoisLookupCompleted: handleCompleted,
       [ON.WHOIS_FAILED]: handleFailed,
+      [ON.WHOIS_FAILED_ALT]: handleFailed,
       whoisLookupFailed: handleFailed,
     });
 
     return () => unsub();
   }, [settle]);
 
-
-
-  /**
-   * Fetch paginated results from MongoDB backend API.
-   * Scalable with request sequencing to eliminate race conditions.
-   */
+  /** Fetch paginated results from MongoDB backend API. */
   const fetchHistory = useCallback(
     async (customParams = {}) => {
       const seq = ++fetchReqSeqRef.current;
@@ -165,7 +187,7 @@ export default function useWhois() {
     [historyFilter.url, historyPagination.limit, historyPagination.page],
   );
 
-  /** Initial load of history on mount — automatically loads the latest WHOIS result */
+  /** Initial load of history on mount */
   useEffect(() => {
     let ignore = false;
     getWhoisResults({ page: 1, limit: WHOIS_PAGE_LIMIT, status: 'completed' })
@@ -179,7 +201,6 @@ export default function useWhois() {
             setHistoryPagination(res.pagination);
           }
 
-          // Display the latest lookup result immediately on UI
           if (normalizedList.length > 0) {
             setResult(normalizedList[0]);
           }
@@ -212,14 +233,16 @@ export default function useWhois() {
       setError(null);
 
       try {
+        await waitForSocket();
+
         const res = await whoisLookup(domain);
         const jobId = res?.jobId;
         const whoisDbId = res?.whoisDbId || res?.data?._id;
-        const roomId = res?.roomId;
+        const targetId = String(whoisDbId || jobId);
 
-        const socketOk = await waitForSocket();
-        if (socketOk && roomId) {
-          emitSocketEvent(EMIT.WHOIS_JOB, { roomId, jobId, domain });
+        // Register job ID for automatic socket catchup recovery on reconnect
+        if (targetId) {
+          registerCatchupJob('whois', targetId);
         }
 
         const rawReport = await new Promise((resolve, reject) => {
@@ -228,10 +251,53 @@ export default function useWhois() {
             dbId: whoisDbId,
             resolve,
             reject,
-            timer: setTimeout(() => {
+            timer: setTimeout(async () => {
+              if (targetId) {
+                try {
+                  const check = await getWhoisStatus(targetId);
+                  if (check?.success && check?.status === 'completed' && check?.result) {
+                    settle(null, check);
+                    return;
+                  }
+                } catch {
+                  // Fall through
+                }
+              }
               settle(new Error('RDAP WHOIS lookup timed out waiting for backend worker.'));
             }, WHOIS_SCAN_TIMEOUT_MS),
           };
+
+          // Watchdog 1: At 8s emit catchup
+          const watchdogTimer = setTimeout(() => {
+            if (pendingRef.current && targetId) {
+              emitCatchup({ service: 'whois', id: targetId });
+            }
+
+            // Watchdog 2: At 12s poll status
+            const pollingInterval = setInterval(async () => {
+              if (!pendingRef.current || !targetId) return;
+              try {
+                const check = await getWhoisStatus(targetId);
+                if (check?.success && (check.status === 'completed' || check.status === 'failed')) {
+                  if (check.status === 'failed') {
+                    settle(new Error(check.error || 'WHOIS lookup failed.'));
+                    return;
+                  }
+                  settle(null, check);
+                }
+              } catch {
+                // Ignore transient polling error
+              }
+            }, 3000);
+
+            if (pendingRef.current) {
+              pendingRef.current.pollingInterval = pollingInterval;
+            }
+          }, 8000);
+
+          if (pendingRef.current) {
+            pendingRef.current.watchdogTimer = watchdogTimer;
+          }
         });
 
         if (!mountedRef.current) return;
@@ -264,11 +330,23 @@ export default function useWhois() {
   );
 
   /** Select an entry from history */
-  const selectEntry = useCallback((entry) => {
+  const selectEntry = useCallback(async (entry) => {
     if (!entry) return;
     setResult(entry);
     setError(null);
     setStatus('done');
+
+    if (entry.dbId && (!entry.domain || !entry.registrar)) {
+      try {
+        const detailRes = await getWhoisById(entry.dbId);
+        if (mountedRef.current && detailRes?.success && detailRes?.data) {
+          const fresh = normalizeWhoisEntry(detailRes.data);
+          if (fresh) setResult(fresh);
+        }
+      } catch (detailErr) {
+        console.error('[Whois] Failed to fetch full details by ID:', detailErr);
+      }
+    }
   }, []);
 
   /** Handle pagination page change */

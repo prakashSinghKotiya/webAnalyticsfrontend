@@ -11,3 +11,14 @@ export const getWhoisResults = async (params = {}) => {
   const { data } = await axiosWithCreds.get("/whois/results", { params });
   return data;
 };
+
+export const getWhoisById = async (id) => {
+  const { data } = await axiosWithCreds.get(`/whois/result/${id}`);
+  return data;
+};
+
+export const getWhoisStatus = async (id) => {
+  const { data } = await axiosWithCreds.get(`/whois/status/${id}`);
+  return data;
+};
+

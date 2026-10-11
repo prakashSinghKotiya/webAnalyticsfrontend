@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, useToast, useTheme } from '../../context'
 import { ROUTES } from '../../constants'
 
@@ -164,6 +164,7 @@ function StepOtp({ credentials, onBack }) {
   const { sendOtp, register } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [otp, setOtp] = useState('')
   const [otpSent, setOtpSent] = useState(false)
@@ -192,7 +193,7 @@ function StepOtp({ credentials, onBack }) {
     try {
       await register({ ...credentials, otp })
       toast.success('Account created! Please sign in.')
-      navigate(ROUTES.LOGIN, { replace: true })
+      navigate(ROUTES.LOGIN, { replace: true, state: location.state })
     } catch (err) {
       setError(err?.error || 'Registration failed.')
     } finally {

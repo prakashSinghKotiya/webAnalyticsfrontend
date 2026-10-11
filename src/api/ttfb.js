@@ -36,3 +36,9 @@ export const getTtfbById = async (id) => {
   const { data } = await axiosWithCreds.get(`/ttfb/result/${id}`);
   return data;
 };
+
+export const getTtfbStatus = async (id) => {
+  const { data } = await axiosWithCreds.get(`/ttfb/status/${id}`);
+  return data;
+};
+

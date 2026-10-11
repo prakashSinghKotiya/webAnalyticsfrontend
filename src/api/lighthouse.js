@@ -20,3 +20,9 @@ export const getLighthouseById = async (id) => {
   const { data } = await axiosWithCreds.get(`/lighthouse/result/${id}`);
   return data;
 };
+
+export const getLighthouseStatus = async (id) => {
+  const { data } = await axiosWithCreds.get(`/lighthouse/status/${id}`);
+  return data;
+};
+

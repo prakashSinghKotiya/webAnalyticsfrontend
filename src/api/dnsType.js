@@ -20,5 +20,11 @@ export const getDnsById = async (id) => {
   return data;
 };
 
+export const getDnsStatus = async (id) => {
+  const { data } = await axiosWithCreds.get(`/dns/status/${id}`);
+  return data;
+};
+
 // Backwards compatibility alias
 export const dnsLookup = lookupDnsRecords;
+
