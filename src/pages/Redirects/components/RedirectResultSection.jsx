@@ -60,15 +60,15 @@ function HopCard({ hop, isLast }) {
   }
 
   return (
-    <div className="relative flex flex-col rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] p-5 shadow-sm transition hover:border-[var(--border-bright)]">
+    <div className="relative flex flex-col rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] p-3.5 sm:p-5 shadow-sm transition hover:border-[var(--border-bright)]">
       {/* Hop Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-[var(--border)] pb-3">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--surface-3)] font-['Outfit',sans-serif] text-xs font-bold text-[var(--text)]">
             #{hop.hop}
           </span>
           <span
-            className="rounded-lg px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-xs font-bold"
+            className="rounded-lg px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-xs font-bold whitespace-nowrap"
             style={{
               backgroundColor: `${meta.color}18`,
               color: meta.color,
@@ -88,12 +88,12 @@ function HopCard({ hop, isLast }) {
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-['JetBrains_Mono',monospace] text-[var(--cyan)]">
             {formatDuration(hop.timeMs)}
           </span>
           {isFinal && (
-            <span className="rounded-full bg-[var(--green-dim)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--green)]">
+            <span className="rounded-full bg-[var(--green-dim)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--green)] whitespace-nowrap">
               Final Destination
             </span>
           )}
@@ -106,7 +106,7 @@ function HopCard({ hop, isLast }) {
           <span className="break-all font-['JetBrains_Mono',monospace] text-xs font-semibold text-[var(--text)]">
             {hop.url}
           </span>
-          <div className="flex-none">
+          <div className="flex-none shrink-0">
             <CopyButton text={hop.url} />
           </div>
         </div>
@@ -115,23 +115,25 @@ function HopCard({ hop, isLast }) {
 
       {/* Next redirect target if present */}
       {hop.redirectsTo && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-xs">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--cyan)"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="flex-none"
-          >
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-          <span className="text-[11px] text-[var(--muted-2)]">Redirects to:</span>
-          <span className="truncate font-['JetBrains_Mono',monospace] text-[11px] text-[var(--cyan)]">
+        <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-xs">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--cyan)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+            <span className="text-[11px] text-[var(--muted-2)] shrink-0">Redirects to:</span>
+          </div>
+          <span className="break-all font-['JetBrains_Mono',monospace] text-[11px] text-[var(--cyan)]">
             {hop.redirectsTo}
           </span>
         </div>
@@ -151,11 +153,11 @@ function RedirectHealthInsights({ chain, inputUrl, finalUrl }) {
   if (!diagnostics.length) return null;
 
   return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-8">
+    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 lg:p-8 shadow-[var(--shadow-card)]">
       <h2 className="mb-4 font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
         Redirect Diagnostics & SEO Health
       </h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {diagnostics.map((diag, idx) => {
           let badgeColor = 'var(--cyan)';
           if (diag.status === 'pass') badgeColor = 'var(--green)';
@@ -168,12 +170,12 @@ function RedirectHealthInsights({ chain, inputUrl, finalUrl }) {
               className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4"
             >
               <div>
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-['Outfit',sans-serif] text-xs font-bold text-[var(--text)]">
                     {diag.title}
                   </h4>
                   <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shrink-0 whitespace-nowrap"
                     style={{
                       color: badgeColor,
                       backgroundColor: `${badgeColor}15`,
@@ -194,11 +196,11 @@ function RedirectHealthInsights({ chain, inputUrl, finalUrl }) {
 
 /* ── Main Result Section (Section 2) ─────────────────────────────────────── */
 
-function RedirectResultSection({ result, isChecking, error, onReRun }) {
+function RedirectResultSection({ result, isChecking, error, onReRun, isDemo = false }) {
   // Active checking state
   if (isChecking) {
     return (
-      <section className="fade-up rounded-2xl border border-[var(--border-bright)] bg-[var(--surface)] p-8 shadow-[var(--hero-shadow)] sm:p-12">
+      <section className="fade-up rounded-2xl border border-[var(--border-bright)] bg-[var(--surface)] p-6 sm:p-10 shadow-[var(--hero-shadow)]">
         <div className="flex flex-col items-center justify-center text-center">
           <div className="relative mb-5 flex h-20 w-20 items-center justify-center">
             <div className="absolute h-full w-full animate-ping rounded-full bg-[var(--cyan)]/20" />
@@ -236,7 +238,7 @@ function RedirectResultSection({ result, isChecking, error, onReRun }) {
   // Error state
   if (error) {
     return (
-      <section role="alert" className="fade-up rounded-2xl border border-[var(--red)]/30 bg-[var(--red)]/10 p-6 text-sm">
+      <section role="alert" className="fade-up rounded-2xl border border-[var(--red)]/30 bg-[var(--red)]/10 p-4 sm:p-6 text-sm">
         <div className="flex items-start gap-3">
           <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-[var(--red)] text-black font-bold">
             !
@@ -262,7 +264,7 @@ function RedirectResultSection({ result, isChecking, error, onReRun }) {
   // Empty state
   if (!result) {
     return (
-      <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow-card)] sm:p-12">
+      <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-10 text-center shadow-[var(--shadow-card)]">
         <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--cyan-dim)] text-[var(--cyan)]">
           <svg
             width="28"
@@ -296,21 +298,21 @@ function RedirectResultSection({ result, isChecking, error, onReRun }) {
   return (
     <div className="flex flex-col gap-6">
       {/* ── Summary Card ────────────────────────────────────────────────────── */}
-      <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-8">
-        <header className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="rounded-md bg-[var(--cyan-dim)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] font-bold text-[var(--cyan)]">
+      <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 lg:p-8 shadow-[var(--shadow-card)]">
+        <header className="mb-5 flex flex-col gap-4 border-b border-[var(--border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 w-full flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-[var(--cyan-dim)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] font-bold text-[var(--cyan)] shrink-0">
                 Input
               </span>
-              <span className="truncate font-['JetBrains_Mono',monospace] text-sm font-semibold text-[var(--text)]">
+              <span className="break-all font-['JetBrains_Mono',monospace] text-xs sm:text-sm font-semibold text-[var(--text)]">
                 {inputUrl}
               </span>
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <span
-                className="rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider"
+                className="rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider shrink-0 whitespace-nowrap"
                 style={{
                   backgroundColor: `${finalMeta.color}18`,
                   color: finalMeta.color,
@@ -329,7 +331,7 @@ function RedirectResultSection({ result, isChecking, error, onReRun }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0">
             <CopyButton text={finalUrl} label="Copy Final URL" />
             <button
               type="button"
@@ -360,53 +362,53 @@ function RedirectResultSection({ result, isChecking, error, onReRun }) {
         </header>
 
         {/* Headline Stat Cards */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-center">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 sm:p-4 text-center">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-2)]">
               Redirect Count
             </span>
-            <p className="mt-1 font-['Outfit',sans-serif] text-2xl font-bold text-[var(--text)]">
+            <p className="mt-1 font-['Outfit',sans-serif] text-xl sm:text-2xl font-bold text-[var(--text)]">
               {redirectCount}
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-center">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 sm:p-4 text-center">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-2)]">
               Total Duration
             </span>
-            <p className="mt-1 font-['Outfit',sans-serif] text-2xl font-bold text-[var(--cyan)]">
+            <p className="mt-1 font-['Outfit',sans-serif] text-xl sm:text-2xl font-bold text-[var(--cyan)]">
               {formatDuration(totalTimeMs)}
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-center">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 sm:p-4 text-center">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-2)]">
               Final Status
             </span>
             <p
-              className="mt-1 font-['Outfit',sans-serif] text-2xl font-bold"
+              className="mt-1 font-['Outfit',sans-serif] text-xl sm:text-2xl font-bold"
               style={{ color: finalMeta.color }}
             >
               {finalStatus}
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-center">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 sm:p-4 text-center">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-2)]">
               Total Hops
             </span>
-            <p className="mt-1 font-['Outfit',sans-serif] text-2xl font-bold text-[var(--text-2)]">
-              {chain.length || 1}
+            <p className="mt-1 font-['Outfit',sans-serif] text-xl sm:text-2xl font-bold text-[var(--text-2)]">
+              {chain?.length || 1}
             </p>
           </div>
         </div>
 
         {/* Final Destination Highlight Box */}
-        <div className="mt-5 rounded-xl border border-[var(--border-bright)] bg-[var(--surface-2)] p-4">
-          <div className="flex items-center justify-between gap-2">
+        <div className="mt-5 rounded-xl border border-[var(--border-bright)] bg-[var(--surface-2)] p-3.5 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-2)]">
               Final Landing Destination
             </span>
             <CopyButton text={finalUrl} />
           </div>
-          <p className="mt-1.5 break-all font-['JetBrains_Mono',monospace] text-sm font-bold text-[var(--cyan)]">
+          <p className="mt-1.5 break-all font-['JetBrains_Mono',monospace] text-xs sm:text-sm font-bold text-[var(--cyan)]">
             {finalUrl}
           </p>
         </div>
@@ -414,11 +416,11 @@ function RedirectResultSection({ result, isChecking, error, onReRun }) {
         {/* Hop Progression List */}
         <div className="mt-6 flex flex-col gap-4">
           <h3 className="font-['Outfit',sans-serif] text-sm font-bold text-[var(--text)]">
-            Hop-by-Hop Trace Sequence ({chain.length} Step{chain.length === 1 ? '' : 's'})
+            Hop-by-Hop Trace Sequence ({chain?.length || 0} Step{(chain?.length || 0) === 1 ? '' : 's'})
           </h3>
 
           <div className="flex flex-col gap-3">
-            {chain.map((hop, idx) => (
+            {chain?.map((hop, idx) => (
               <HopCard
                 key={idx}
                 hop={hop}

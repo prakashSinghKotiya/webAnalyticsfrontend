@@ -690,12 +690,12 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--bg)] px-4 py-8 text-[var(--text)] sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[var(--bg)] px-3.5 py-6 text-[var(--text)] sm:px-6 sm:py-8 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
         {/* Header */}
-        <header className="mb-8 flex items-center justify-between border-b border-[var(--border)] pb-4">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4 sm:mb-8">
           <Logo />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Live Quota Pill */}
             <span
               className={`hidden items-center gap-2 rounded-full border px-3 py-1 font-['JetBrains_Mono',monospace] text-xs sm:inline-flex ${
@@ -736,14 +736,14 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             <Link
               to={ROUTES.LOGIN}
               state={{ from: { pathname: currentTool.authRoute } }}
-              className="text-sm font-semibold text-[var(--muted-2)] hover:text-[var(--text)]"
+              className="text-xs sm:text-sm font-semibold text-[var(--muted-2)] hover:text-[var(--text)]"
             >
               Sign in
             </Link>
             <Link
               to={ROUTES.REGISTER}
               state={{ from: { pathname: currentTool.authRoute } }}
-              className="rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
+              className="rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
             >
               Sign up
             </Link>
@@ -751,7 +751,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         </header>
 
         {/* Tool Switcher Tabs */}
-        <nav aria-label="Demo tools" className="mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <nav aria-label="Demo tools" className="-mx-3.5 sm:mx-0 px-3.5 sm:px-0 mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
           {Object.values(TOOL_CONFIG).map((tool) => {
             const isActive = activeTool === tool.id;
             return (
@@ -824,22 +824,22 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         )}
 
         {/* Main Card */}
-        <section className="relative overflow-hidden rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-9">
+        <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-7 lg:p-9 shadow-[var(--shadow-card)]">
           <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[var(--cyan-dim)] blur-3xl" />
           <div className="relative">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="rounded-full bg-[var(--cyan-dim)] px-3 py-1 font-['JetBrains_Mono',monospace] text-xs font-semibold text-[var(--cyan)]">
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <span className="rounded-full bg-[var(--cyan-dim)] px-2.5 py-1 font-['JetBrains_Mono',monospace] text-[10px] sm:text-xs font-semibold text-[var(--cyan)]">
                 FREE GUEST DEMO · ZERO SIGNUP REQUIRED
               </span>
-              <span className="font-['JetBrains_Mono',monospace] text-xs text-[var(--muted)]">
+              <span className="font-['JetBrains_Mono',monospace] text-[11px] sm:text-xs text-[var(--muted)]">
                 {quota.remaining} of {quota.total} tests remaining today
               </span>
             </div>
 
-            <h1 className="mt-4 font-['Outfit',sans-serif] text-2xl font-extrabold tracking-tight sm:text-3xl">
+            <h1 className="mt-3.5 sm:mt-4 font-['Outfit',sans-serif] text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">
               {currentTool.title}
             </h1>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--muted-2)]">
+            <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[var(--muted-2)]">
               {currentTool.description} Free guest runs are delivered live via Socket.IO with failsafe recovery.
             </p>
 
@@ -894,19 +894,19 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             )}
 
             {/* Form */}
-            <form onSubmit={runDemo} className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <form onSubmit={runDemo} className="mt-5 sm:mt-6 flex flex-col gap-3 sm:flex-row">
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 disabled={isRunning}
                 required
                 placeholder={currentTool.placeholder}
-                className="min-w-0 flex-1 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-4 py-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--cyan)]"
+                className="min-w-0 flex-1 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--cyan)]"
               />
               <button
                 type="submit"
                 disabled={isRunning || quota.isLimited}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[#0099ff] px-6 py-3 text-sm font-bold text-white shadow-[0_0_20px_var(--cyan-mid)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[#0099ff] px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-[0_0_20px_var(--cyan-mid)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isRunning ? (
                   <>
@@ -980,7 +980,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         )}
 
         {/* CTA Footer - Unlock Full Analytics & Complete Reports */}
-        <div className="relative mt-10 overflow-hidden rounded-2xl border border-[var(--border-mid)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-6 sm:p-8 text-center shadow-[var(--shadow-card)]">
+        <div className="relative mt-8 sm:mt-10 overflow-hidden rounded-2xl border border-[var(--border-mid)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-4 sm:p-6 lg:p-8 text-center shadow-[var(--shadow-card)]">
           <div className="pointer-events-none absolute -top-24 left-1/2 h-36 w-96 -translate-x-1/2 rounded-full bg-[var(--cyan)]/10 blur-3xl" />
 
           <div className="relative z-10 flex flex-col items-center">
