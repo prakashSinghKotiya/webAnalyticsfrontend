@@ -5,7 +5,27 @@ export { sendOtp, verifyOtp } from './auth';
 export { registerUser, loginUser, logoutUser, getUserDetails } from './user';
 
 // Admin API
-export { getAllUsers, forceLogoutUser, deleteUser } from './admin';
+export {
+  getAllUsers,
+  forceLogoutUser,
+  deleteUser,
+  getAdminMonitorStats,
+  getAdminMonitors,
+  getAdminMonitorIncidents,
+  getAdminMonitorDetails,
+  adminCreateMonitor,
+  adminUpdateMonitor,
+  adminTriggerCheck,
+  adminPauseMonitor,
+  adminResumeMonitor,
+  adminDeleteMonitor,
+  adminBulkPauseMonitors,
+  adminBulkResumeMonitors,
+  adminBulkUpdateInterval,
+  adminBulkDeleteMonitors,
+  adminClearMonitorResults,
+  getAdminExportMonitors,
+} from './admin';
 
 // Demo API (Guest session, unified polling, infrastructure health)
 export {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuthState } from '../../context';
 import useAdmin from './useAdmin';
 import {
@@ -11,14 +11,23 @@ import {
   AdminConfirmModal,
   AdminAuditLogs,
   AdminSystemHealth,
+  AdminMonitorStats,
+  AdminIncidentsBanner,
+  AdminMonitorFilters,
+  AdminMonitorTable,
+  AdminMonitorModal,
+  AdminMonitorInspectModal,
+  AdminMonitorBulkModal,
 } from './components';
 
 export default function AdminPanel() {
   const { user: currentUser } = useAuthState();
-  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'system' | 'audit'
+  const [activeTab, setActiveTab] = useState('monitors'); // 'monitors' | 'users' | 'system' | 'audit'
 
   const {
+    // User Accounts
     users,
+    rawUsers,
     totalUsers,
     totalPages,
     page,
@@ -50,9 +59,62 @@ export default function AdminPanel() {
     auditLogs,
     handleRefresh,
     handleExportCsv,
+
+    // Uptime Monitors RBAC
+    monitors,
+    totalMonitors,
+    monitorTotalPages,
+    monitorPage,
+    setMonitorPage,
+    monitorLimit,
+    setMonitorLimit,
+    monitorLoading,
+    monitorRefreshing,
+    monitorError,
+    monitorStats,
+    incidents,
+    monitorSearchQuery,
+    setMonitorSearchQuery,
+    monitorStatusFilter,
+    setMonitorStatusFilter,
+    monitorIntervalFilter,
+    setMonitorIntervalFilter,
+    selectedMonitorIds,
+    monitorActionInProgress,
+    monitorModal,
+    setMonitorModal,
+    monitorInspectModal,
+    setMonitorInspectModal,
+    monitorBulkModal,
+    setMonitorBulkModal,
+    handleRefreshMonitors,
+    handleTriggerCheck,
+    handleTogglePauseMonitor,
+    handleCreateMonitorSubmit,
+    handleUpdateMonitorSubmit,
+    handleDeleteMonitorSubmit,
+    handleClearResultsSubmit,
+    handleBulkAction,
+    handleExportMonitorsCsv,
+    handleToggleSelectMonitor,
+    handleToggleSelectAllMonitors,
+    clearMonitorSelection,
   } = useAdmin(currentUser);
 
+  // Tab navigation definitions
   const tabs = [
+    {
+      id: 'monitors',
+      label: 'Uptime Monitors',
+      count: totalMonitors,
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      ),
+      badgeColor: incidents.length > 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : undefined,
+    },
     {
       id: 'users',
       label: 'Accounts & Users',
@@ -90,19 +152,39 @@ export default function AdminPanel() {
     },
   ];
 
+  // Coordinated header actions
+  const handleHeaderRefresh = useCallback(() => {
+    if (activeTab === 'monitors') {
+      handleRefreshMonitors();
+    } else {
+      handleRefresh();
+    }
+  }, [activeTab, handleRefreshMonitors, handleRefresh]);
+
+  const handleHeaderExport = useCallback(() => {
+    if (activeTab === 'monitors') {
+      handleExportMonitorsCsv();
+    } else {
+      handleExportCsv();
+    }
+  }, [activeTab, handleExportMonitorsCsv, handleExportCsv]);
+
+  const isRefreshing = activeTab === 'monitors' ? monitorRefreshing : refreshing;
+  const activeError = activeTab === 'monitors' ? monitorError : error;
+
   return (
     <div className="fade-up">
       {/* Admin Control Plane Header */}
       <AdminHeader
         currentUser={currentUser}
-        onRefresh={handleRefresh}
-        onExportCsv={handleExportCsv}
-        refreshing={refreshing}
-        totalUsers={totalUsers}
+        onRefresh={handleHeaderRefresh}
+        onExportCsv={handleHeaderExport}
+        refreshing={isRefreshing}
+        totalUsers={activeTab === 'monitors' ? totalMonitors : totalUsers}
       />
 
       {/* Error notification banner if any */}
-      {error && (
+      {activeError && (
         <div
           role="alert"
           className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-400"
@@ -113,11 +195,11 @@ export default function AdminPanel() {
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
-            <span>{error}</span>
+            <span>{activeError}</span>
           </div>
           <button
             type="button"
-            onClick={handleRefresh}
+            onClick={handleHeaderRefresh}
             className="cursor-pointer font-semibold underline hover:text-white"
           >
             Retry
@@ -145,7 +227,11 @@ export default function AdminPanel() {
               {typeof tab.count === 'number' && (
                 <span
                   className={`font-['JetBrains_Mono',monospace] rounded-md px-1.5 py-0.2 text-[10px] ${
-                    isActive ? 'bg-[var(--cyan)]/20 text-[var(--cyan)]' : 'bg-[var(--surface-3)] text-[var(--muted)]'
+                    tab.badgeColor
+                      ? tab.badgeColor
+                      : isActive
+                      ? 'bg-[var(--cyan)]/20 text-[var(--cyan)]'
+                      : 'bg-[var(--surface-3)] text-[var(--muted)]'
                   }`}
                 >
                   {tab.count}
@@ -156,7 +242,91 @@ export default function AdminPanel() {
         })}
       </div>
 
-      {/* Tab Panels */}
+      {/* ── TAB 1: UPTIME MONITORS CONTROL PLANE ───────────────────────── */}
+      {activeTab === 'monitors' && (
+        <section>
+          {/* Active Outage Incident Alert Banner */}
+          <AdminIncidentsBanner
+            incidents={incidents}
+            onInspectMonitor={(mon) => setMonitorInspectModal({ open: true, monitor: mon })}
+            onFilterDown={() => {
+              setMonitorStatusFilter('DOWN');
+              setMonitorPage(1);
+            }}
+          />
+
+          {/* Minimalist Key Metric Cards */}
+          <AdminMonitorStats
+            stats={monitorStats}
+            onSelectStatusFilter={(st) => {
+              setMonitorStatusFilter(st);
+              setMonitorPage(1);
+            }}
+          />
+
+          {/* Filter Bar, Search, Bulk Action Controls */}
+          <AdminMonitorFilters
+            searchQuery={monitorSearchQuery}
+            onSearchChange={(q) => {
+              setMonitorSearchQuery(q);
+              setMonitorPage(1);
+            }}
+            statusFilter={monitorStatusFilter}
+            onStatusFilterChange={(s) => {
+              setMonitorStatusFilter(s);
+              setMonitorPage(1);
+            }}
+            intervalFilter={monitorIntervalFilter}
+            onIntervalFilterChange={(i) => {
+              setMonitorIntervalFilter(i);
+              setMonitorPage(1);
+            }}
+            limit={monitorLimit}
+            onLimitChange={(l) => {
+              setMonitorLimit(l);
+              setMonitorPage(1);
+            }}
+            totalMonitors={totalMonitors}
+            displayedCount={monitors.length}
+            selectedIds={selectedMonitorIds}
+            onClearSelection={clearMonitorSelection}
+            onOpenCreateModal={() => setMonitorModal({ open: true, mode: 'create', monitor: null })}
+            onOpenBulkAction={(type) => setMonitorBulkModal({ open: true, type, targetMonitor: null })}
+            onExportCsv={handleExportMonitorsCsv}
+          />
+
+          {/* High-density Monitor Data Table */}
+          <AdminMonitorTable
+            monitors={monitors}
+            loading={monitorLoading}
+            selectedIds={selectedMonitorIds}
+            onToggleSelect={handleToggleSelectMonitor}
+            onToggleSelectAll={handleToggleSelectAllMonitors}
+            onInspect={(m) => setMonitorInspectModal({ open: true, monitor: m })}
+            onEdit={(m) => setMonitorModal({ open: true, mode: 'edit', monitor: m })}
+            onTriggerCheck={handleTriggerCheck}
+            onTogglePause={handleTogglePauseMonitor}
+            onClearResults={(m) => setMonitorBulkModal({ open: true, type: 'clearResults', targetMonitor: m })}
+            onDelete={(m) => setMonitorBulkModal({ open: true, type: 'deleteSingle', targetMonitor: m })}
+            actionInProgress={monitorActionInProgress}
+            onResetFilters={() => {
+              setMonitorSearchQuery('');
+              setMonitorStatusFilter('all');
+              setMonitorIntervalFilter('all');
+              setMonitorPage(1);
+            }}
+          />
+
+          {/* Server-side Pagination */}
+          <AdminPagination
+            page={monitorPage}
+            totalPages={monitorTotalPages}
+            onPageChange={(p) => setMonitorPage(p)}
+          />
+        </section>
+      )}
+
+      {/* ── TAB 2: ACCOUNTS & USERS ────────────────────────────────────── */}
       {activeTab === 'users' && (
         <section>
           {/* Key Metrics Stats Overview */}
@@ -207,6 +377,7 @@ export default function AdminPanel() {
         </section>
       )}
 
+      {/* ── TAB 3: SYSTEM TELEMETRY ───────────────────────────────────── */}
       {activeTab === 'system' && (
         <section>
           <AdminSystemHealth
@@ -217,13 +388,14 @@ export default function AdminPanel() {
         </section>
       )}
 
+      {/* ── TAB 4: ACTIVITY AUDIT ──────────────────────────────────────── */}
       {activeTab === 'audit' && (
         <section>
           <AdminAuditLogs auditLogs={auditLogs} />
         </section>
       )}
 
-      {/* ── MODALS ──────────────────────────────────────────────────────── */}
+      {/* ── MODALS: USERS ──────────────────────────────────────────────── */}
       {/* User Details Inspector Modal */}
       {inspectUser && (
         <AdminUserDetailsModal
@@ -236,7 +408,7 @@ export default function AdminPanel() {
         />
       )}
 
-      {/* Destructive Action Confirmation Modal */}
+      {/* User Destructive Action Confirmation Modal */}
       {confirmModal.open && (
         <AdminConfirmModal
           open={confirmModal.open}
@@ -248,6 +420,60 @@ export default function AdminPanel() {
           isLoading={Boolean(
             confirmModal.user && actionInProgress[confirmModal.user?._id || confirmModal.user?.id]
           )}
+        />
+      )}
+
+      {/* ── MODALS: MONITORS ──────────────────────────────────────────── */}
+      {/* Create / Edit Monitor Modal */}
+      {monitorModal.open && (
+        <AdminMonitorModal
+          open={monitorModal.open}
+          mode={monitorModal.mode}
+          monitor={monitorModal.monitor}
+          users={rawUsers || users}
+          onClose={() => setMonitorModal({ open: false, mode: 'create', monitor: null })}
+          onSubmit={
+            monitorModal.mode === 'create'
+              ? handleCreateMonitorSubmit
+              : handleUpdateMonitorSubmit
+          }
+        />
+      )}
+
+      {/* Deep Inspection & Live Probe Modal */}
+      {monitorInspectModal.open && monitorInspectModal.monitor && (
+        <AdminMonitorInspectModal
+          monitor={monitorInspectModal.monitor}
+          onClose={() => setMonitorInspectModal({ open: false, monitor: null })}
+          onTriggerCheck={handleTriggerCheck}
+          onClearResults={(m) => {
+            setMonitorInspectModal({ open: false, monitor: null });
+            setMonitorBulkModal({ open: true, type: 'clearResults', targetMonitor: m });
+          }}
+          isChecking={Boolean(
+            monitorActionInProgress[monitorInspectModal.monitor._id || monitorInspectModal.monitor.id] === 'check'
+          )}
+        />
+      )}
+
+      {/* Bulk & Destructive Monitor Operations Modal */}
+      {monitorBulkModal.open && (
+        <AdminMonitorBulkModal
+          open={monitorBulkModal.open}
+          type={monitorBulkModal.type}
+          selectedIds={selectedMonitorIds}
+          targetMonitor={monitorBulkModal.targetMonitor}
+          onClose={() => setMonitorBulkModal({ open: false, type: null, targetMonitor: null })}
+          onConfirm={async (params) => {
+            if (monitorBulkModal.type === 'deleteSingle' && monitorBulkModal.targetMonitor) {
+              await handleDeleteMonitorSubmit(monitorBulkModal.targetMonitor);
+            } else if (monitorBulkModal.type === 'clearResults' && monitorBulkModal.targetMonitor) {
+              await handleClearResultsSubmit(monitorBulkModal.targetMonitor, params);
+            } else {
+              await handleBulkAction(monitorBulkModal.type, params);
+            }
+            setMonitorBulkModal({ open: false, type: null, targetMonitor: null });
+          }}
         />
       )}
     </div>

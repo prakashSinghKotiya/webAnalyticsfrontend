@@ -1,10 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getAllUsers, forceLogoutUser as apiForceLogout, deleteUser as apiDeleteUser } from '../../api';
+import {
+  getAllUsers,
+  forceLogoutUser as apiForceLogout,
+  deleteUser as apiDeleteUser,
+  getAdminMonitorStats,
+  getAdminMonitors,
+  getAdminMonitorIncidents,
+  adminCreateMonitor as apiAdminCreateMonitor,
+  adminUpdateMonitor as apiAdminUpdateMonitor,
+  adminTriggerCheck as apiAdminTriggerCheck,
+  adminPauseMonitor as apiAdminPauseMonitor,
+  adminResumeMonitor as apiAdminResumeMonitor,
+  adminDeleteMonitor as apiAdminDeleteMonitor,
+  adminBulkPauseMonitors as apiAdminBulkPauseMonitors,
+  adminBulkResumeMonitors as apiAdminBulkResumeMonitors,
+  adminBulkUpdateInterval as apiAdminBulkUpdateInterval,
+  adminBulkDeleteMonitors as apiAdminBulkDeleteMonitors,
+  adminClearMonitorResults as apiAdminClearMonitorResults,
+  getAdminExportMonitors,
+  subscribeToEvents,
+} from '../../api';
 import { useToast } from '../../context';
-import { getUserId, exportUsersToCsv } from './admin.utils';
+import {
+  getUserId,
+  exportUsersToCsv,
+  exportMonitorsToCsv,
+} from './admin.utils';
 
 /**
- * Defensive parser for diverse backend response formats.
+ * Defensive parser for diverse backend response formats for users.
  */
 function extractUsersPayload(response, page, limit) {
   let list = [];
@@ -41,40 +65,101 @@ function extractUsersPayload(response, page, limit) {
   return { list, total, totalPages };
 }
 
+/**
+ * Defensive parser for monitors response payload.
+ */
+function extractMonitorsPayload(response, page, limit) {
+  let list = [];
+  let total = 0;
+  let totalPages = 1;
+
+  if (Array.isArray(response)) {
+    list = response;
+    total = response.length;
+    totalPages = Math.max(1, Math.ceil(total / limit));
+  } else if (response && typeof response === 'object') {
+    if (Array.isArray(response.data)) {
+      list = response.data;
+    } else if (Array.isArray(response.monitors)) {
+      list = response.monitors;
+    }
+
+    total =
+      response.pagination?.total ??
+      response.total ??
+      response.count ??
+      list.length;
+
+    totalPages =
+      response.pagination?.totalPages ??
+      response.totalPages ??
+      Math.max(1, Math.ceil(total / limit));
+  }
+
+  return { list, total, totalPages };
+}
+
 export default function useAdmin(currentUser) {
   const toast = useToast();
   const mountedRef = useRef(true);
 
-  // Data state
+  // ==========================================
+  // USER ACCOUNTS STATE
+  // ==========================================
   const [users, setUsers] = useState([]);
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-
-  // Loading & status states
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  // Filters & sorting
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [planFilter, setPlanFilter] = useState('all');
   const [sortBy, setSortBy] = useState('createdAt');
-  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
+  const [sortOrder, setSortOrder] = useState('desc');
 
-  // Action states
-  const [actionInProgress, setActionInProgress] = useState({}); // { [userId]: 'logout' | 'delete' }
+  const [actionInProgress, setActionInProgress] = useState({});
   const [confirmModal, setConfirmModal] = useState({ open: false, type: null, user: null });
   const [inspectUser, setInspectUser] = useState(null);
 
-  // Session audit logs
+  // ==========================================
+  // UPTIME MONITORS STATE
+  // ==========================================
+  const [monitors, setMonitors] = useState([]);
+  const [totalMonitors, setTotalMonitors] = useState(0);
+  const [monitorTotalPages, setMonitorTotalPages] = useState(1);
+  const [monitorPage, setMonitorPage] = useState(1);
+  const [monitorLimit, setMonitorLimit] = useState(10);
+  const [monitorLoading, setMonitorLoading] = useState(true);
+  const [monitorRefreshing, setMonitorRefreshing] = useState(false);
+  const [monitorError, setMonitorError] = useState(null);
+
+  const [monitorStats, setMonitorStats] = useState(null);
+  const [incidents, setIncidents] = useState([]);
+
+  const [monitorSearchQuery, setMonitorSearchQuery] = useState('');
+  const [monitorStatusFilter, setMonitorStatusFilter] = useState('all');
+  const [monitorIntervalFilter, setMonitorIntervalFilter] = useState('all');
+
+  const [selectedMonitorIds, setSelectedMonitorIds] = useState([]);
+  const [monitorActionInProgress, setMonitorActionInProgress] = useState({});
+
+  // Modals for monitors
+  const [monitorModal, setMonitorModal] = useState({ open: false, mode: 'create', monitor: null });
+  const [monitorInspectModal, setMonitorInspectModal] = useState({ open: false, monitor: null });
+  const [monitorBulkModal, setMonitorBulkModal] = useState({ open: false, type: null, targetMonitor: null });
+
+  // ==========================================
+  // SESSION AUDIT LOGS
+  // ==========================================
   const [auditLogs, setAuditLogs] = useState(() => [
     {
       id: 'init-1',
       action: 'ADMIN_SESSION_STARTED',
-      description: 'Admin Control Plane initialized',
+      description: 'Admin Control Plane & Monitor Telemetry initialized',
       timestamp: new Date().toISOString(),
       status: 'info',
     },
@@ -87,9 +172,6 @@ export default function useAdmin(currentUser) {
     };
   }, []);
 
-  /**
-   * Log an administrative event in the session audit trail.
-   */
   const appendAuditLog = useCallback((action, description, status = 'success') => {
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
@@ -98,12 +180,12 @@ export default function useAdmin(currentUser) {
       timestamp: new Date().toISOString(),
       status,
     };
-    setAuditLogs((prev) => [entry, ...prev.slice(0, 49)]); // keep recent 50 logs
+    setAuditLogs((prev) => [entry, ...prev.slice(0, 49)]);
   }, []);
 
-  /**
-   * Core fetcher for users list from backend API.
-   */
+  // ==========================================
+  // USERS DATA FETCHING
+  // ==========================================
   const fetchUsers = useCallback(
     async (currentPage = page, currentLimit = limit, currentSearch = searchQuery) => {
       try {
@@ -119,7 +201,6 @@ export default function useAdmin(currentUser) {
         if (!mountedRef.current) return;
         const msg = err?.message || err?.error || 'Failed to fetch user accounts';
         setError(msg);
-        toast.error(msg);
       } finally {
         if (mountedRef.current) {
           setLoading(false);
@@ -127,163 +208,242 @@ export default function useAdmin(currentUser) {
         }
       }
     },
-    [page, limit, searchQuery, toast]
+    [page, limit, searchQuery]
   );
 
-  // Initial fetch and fetch on page or limit changes
   useEffect(() => {
     fetchUsers(page, limit, searchQuery);
   }, [page, limit, fetchUsers, searchQuery]);
 
-  /**
-   * Trigger manual fresh reload
-   */
+  // ==========================================
+  // MONITORS DATA FETCHING
+  // ==========================================
+  const fetchMonitorStatsData = useCallback(async () => {
+    try {
+      const res = await getAdminMonitorStats();
+      if (!mountedRef.current) return;
+      if (res?.data) {
+        setMonitorStats(res.data);
+      }
+    } catch (err) {
+      console.warn('[useAdmin] Error fetching monitor stats:', err.message);
+    }
+  }, []);
+
+  const fetchIncidentsData = useCallback(async () => {
+    try {
+      const res = await getAdminMonitorIncidents();
+      if (!mountedRef.current) return;
+      if (res?.incidents) {
+        setIncidents(res.incidents);
+      }
+    } catch (err) {
+      console.warn('[useAdmin] Error fetching incidents:', err.message);
+    }
+  }, []);
+
+  const fetchMonitorsData = useCallback(
+    async (
+      currentPage = monitorPage,
+      currentLimit = monitorLimit,
+      currentStatus = monitorStatusFilter,
+      currentInterval = monitorIntervalFilter,
+      currentSearch = monitorSearchQuery
+    ) => {
+      try {
+        setMonitorError(null);
+        const res = await getAdminMonitors({
+          page: currentPage,
+          limit: currentLimit,
+          status: currentStatus,
+          interval: currentInterval,
+          search: currentSearch,
+        });
+        if (!mountedRef.current) return;
+
+        const { list, total, totalPages: pages } = extractMonitorsPayload(res, currentPage, currentLimit);
+        setMonitors(list);
+        setTotalMonitors(total);
+        setMonitorTotalPages(pages);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        const msg = err?.message || err?.error || 'Failed to fetch uptime monitors';
+        setMonitorError(msg);
+      } finally {
+        if (mountedRef.current) {
+          setMonitorLoading(false);
+          setMonitorRefreshing(false);
+        }
+      }
+    },
+    [monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery]
+  );
+
+  useEffect(() => {
+    fetchMonitorsData(monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery);
+    fetchMonitorStatsData();
+    fetchIncidentsData();
+  }, [
+    monitorPage,
+    monitorLimit,
+    monitorStatusFilter,
+    monitorIntervalFilter,
+    monitorSearchQuery,
+    fetchMonitorsData,
+    fetchMonitorStatsData,
+    fetchIncidentsData,
+  ]);
+
+  // ==========================================
+  // SOCKET.IO REAL-TIME TELEMETRY LISTENER
+  // ==========================================
+  useEffect(() => {
+    const handleProbeResult = (payload) => {
+      if (!payload || !payload.monitorId) return;
+      const targetId = String(payload.monitorId);
+
+      setMonitors((prev) =>
+        prev.map((mon) => {
+          if (String(mon._id || mon.id) === targetId) {
+            return {
+              ...mon,
+              lastResult: payload.result,
+              lastCheckedAt: payload.checkedAt || new Date().toISOString(),
+            };
+          }
+          return mon;
+        })
+      );
+
+      // Refresh incidents if failing
+      if (payload.status === 'down' || payload.result?.status === 'DOWN') {
+        fetchIncidentsData();
+      }
+    };
+
+    const handleStatusChange = (payload) => {
+      if (!payload || !payload.monitorId) return;
+      const targetId = String(payload.monitorId);
+
+      setMonitors((prev) =>
+        prev.map((mon) => {
+          if (String(mon._id || mon.id) === targetId) {
+            return {
+              ...mon,
+              ...(payload.status ? { status: payload.status } : {}),
+              ...(payload.interval ? { interval: payload.interval } : {}),
+              ...(payload.url ? { url: payload.url } : {}),
+            };
+          }
+          return mon;
+        })
+      );
+      fetchMonitorStatsData();
+    };
+
+    const handleDeleted = (payload) => {
+      if (!payload || !payload.monitorId) return;
+      const targetId = String(payload.monitorId);
+      setMonitors((prev) => prev.filter((mon) => String(mon._id || mon.id) !== targetId));
+      setSelectedMonitorIds((prev) => prev.filter((id) => id !== targetId));
+      fetchMonitorStatsData();
+    };
+
+    const unsubscribe = subscribeToEvents({
+      'uptime:result': handleProbeResult,
+      'uptimeCompleted': handleProbeResult,
+      'monitor:statusChange': handleStatusChange,
+      'monitor:deleted': handleDeleted,
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [fetchIncidentsData, fetchMonitorStatsData]);
+
+  // ==========================================
+  // USERS DERIVED STATS & FILTERING
+  // ==========================================
+  const processedUsers = useMemo(() => {
+    return users.filter((u) => {
+      if (roleFilter !== 'all' && (u.role || 'User').toLowerCase() !== roleFilter.toLowerCase()) {
+        return false;
+      }
+      if (planFilter !== 'all' && (u.plan || 'free').toLowerCase() !== planFilter.toLowerCase()) {
+        return false;
+      }
+      return true;
+    });
+  }, [users, roleFilter, planFilter]);
+
+  const stats = useMemo(() => {
+    let adminsCount = 0;
+    let proCount = 0;
+    users.forEach((u) => {
+      const r = (u.role || '').toLowerCase();
+      if (r === 'admin' || r === 'superadmin') adminsCount++;
+      const p = (u.plan || '').toLowerCase();
+      if (p === 'pro' || p === 'enterprise') proCount++;
+    });
+
+    return {
+      total: totalUsers,
+      displayed: processedUsers.length,
+      admins: adminsCount,
+      proUsers: proCount,
+      freeUsers: Math.max(0, processedUsers.length - proCount),
+    };
+  }, [totalUsers, processedUsers, users]);
+
+  // ==========================================
+  // USER ACTIONS
+  // ==========================================
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchUsers(page, limit, searchQuery);
-    toast.success('User list updated');
+    toast.success('Accounts list updated');
   }, [fetchUsers, page, limit, searchQuery, toast]);
 
-  /**
-   * Filtered & sorted users for current view
-   */
-  const processedUsers = useMemo(() => {
-    let result = [...users];
-
-    // Client-side search refinement (matches name, email, id, role)
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter((u) => {
-        const id = getUserId(u).toLowerCase();
-        const name = (u.name || '').toLowerCase();
-        const email = (u.email || '').toLowerCase();
-        const role = (u.role || '').toLowerCase();
-        return id.includes(q) || name.includes(q) || email.includes(q) || role.includes(q);
-      });
+  const handleExportCsv = useCallback(() => {
+    if (!processedUsers.length) {
+      toast.info('No users available to export.');
+      return;
     }
-
-    // Role filter
-    if (roleFilter !== 'all') {
-      result = result.filter((u) => (u.role || '').toLowerCase() === roleFilter.toLowerCase());
+    const success = exportUsersToCsv(processedUsers, `webpulse-users-${Date.now()}.csv`);
+    if (success) {
+      toast.success(`Exported ${processedUsers.length} users to CSV.`);
+      appendAuditLog('EXPORT_CSV', `Exported ${processedUsers.length} user records.`);
     }
+  }, [processedUsers, appendAuditLog, toast]);
 
-    // Plan filter
-    if (planFilter !== 'all') {
-      result = result.filter((u) => (u.plan || 'free').toLowerCase() === planFilter.toLowerCase());
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      let valA;
-      let valB;
-
-      if (sortBy === 'name') {
-        valA = (a.name || '').toLowerCase();
-        valB = (b.name || '').toLowerCase();
-      } else if (sortBy === 'email') {
-        valA = (a.email || '').toLowerCase();
-        valB = (b.email || '').toLowerCase();
-      } else if (sortBy === 'role') {
-        valA = (a.role || '').toLowerCase();
-        valB = (b.role || '').toLowerCase();
-      } else {
-        // createdAt
-        valA = new Date(a.createdAt || 0).getTime();
-        valB = new Date(b.createdAt || 0).getTime();
-      }
-
-      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return result;
-  }, [users, searchQuery, roleFilter, planFilter, sortBy, sortOrder]);
-
-  /**
-   * System summary stats derived from currently loaded/queried data
-   */
-  const stats = useMemo(() => {
-    const adminCount = users.filter((u) => {
-      const r = (u.role || '').toLowerCase();
-      return r === 'admin' || r === 'superadmin';
-    }).length;
-
-    const proCount = users.filter((u) => {
-      const p = (u.plan || '').toLowerCase();
-      return p === 'pro' || p === 'enterprise';
-    }).length;
-
-    return {
-      total: totalUsers || users.length,
-      admins: adminCount,
-      proUsers: proCount,
-      displayed: processedUsers.length,
-    };
-  }, [users, totalUsers, processedUsers.length]);
-
-  /**
-   * Sorting column toggle
-   */
-  const handleSort = useCallback((field) => {
-    setSortBy((prevField) => {
-      if (prevField === field) {
-        setSortOrder((prevOrder) => (prevOrder === 'asc' ? 'desc' : 'asc'));
-        return field;
-      }
-      setSortOrder('asc');
-      return field;
-    });
-  }, []);
-
-  /**
-   * Modal triggers
-   */
   const promptForceLogout = useCallback((user) => {
-    setConfirmModal({
-      open: true,
-      type: 'logout',
-      user,
-    });
+    setConfirmModal({ open: true, type: 'logout', user });
   }, []);
 
   const promptDeleteUser = useCallback((user) => {
-    setConfirmModal({
-      open: true,
-      type: 'delete',
-      user,
-    });
+    setConfirmModal({ open: true, type: 'delete', user });
   }, []);
 
   const closeConfirmModal = useCallback(() => {
     setConfirmModal({ open: false, type: null, user: null });
   }, []);
 
-  /**
-   * Execute Force Logout
-   */
   const handleForceLogout = useCallback(
     async (targetUser) => {
       const targetId = getUserId(targetUser);
       if (!targetId) return;
-
-      // Prevent force-logging out self
-      if (currentUser && getUserId(currentUser) === targetId) {
-        toast.error("You cannot force logout your own active session from here.");
-        return;
-      }
 
       setActionInProgress((prev) => ({ ...prev, [targetId]: 'logout' }));
       closeConfirmModal();
 
       try {
         await apiForceLogout(targetId);
-        toast.success(`User session for ${targetUser.name || targetUser.email} has been terminated.`);
-        appendAuditLog('FORCE_LOGOUT', `Terminated session for ${targetUser.name || targetUser.email} (${targetId})`);
+        toast.success(`Active sessions for ${targetUser.name || targetUser.email} terminated.`);
+        appendAuditLog('FORCE_LOGOUT', `Terminated sessions for ${targetUser.name || targetUser.email} (${targetId})`);
       } catch (err) {
         const msg = err?.message || err?.error || 'Failed to force logout user';
         toast.error(msg);
-        appendAuditLog('FORCE_LOGOUT_FAILED', `Failed to log out ${targetUser.name}: ${msg}`, 'error');
+        appendAuditLog('FORCE_LOGOUT_FAILED', `Failed to logout ${targetUser.name}: ${msg}`, 'error');
       } finally {
         setActionInProgress((prev) => {
           const next = { ...prev };
@@ -292,20 +452,16 @@ export default function useAdmin(currentUser) {
         });
       }
     },
-    [currentUser, closeConfirmModal, appendAuditLog, toast]
+    [closeConfirmModal, appendAuditLog, toast]
   );
 
-  /**
-   * Execute Delete / Soft-Delete User
-   */
   const handleDeleteUser = useCallback(
     async (targetUser) => {
       const targetId = getUserId(targetUser);
       if (!targetId) return;
 
-      // Prevent self-deletion
       if (currentUser && getUserId(currentUser) === targetId) {
-        toast.error("You cannot delete your own active administrator account.");
+        toast.error('You cannot delete your own active administrator account.');
         return;
       }
 
@@ -315,9 +471,8 @@ export default function useAdmin(currentUser) {
       try {
         await apiDeleteUser(targetId);
         toast.success(`User ${targetUser.name || targetUser.email} has been removed.`);
-        appendAuditLog('DELETE_USER', `Soft-deleted user account ${targetUser.name || targetUser.email} (${targetId})`);
+        appendAuditLog('DELETE_USER', `Soft-deleted user ${targetUser.name || targetUser.email} (${targetId})`);
 
-        // Optimistically remove or refresh
         setUsers((prev) => prev.filter((u) => getUserId(u) !== targetId));
         setTotalUsers((prev) => Math.max(0, prev - 1));
 
@@ -339,24 +494,321 @@ export default function useAdmin(currentUser) {
     [currentUser, closeConfirmModal, inspectUser, appendAuditLog, toast]
   );
 
-  /**
-   * Export loaded users to CSV
-   */
-  const handleExportCsv = useCallback(() => {
-    if (!processedUsers.length) {
-      toast.info('No users available to export.');
-      return;
+  const handleSort = useCallback((field) => {
+    setSortBy((prev) => {
+      if (prev === field) {
+        setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+        return field;
+      }
+      setSortOrder('asc');
+      return field;
+    });
+  }, []);
+
+  // ==========================================
+  // MONITOR ACTIONS (RBAC)
+  // ==========================================
+  const handleRefreshMonitors = useCallback(async () => {
+    setMonitorRefreshing(true);
+    await Promise.all([
+      fetchMonitorsData(monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery),
+      fetchMonitorStatsData(),
+      fetchIncidentsData(),
+    ]);
+    toast.success('Monitors & telemetry refreshed');
+  }, [
+    fetchMonitorsData,
+    fetchMonitorStatsData,
+    fetchIncidentsData,
+    monitorPage,
+    monitorLimit,
+    monitorStatusFilter,
+    monitorIntervalFilter,
+    monitorSearchQuery,
+    toast,
+  ]);
+
+  const handleTriggerCheck = useCallback(
+    async (monitorId) => {
+      if (!monitorId) return null;
+      setMonitorActionInProgress((prev) => ({ ...prev, [monitorId]: 'check' }));
+
+      try {
+        const res = await apiAdminTriggerCheck(monitorId);
+        toast.success(`Ad-hoc probe completed: ${res.status || 'UP'}`);
+        appendAuditLog('TRIGGER_MONITOR_CHECK', `Manual health probe executed for monitor ${monitorId} (${res.status})`);
+
+        // Optimistically update monitor in local state
+        setMonitors((prev) =>
+          prev.map((m) => {
+            if ((m._id || m.id) === monitorId) {
+              return {
+                ...m,
+                lastResult: res.result,
+                lastCheckedAt: res.checkedAt || new Date().toISOString(),
+              };
+            }
+            return m;
+          })
+        );
+        fetchIncidentsData();
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Probe execution failed';
+        toast.error(msg);
+        appendAuditLog('TRIGGER_MONITOR_CHECK_FAILED', `Failed probe for ${monitorId}: ${msg}`, 'error');
+        throw err;
+      } finally {
+        setMonitorActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[monitorId];
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, fetchIncidentsData, toast]
+  );
+
+  const handleTogglePauseMonitor = useCallback(
+    async (monitor) => {
+      const id = monitor._id || monitor.id;
+      if (!id) return;
+      const isPaused = monitor.status === 'paused';
+      const actionName = isPaused ? 'resume' : 'pause';
+
+      setMonitorActionInProgress((prev) => ({ ...prev, [id]: actionName }));
+
+      try {
+        if (isPaused) {
+          await apiAdminResumeMonitor(id);
+          toast.success(`Monitor for ${monitor.url} activated.`);
+          appendAuditLog('RESUME_MONITOR', `Admin activated monitor ${monitor.url} (${id})`);
+        } else {
+          await apiAdminPauseMonitor(id);
+          toast.success(`Monitor for ${monitor.url} paused.`);
+          appendAuditLog('PAUSE_MONITOR', `Admin paused monitor ${monitor.url} (${id})`);
+        }
+
+        const newStatus = isPaused ? 'active' : 'paused';
+        setMonitors((prev) =>
+          prev.map((m) => ((m._id || m.id) === id ? { ...m, status: newStatus } : m))
+        );
+        fetchMonitorStatsData();
+      } catch (err) {
+        const msg = err?.message || err?.error || `Failed to ${actionName} monitor`;
+        toast.error(msg);
+        appendAuditLog(`${actionName.toUpperCase()}_MONITOR_FAILED`, `Failed: ${msg}`, 'error');
+      } finally {
+        setMonitorActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, fetchMonitorStatsData, toast]
+  );
+
+  const handleCreateMonitorSubmit = useCallback(
+    async (formData) => {
+      try {
+        const res = await apiAdminCreateMonitor(formData);
+        toast.success('Monitor provisioned successfully.');
+        appendAuditLog('CREATE_MONITOR', `Admin created monitor for ${formData.url} owned by user ${formData.userId}`);
+        await Promise.all([
+          fetchMonitorsData(1, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery),
+          fetchMonitorStatsData(),
+        ]);
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to create monitor';
+        toast.error(msg);
+        appendAuditLog('CREATE_MONITOR_FAILED', `Failed to create monitor: ${msg}`, 'error');
+        throw err;
+      }
+    },
+    [
+      fetchMonitorsData,
+      fetchMonitorStatsData,
+      monitorLimit,
+      monitorStatusFilter,
+      monitorIntervalFilter,
+      monitorSearchQuery,
+      appendAuditLog,
+      toast,
+    ]
+  );
+
+  const handleUpdateMonitorSubmit = useCallback(
+    async ({ id, url, interval, status }) => {
+      try {
+        const res = await apiAdminUpdateMonitor(id, { url, interval, status });
+        toast.success('Monitor configuration saved.');
+        appendAuditLog('UPDATE_MONITOR', `Admin updated monitor ${id} (${url}, ${interval}, ${status})`);
+
+        setMonitors((prev) =>
+          prev.map((m) => ((m._id || m.id) === id ? { ...m, url, interval, status } : m))
+        );
+        fetchMonitorStatsData();
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to update monitor';
+        toast.error(msg);
+        appendAuditLog('UPDATE_MONITOR_FAILED', `Failed to update monitor: ${msg}`, 'error');
+        throw err;
+      }
+    },
+    [appendAuditLog, fetchMonitorStatsData, toast]
+  );
+
+  const handleDeleteMonitorSubmit = useCallback(
+    async (targetMonitor) => {
+      const id = targetMonitor._id || targetMonitor.id;
+      if (!id) return;
+
+      try {
+        await apiAdminDeleteMonitor(id);
+        toast.success(`Monitor for ${targetMonitor.url} deleted.`);
+        appendAuditLog('DELETE_MONITOR', `Admin deleted monitor ${targetMonitor.url} (${id})`);
+
+        setMonitors((prev) => prev.filter((m) => (m._id || m.id) !== id));
+        setSelectedMonitorIds((prev) => prev.filter((item) => item !== id));
+        setTotalMonitors((prev) => Math.max(0, prev - 1));
+        fetchMonitorStatsData();
+        fetchIncidentsData();
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to delete monitor';
+        toast.error(msg);
+        appendAuditLog('DELETE_MONITOR_FAILED', `Failed to delete monitor: ${msg}`, 'error');
+      }
+    },
+    [appendAuditLog, fetchMonitorStatsData, fetchIncidentsData, toast]
+  );
+
+  const handleClearResultsSubmit = useCallback(
+    async (targetMonitor, { olderThanDays } = {}) => {
+      const id = targetMonitor._id || targetMonitor.id;
+      if (!id) return;
+
+      try {
+        const res = await apiAdminClearMonitorResults(id, olderThanDays);
+        toast.success(`Cleared ${res.deletedCount || 0} check result records.`);
+        appendAuditLog('CLEAR_MONITOR_RESULTS', `Purged ${res.deletedCount} results for ${targetMonitor.url}`);
+
+        if (!olderThanDays) {
+          setMonitors((prev) =>
+            prev.map((m) => ((m._id || m.id) === id ? { ...m, lastResult: null, lastCheckedAt: null } : m))
+          );
+        }
+        fetchMonitorStatsData();
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to clear monitor results';
+        toast.error(msg);
+        appendAuditLog('CLEAR_MONITOR_RESULTS_FAILED', `Failed to clear results: ${msg}`, 'error');
+      }
+    },
+    [appendAuditLog, fetchMonitorStatsData, toast]
+  );
+
+  // Bulk Operations
+  const handleBulkAction = useCallback(
+    async (type, payload = {}) => {
+      if (selectedMonitorIds.length === 0) return;
+
+      try {
+        if (type === 'pause') {
+          await apiAdminBulkPauseMonitors({ monitorIds: selectedMonitorIds });
+          toast.success(`Paused ${selectedMonitorIds.length} monitors.`);
+          appendAuditLog('BULK_PAUSE_MONITORS', `Paused ${selectedMonitorIds.length} monitors`);
+        } else if (type === 'resume') {
+          await apiAdminBulkResumeMonitors({ monitorIds: selectedMonitorIds });
+          toast.success(`Resumed ${selectedMonitorIds.length} monitors.`);
+          appendAuditLog('BULK_RESUME_MONITORS', `Resumed ${selectedMonitorIds.length} monitors`);
+        } else if (type === 'interval') {
+          await apiAdminBulkUpdateInterval({
+            monitorIds: selectedMonitorIds,
+            interval: payload.interval,
+          });
+          toast.success(`Updated frequency to ${payload.interval} for ${selectedMonitorIds.length} monitors.`);
+          appendAuditLog('BULK_UPDATE_INTERVAL', `Changed interval to ${payload.interval} for ${selectedMonitorIds.length} monitors`);
+        } else if (type === 'delete') {
+          await apiAdminBulkDeleteMonitors({ monitorIds: selectedMonitorIds });
+          toast.success(`Deleted ${selectedMonitorIds.length} monitors and their history.`);
+          appendAuditLog('BULK_DELETE_MONITORS', `Deleted ${selectedMonitorIds.length} monitors`);
+          setSelectedMonitorIds([]);
+        }
+
+        await Promise.all([
+          fetchMonitorsData(monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery),
+          fetchMonitorStatsData(),
+          fetchIncidentsData(),
+        ]);
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Bulk operation failed';
+        toast.error(msg);
+        appendAuditLog('BULK_OPERATION_FAILED', `Bulk operation error: ${msg}`, 'error');
+      }
+    },
+    [
+      selectedMonitorIds,
+      fetchMonitorsData,
+      fetchMonitorStatsData,
+      fetchIncidentsData,
+      monitorPage,
+      monitorLimit,
+      monitorStatusFilter,
+      monitorIntervalFilter,
+      monitorSearchQuery,
+      appendAuditLog,
+      toast,
+    ]
+  );
+
+  const handleExportMonitorsCsv = useCallback(async () => {
+    try {
+      const res = await getAdminExportMonitors();
+      const list = res?.data || monitors;
+      if (!list.length) {
+        toast.info('No monitor records available to export.');
+        return;
+      }
+      const success = exportMonitorsToCsv(list, `webpulse-monitors-${Date.now()}.csv`);
+      if (success) {
+        toast.success(`Exported ${list.length} monitor records to CSV.`);
+        appendAuditLog('EXPORT_MONITORS_CSV', `Exported ${list.length} monitor records.`);
+      }
+    } catch (err) {
+      toast.error('Failed to export monitors dataset');
     }
-    const success = exportUsersToCsv(processedUsers, `webpulse-users-${Date.now()}.csv`);
-    if (success) {
-      toast.success(`Exported ${processedUsers.length} users to CSV.`);
-      appendAuditLog('EXPORT_CSV', `Exported ${processedUsers.length} user records.`);
-    }
-  }, [processedUsers, appendAuditLog, toast]);
+  }, [monitors, appendAuditLog, toast]);
+
+  // Checkbox selection handlers
+  const handleToggleSelectMonitor = useCallback((id) => {
+    setSelectedMonitorIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }, []);
+
+  const handleToggleSelectAllMonitors = useCallback(
+    (selectAll) => {
+      if (!selectAll) {
+        setSelectedMonitorIds([]);
+      } else {
+        const allIds = monitors.map((m) => m._id || m.id).filter(Boolean);
+        setSelectedMonitorIds(allIds);
+      }
+    },
+    [monitors]
+  );
+
+  const clearMonitorSelection = useCallback(() => {
+    setSelectedMonitorIds([]);
+  }, []);
 
   return {
-    // Data & state
+    // User Accounts State & Actions
     users: processedUsers,
+    rawUsers: users,
     rawUsersCount: users.length,
     totalUsers,
     totalPages,
@@ -366,8 +818,6 @@ export default function useAdmin(currentUser) {
     refreshing,
     error,
     stats,
-
-    // Filter & sort
     searchQuery,
     setSearchQuery,
     roleFilter,
@@ -377,12 +827,8 @@ export default function useAdmin(currentUser) {
     sortBy,
     sortOrder,
     handleSort,
-
-    // Pagination
     setPage,
     setLimit,
-
-    // Actions & Modals
     actionInProgress,
     confirmModal,
     promptForceLogout,
@@ -390,15 +836,52 @@ export default function useAdmin(currentUser) {
     closeConfirmModal,
     handleForceLogout,
     handleDeleteUser,
-
-    // Inspection
     inspectUser,
     setInspectUser,
-
-    // Audit logs & System
     auditLogs,
     handleRefresh,
     handleExportCsv,
+
+    // Uptime Monitor RBAC State & Actions
+    monitors,
+    totalMonitors,
+    monitorTotalPages,
+    monitorPage,
+    setMonitorPage,
+    monitorLimit,
+    setMonitorLimit,
+    monitorLoading,
+    monitorRefreshing,
+    monitorError,
+    monitorStats,
+    incidents,
+    monitorSearchQuery,
+    setMonitorSearchQuery,
+    monitorStatusFilter,
+    setMonitorStatusFilter,
+    monitorIntervalFilter,
+    setMonitorIntervalFilter,
+    selectedMonitorIds,
+    monitorActionInProgress,
+
+    // Monitor Modals & Triggers
+    monitorModal,
+    setMonitorModal,
+    monitorInspectModal,
+    setMonitorInspectModal,
+    monitorBulkModal,
+    setMonitorBulkModal,
+    handleRefreshMonitors,
+    handleTriggerCheck,
+    handleTogglePauseMonitor,
+    handleCreateMonitorSubmit,
+    handleUpdateMonitorSubmit,
+    handleDeleteMonitorSubmit,
+    handleClearResultsSubmit,
+    handleBulkAction,
+    handleExportMonitorsCsv,
+    handleToggleSelectMonitor,
+    handleToggleSelectAllMonitors,
+    clearMonitorSelection,
   };
 }
-
