@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   getUserDetails,
   loginUser as apiLogin,
+  loginWithGoogle as apiGoogleLogin,
   logoutUser as apiLogout,
   registerUser as apiRegister,
   sendOtp as apiSendOtp,
@@ -140,6 +141,36 @@ export function AuthProvider({ children }) {
     [checkAuth],
   );
 
+  const googleLogin = useCallback(
+    async (idToken) => {
+      const guestId = getGuestId();
+      const response = await apiGoogleLogin(idToken, guestId);
+
+      // Save token for cross-domain headers (iOS Safari support)
+      const token = response?.token || response?.sessionId || response?.data?.token;
+      if (token) {
+        setAuthToken(token);
+        removeGuestId(); // Clean up guest state once user is authenticated
+      }
+
+      // Immediately hydrate user object if returned by login payload
+      const userData = response?.user || response?.data?.user;
+      if (userData) {
+        setUser(userData);
+        setIsAuthenticated(true);
+      }
+
+      // Reconnect socket with the new token to join the user's room
+      reconnectSocket();
+
+      // Hydrate full session details from backend
+      await checkAuth();
+
+      return response;
+    },
+    [checkAuth],
+  );
+
   const logout = useCallback(async () => {
     try {
       await apiLogout();
@@ -160,8 +191,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const actions = useMemo(
-    () => ({ login, logout, register, sendOtp, updateUser, checkAuth }),
-    [login, logout, register, sendOtp, updateUser, checkAuth],
+    () => ({ login, logout, register, sendOtp, updateUser, checkAuth, googleLogin }),
+    [login, logout, register, sendOtp, updateUser, checkAuth, googleLogin],
   );
 
   const state = useMemo(
@@ -183,7 +214,7 @@ export function useAuthState() {
   return context;
 }
 
-/** Stable auth actions: { login, logout, register, sendOtp, updateUser, checkAuth }. */
+/** Stable auth actions: { login, logout, register, sendOtp, updateUser, checkAuth, googleLogin }. */
 export function useAuthActions() {
   const context = useContext(AuthActionsContext);
   if (!context) throw new Error('useAuthActions must be used within an AuthProvider');

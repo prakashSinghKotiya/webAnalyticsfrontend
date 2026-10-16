@@ -1,5 +1,5 @@
 // Auth API
-export { sendOtp, verifyOtp } from './auth';
+export { sendOtp, verifyOtp, loginWithGoogle } from './auth';
 
 // User API
 export { registerUser, loginUser, logoutUser, getUserDetails } from './user';
