@@ -409,7 +409,7 @@ export default function useAdmin(currentUser) {
       toast.info('No users available to export.');
       return;
     }
-    const success = exportUsersToCsv(processedUsers, `webpulse-users-${Date.now()}.csv`);
+    const success = exportUsersToCsv(processedUsers, `monitormyhost-users-${Date.now()}.csv`);
     if (success) {
       toast.success(`Exported ${processedUsers.length} users to CSV.`);
       appendAuditLog('EXPORT_CSV', `Exported ${processedUsers.length} user records.`);
@@ -772,7 +772,7 @@ export default function useAdmin(currentUser) {
         toast.info('No monitor records available to export.');
         return;
       }
-      const success = exportMonitorsToCsv(list, `webpulse-monitors-${Date.now()}.csv`);
+      const success = exportMonitorsToCsv(list, `monitormyhost-monitors-${Date.now()}.csv`);
       if (success) {
         toast.success(`Exported ${list.length} monitor records to CSV.`);
         appendAuditLog('EXPORT_MONITORS_CSV', `Exported ${list.length} monitor records.`);

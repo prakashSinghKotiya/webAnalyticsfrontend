@@ -7,6 +7,7 @@ import {
   WhoisPreview,
 } from "./DomainToolPreview.jsx"
 import { ROUTES } from "../../constants"
+import Footer from "../../components/Footer.jsx"
 import { useAuthState } from "../../context"
 import { getAppUrl } from "../../utils/subdomainNav"
 
@@ -78,14 +79,14 @@ function Logo() {
   return (
     <Link
       to={ROUTES.PUBLIC_HOME}
-      aria-label="WebPulse home"
+      aria-label="MonitorMyHost home"
       className="inline-flex shrink-0 items-center gap-2 sm:gap-2.5"
     >
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-[var(--cyan)] to-[var(--green)] text-white">
         <Icon name="activity" size={16} />
       </span>
-      <span className={`${display} text-base sm:text-lg font-bold tracking-tight`}>
-        Web<span className="text-[var(--cyan)]">Pulse</span>
+      <span className={`${display} text-sm min-[380px]:text-base sm:text-lg font-bold tracking-tight`}>
+        Monitor<span className="text-[var(--cyan)]">MyHost</span>
       </span>
     </Link>
   )
@@ -133,17 +134,95 @@ function ThemeToggle() {
     </button>
   )
 }
+const MOBILE_DEMO_SERVICES = [
+  {
+    name: "Global TTFB Test",
+    path: "/tools/ttfb",
+    icon: "zap",
+    badge: "35+ Nodes",
+    tone: "cyan",
+    desc: "First byte server response time & edge latency",
+  },
+  {
+    name: "FullSite Report",
+    path: "/tools/lighthouse",
+    icon: "chart",
+    badge: "Core Vitals",
+    tone: "orange",
+    desc: "Google Lighthouse performance & SEO score audit",
+  },
+  {
+    name: "DNS Inspector",
+    path: "/tools/dns",
+    icon: "dns",
+    badge: "Authoritative",
+    tone: "green",
+    desc: "Check A, AAAA, MX, CNAME, & TXT records",
+  },
+  {
+    name: "Redirect Checker",
+    path: "/tools/redirects",
+    icon: "arrow",
+    badge: "Trace Hops",
+    tone: "orange",
+    desc: "Analyze 301/302 chains & prevent infinite loops",
+  },
+  {
+    name: "WHOIS Domain Lookup",
+    path: "/tools/whois",
+    icon: "shield",
+    badge: "Domain Intel",
+    tone: "cyan",
+    desc: "Registrar intel, nameservers, & expiration dates",
+  },
+]
+
 function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
+  const [socketStatus, setSocketStatus] = useState({
+    status: "idle",
+    isConnected: false,
+  })
   const menuRef = useRef(null)
   const triggerRef = useRef(null)
+
+  useEffect(() => {
+    let unsub
+    import("../../api/socket")
+      .then(
+        ({
+          subscribeToConnectionState,
+          isSocketConnected,
+          getConnectionState,
+        }) => {
+          const cur = getConnectionState()
+          setSocketStatus({
+            status: cur?.status || "idle",
+            isConnected: Boolean(isSocketConnected?.()),
+          })
+          unsub = subscribeToConnectionState((next) => {
+            setSocketStatus({
+              status: next.status,
+              isConnected: next.status === "connected",
+            })
+          })
+        },
+      )
+      .catch(() => {})
+
+    return () => {
+      if (unsub) unsub()
+    }
+  }, [])
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
     onScroll()
     window.addEventListener("scroll", onScroll, { passive: true })
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
+
   useEffect(() => {
     if (!open) return
     const close = (event) => {
@@ -165,6 +244,18 @@ function Navbar() {
       document.removeEventListener("pointerdown", close)
     }
   }, [open])
+
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    if (open) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = "hidden"
+      return () => {
+        document.body.style.overflow = prev
+      }
+    }
+  }, [open])
+
   const jump = (event, target) => {
     event.preventDefault()
     setOpen(false)
@@ -176,100 +267,253 @@ function Navbar() {
           : "smooth",
       })
   }
+
   return (
-    <header
-      className={`fixed inset-x-0 top-0 z-50 border-b transition-colors ${
-        scrolled || open
-          ? "border-[var(--border)] bg-[var(--nav-bg)] backdrop-blur-xl"
-          : "border-transparent bg-transparent"
-      }`}
-    >
-      <nav
-        aria-label="Main navigation"
-        className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between gap-2 px-3.5 sm:gap-4 sm:px-8 lg:px-12"
+    <>
+      <header
+        className={`fixed inset-x-0 top-0 z-40 border-b transition-colors ${
+          scrolled
+            ? "border-[var(--border)] bg-[var(--nav-bg)] backdrop-blur-xl"
+            : "border-transparent bg-transparent"
+        }`}
       >
-        <Logo />
-        <div className="hidden items-center gap-7 lg:flex">
-          {["Features", "Tools", "Pricing"].map((item) => (
-            <a
-              key={item}
-              href={`#${item.toLowerCase()}`}
-              onClick={(event) => jump(event, item.toLowerCase())}
-              className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]"
-            >
-              {item}
-            </a>
-          ))}
-        </div>
-        <div className="flex items-center gap-1.5 sm:gap-3">
-          <ThemeToggle />
-          <a
-            href={getAppUrl(ROUTES.LOGIN)}
-            className="hidden text-sm font-medium text-[var(--text-2)] hover:text-[var(--cyan)] sm:block"
-          >
-            Login
-          </a>
-          <a
-            href={getAppUrl(ROUTES.REGISTER)}
-            className="hidden text-sm font-medium text-[var(--muted-2)] hover:text-[var(--cyan)] sm:block"
-          >
-            Sign Up
-          </a>
-          <a
-            href={getAppUrl(ROUTES.LOGIN)}
-            className={`${display} inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg sm:rounded-xl bg-linear-to-br from-[var(--cyan)] to-[var(--action-end)] px-2.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:brightness-110 active:scale-95`}
-          >
-            <span className="hidden sm:inline">Get Started Free</span>
-            <span className="sm:hidden">Get Started</span>
-          </a>
-          <button
-            ref={triggerRef}
-            type="button"
-            aria-label={open ? "Close navigation" : "Open navigation"}
-            aria-expanded={open}
-            aria-controls="mobile-navigation"
-            onClick={() => setOpen(!open)}
-            className="rounded-lg p-1.5 text-[var(--text-2)] hover:bg-[var(--surface-2)] sm:p-2 lg:hidden"
-          >
-            <Icon name={open ? "close" : "menu"} size={20} />
-          </button>
-        </div>
-      </nav>
-      {open && (
-        <div
-          ref={menuRef}
-          id="mobile-navigation"
-          className={`${container} space-y-1 pb-5 lg:hidden`}
+        <nav
+          aria-label="Main navigation"
+          className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between gap-2 px-3.5 sm:gap-4 sm:px-8 lg:px-12"
         >
-          {["Features", "Tools", "Pricing"].map((item) => (
-            <a
-              key={item}
-              href={`#${item.toLowerCase()}`}
-              onClick={(event) => jump(event, item.toLowerCase())}
-              className="block rounded-lg px-3 py-3 text-sm text-[var(--text-2)] hover:bg-[var(--surface-2)]"
-            >
-              {item}
-            </a>
-          ))}
-          <div className="flex gap-3 pt-3">
+          <Logo />
+          <div className="hidden items-center gap-7 lg:flex">
+            {[ "Features", "Tools", "Pricing"].map((item) => (
+              <a
+                key={item}
+                href={`#${item.toLowerCase()}`}
+                onClick={(event) => jump(event, item.toLowerCase())}
+                className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]"
+              >
+                {item}
+              </a>
+            ))}
+           
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <ThemeToggle />
             <a
               href={getAppUrl(ROUTES.LOGIN)}
-              onClick={() => setOpen(false)}
-              className={`${secondary} flex-1 text-center`}
+              className="hidden text-sm font-medium text-[var(--text-2)] hover:text-[var(--cyan)] sm:block"
             >
               Login
             </a>
             <a
               href={getAppUrl(ROUTES.REGISTER)}
+              className="hidden text-sm font-medium text-[var(--muted-2)] hover:text-[var(--cyan)] sm:block"
+            >
+              Sign Up
+            </a>
+            <a
+              href={getAppUrl(ROUTES.LOGIN)}
+              className={`${display} inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg sm:rounded-xl bg-linear-to-br from-[var(--cyan)] to-[var(--action-end)] px-2.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:brightness-110 active:scale-95`}
+            >
+              <span className="hidden sm:inline">Get Started Free</span>
+              <span className="sm:hidden">Get Started</span>
+            </a>
+            <button
+              ref={triggerRef}
+              type="button"
+              aria-label={open ? "Close navigation" : "Open navigation"}
+              aria-expanded={open}
+              aria-controls="mobile-navigation"
+              onClick={() => setOpen(!open)}
+              className="rounded-lg p-1.5 text-[var(--text-2)] hover:bg-[var(--surface-2)] sm:p-2 lg:hidden"
+            >
+              <Icon name={open ? "close" : "menu"} size={20} />
+            </button>
+          </div>
+        </nav>
+      </header>
+
+      {/* ── MOBILE SIDEBAR DRAWER (GUEST & DEMO SERVICES) ── */}
+      {/* Backdrop Overlay - completely covers viewport, outside header */}
+      <div
+        className={`fixed inset-0 z-[99] bg-black/80 backdrop-blur-md transition-opacity duration-300 lg:hidden ${
+          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        onClick={() => setOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* Slide-over Drawer Panel - 100% solid, fully opaque background, top-to-bottom */}
+      <aside
+        ref={menuRef}
+        id="mobile-navigation"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Mobile Navigation & Free Demo Tools"
+        style={{
+          backgroundColor: "var(--surface, #181b22)",
+          color: "var(--text, #f0f0f0)",
+        }}
+        className={`fixed inset-y-0 right-0 z-[100] flex h-screen w-full max-w-[340px] flex-col border-l border-[var(--border-mid)] bg-[var(--surface)] text-[var(--text)] shadow-2xl transition-transform duration-300 ease-out lg:hidden ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        {/* Drawer Header */}
+        <div
+          style={{ backgroundColor: "var(--surface, #181b22)" }}
+          className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] px-4"
+        >
+          <Logo />
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => setOpen(false)}
+            className="rounded-lg p-2 text-[var(--muted-2)] transition hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+
+        {/* Scrollable Drawer Body */}
+        <div
+          style={{ backgroundColor: "var(--surface, #181b22)" }}
+          className="flex-1 space-y-5 overflow-y-auto px-4 py-4"
+        >
+          {/* Socket Connection Status Banner */}
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+            <div className="flex items-center justify-between">
+           
+            </div>
+            <div className="mt-2.5 flex items-center gap-2.5">
+              {socketStatus.isConnected ? (
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--green)] opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--green)]" />
+                </span>
+              ) : socketStatus.status === "connecting" ||
+                socketStatus.status === "reconnecting" ? (
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="relative inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--orange)]" />
+                </span>
+              ) : (
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--cyan)]" />
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-bold leading-tight text-[var(--text)]">
+                  {socketStatus.isConnected
+                    ? " Connected"
+                    : socketStatus.status === "connecting" ||
+                      socketStatus.status === "reconnecting"
+                    ? "Connecting ..please fix your network"
+                    : "Fix your network"}
+                </p>
+                <p className="text-[10px] text-[var(--muted-2)]">
+                  35+ Global nodes streaming live results
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Free Demo Services List */}
+          <div>
+            <div className="mb-2.5 flex items-center justify-between px-1">
+              <p className="font-['JetBrains_Mono',monospace] text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                Services
+              </p>
+              <span className="text-[10px] font-medium text-[var(--cyan)]">
+                Zero Signup
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {MOBILE_DEMO_SERVICES.map((tool) => (
+                <Link
+                  key={tool.path}
+                  to={tool.path}
+                  onClick={() => setOpen(false)}
+                  className="group flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-2.5 transition hover:border-[var(--cyan)] hover:bg-[var(--surface-2)] active:scale-[0.98]"
+                >
+                  <span
+                    className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${
+                      tool.tone === "cyan"
+                        ? "border-[var(--cyan-mid)] bg-[var(--cyan-dim)] text-[var(--cyan)]"
+                        : tool.tone === "green"
+                        ? "border-[var(--green)]/30 bg-[var(--green-dim)] text-[var(--green)]"
+                        : "border-[var(--orange)]/30 bg-[var(--orange-dim)] text-[var(--orange)]"
+                    }`}
+                  >
+                    <Icon name={tool.icon} size={15} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-bold text-[var(--text)] group-hover:text-[var(--cyan)]">
+                        {tool.name}
+                      </span>
+                      <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold text-[var(--muted-2)]">
+                        {tool.badge}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-[var(--muted-2)]">
+                      {tool.desc}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Page Jump Anchors */}
+          <div className="border-t border-[var(--border)] pt-3">
+            <p className="mb-1.5 px-1 font-['JetBrains_Mono',monospace] text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+              Explore Platform
+            </p>
+            <div className="space-y-0.5">
+              {[ "Features", "Tools", "Pricing"].map((item) => (
+                <a
+                  key={item}
+                  href={`#${item.toLowerCase()}`}
+                  onClick={(event) => jump(event, item.toLowerCase())}
+                  className="block rounded-lg px-3 py-2 text-xs font-medium text-[var(--text-2)] transition hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+                >
+                  {item}
+                </a>
+              ))}
+              <Link
+                to={ROUTES.CONTACT}
+                onClick={() => setOpen(false)}
+                className="block rounded-lg px-3 py-2 text-xs font-medium text-[var(--text-2)] transition hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+              >
+                Contact Us
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Drawer Footer Actions */}
+        <div
+          style={{ backgroundColor: "var(--surface, #181b22)" }}
+          className="space-y-2 border-t border-[var(--border)] p-4"
+        >
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-xs text-[var(--muted-2)]">Theme</span>
+            <ThemeToggle />
+          </div>
+          <div className="flex gap-2">
+            <a
+              href={getAppUrl(ROUTES.LOGIN)}
               onClick={() => setOpen(false)}
-              className={`${primary} flex-1 text-center`}
+              className={`${secondary} flex-1 justify-center py-2 text-xs`}
+            >
+              Log In
+            </a>
+            <a
+              href={getAppUrl(ROUTES.REGISTER)}
+              onClick={() => setOpen(false)}
+              className={`${primary} flex-1 justify-center py-2 text-xs`}
             >
               Sign Up
             </a>
           </div>
         </div>
-      )}
-    </header>
+      </aside>
+    </>
   )
 }
 
@@ -301,11 +545,11 @@ function Hero() {
       )
         throw new Error()
       const toolMap = {
-        ttfb: { auth: ROUTES.TTFB, demo: ROUTES.DEMO_TTFB },
-        lighthouse: { auth: ROUTES.LIGHTHOUSE, demo: ROUTES.DEMO_LIGHTHOUSE },
-        dns: { auth: ROUTES.DNS, demo: ROUTES.DEMO_DNS },
-        redirects: { auth: ROUTES.REDIRECTS, demo: ROUTES.DEMO_REDIRECTS },
-        whois: { auth: ROUTES.WHOIS, demo: ROUTES.DEMO_WHOIS },
+        ttfb: { auth: ROUTES.TTFB, demo: ROUTES.TOOLS_TTFB },
+        lighthouse: { auth: ROUTES.LIGHTHOUSE, demo: ROUTES.TOOLS_LIGHTHOUSE },
+        dns: { auth: ROUTES.DNS, demo: ROUTES.TOOLS_DNS },
+        redirects: { auth: ROUTES.REDIRECTS, demo: ROUTES.TOOLS_REDIRECTS },
+        whois: { auth: ROUTES.WHOIS, demo: ROUTES.TOOLS_WHOIS },
       }
       const selected = toolMap[tool] || toolMap.ttfb
       if (isAuthenticated) {
@@ -336,7 +580,9 @@ function Hero() {
           >
             Analyze Your Website
             <br />
-            
+            <span className="bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] bg-clip-text text-transparent">
+              Speed, TTFB &amp; Global Uptime
+            </span>
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-[var(--muted-2)] sm:text-lg">
             Global TTFB testing, uptime monitoring, Core Web Vitals, SEO audits
@@ -444,7 +690,7 @@ function Hero() {
             ))}
           </dl>
           <p className="mt-4 text-[10px] text-[var(--muted)]">
-            Product preview · Diagnostics are currently demo-only.
+            Product preview · Free online diagnostic tools.
           </p>
         </div>
         <div className="mx-auto w-full max-w-[470px]">
@@ -645,7 +891,7 @@ const tools = [
       "Measure Time to First Byte from 35+ worldwide nodes. Detect CDN cache status, regional latency, and server bottlenecks.",
     Preview: TTFBPreview,
     authRoute: ROUTES.TTFB,
-    demoRoute: ROUTES.DEMO_TTFB,
+    demoRoute: ROUTES.TOOLS_TTFB,
   },
   {
     name: "Uptime Monitoring",
@@ -667,7 +913,7 @@ const tools = [
       "SEO audit, Core Web Vitals, accessibility check, and prioritized recommendations in a single shareable report.",
     Preview: SEOPreview,
     authRoute: ROUTES.LIGHTHOUSE,
-    demoRoute: ROUTES.DEMO_LIGHTHOUSE,
+    demoRoute: ROUTES.TOOLS_LIGHTHOUSE,
   },
   {
     name: "WHOIS Lookup",
@@ -678,7 +924,7 @@ const tools = [
       "Look up domain registration, registrar, expiration dates, and name servers. See ownership details where available, including privacy-protected registrations.",
     Preview: WhoisPreview,
     authRoute: ROUTES.WHOIS,
-    demoRoute: ROUTES.DEMO_WHOIS,
+    demoRoute: ROUTES.TOOLS_WHOIS,
   },
   {
     name: "Redirect Checker",
@@ -689,7 +935,7 @@ const tools = [
       "Trace each URL redirect to its final response, count every hop, and flag loops or non-200 destinations. Understand exactly where your visitors land.",
     Preview: RedirectPreview,
     authRoute: ROUTES.REDIRECTS,
-    demoRoute: ROUTES.DEMO_REDIRECTS,
+    demoRoute: ROUTES.TOOLS_REDIRECTS,
   },
   {
     name: "DNS Record Checker",
@@ -700,7 +946,7 @@ const tools = [
       "Inspect A, AAAA, CNAME, MX, TXT, NS, and other DNS records for a domain. Troubleshoot routing, email configuration, and domain verification.",
     Preview: DnsPreview,
     authRoute: ROUTES.DNS,
-    demoRoute: ROUTES.DEMO_DNS,
+    demoRoute: ROUTES.TOOLS_DNS,
   },
 ]
 function CoreTools() {
@@ -869,7 +1115,7 @@ function Capabilities() {
             <br />a Speed Test
           </h2>
           <p className="mt-5 text-sm leading-7 text-[var(--muted)]">
-            WebPulse gives you a complete diagnostics suite
+            MonitorMyHost gives you a complete diagnostics suite
           </p>
           <ul className="mt-6 space-y-3">
             {[
@@ -914,6 +1160,8 @@ function Capabilities() {
     </section>
   )
 }
+
+
 
 
 function Pricing() {
@@ -1080,7 +1328,7 @@ function Pricing() {
 }
 function CallToAction() {
   const { isAuthenticated } = useAuthState()
-  const analysisRoute = isAuthenticated ? ROUTES.TTFB : ROUTES.DEMO_TTFB
+  const analysisRoute = isAuthenticated ? ROUTES.TTFB : ROUTES.TOOLS_TTFB
   return (
     <section className={`${container} ${section}`}>
       <div
@@ -1108,7 +1356,7 @@ function CallToAction() {
                 Analyze Your Site <Icon name="arrow" size={14} />
               </a>
             ) : (
-              <Link to={ROUTES.DEMO_TTFB} className={primary}>
+              <Link to={analysisRoute} className={primary}>
                 Analyze Your Site <Icon name="arrow" size={14} />
               </Link>
             )}
@@ -1130,87 +1378,27 @@ function CallToAction() {
     </section>
   )
 }
-function Footer() {
-  const links = {
-    Tools: [
-      "Speed-Test",
-      "TTFB Test",
-      "Uptime Monitor",
-      "SEO Audit",
-      "Core Web Vitals",
-      "WHOIS Lookup",
-      "Redirect Checker",
-      "DNS Records",
-    ],
-    Account: ["Login", "Sign Up"],
-    Company: ["About", "Blog", "Changelog", "Status Page", "Contact"],
-    Legal: ["Privacy Policy", "Terms of Service", "GDPR", "Security"],
-  }
-  return (
-    <footer className="border-t border-[var(--border)] bg-[var(--bg-deep)] py-12">
-      <div className={container}>
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.3fr_repeat(4,1fr)]">
-          <div>
-            <Logo />
-            <p className="mt-4 max-w-52 text-xs leading-6 text-[var(--muted)]">
-              The fastest way to diagnose, monitor, and optimize any website.
-            </p>
-          </div>
-          {Object.entries(links).map(([name, items]) => (
-            <div key={name}>
-              <h3
-                className={`${display} mb-4 text-xs font-semibold tracking-wider uppercase`}
-              >
-                {name}
-              </h3>
-              <ul className="space-y-2">
-                {items.map((item) => {
-                  const target =
-                    item === "Sign Up"
-                      ? getAppUrl(ROUTES.REGISTER)
-                      : item === "Login" || name === "Tools"
-                        ? getAppUrl(ROUTES.LOGIN)
-                        : null
-                  return (
-                    <li key={item}>
-                      {target ? (
-                        <a
-                          href={target}
-                          className="text-xs text-[var(--muted)] transition hover:text-[var(--cyan)]"
-                        >
-                          {item}
-                        </a>
-                      ) : (
-                        <span className="cursor-default text-xs text-[var(--muted)]">
-                          {item}
-                        </span>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border)] pt-5">
-          <p className={`${mono} text-[10px] leading-5 text-[var(--muted)]`}>
-            © 2026 WebPulse. Built for developers who care about performance.
-          </p>
-          
-        </div>
-      </div>
-    </footer>
-  )
-}
+
 
 export default function App() {
-  const [theme, setTheme] = useState(() =>
-    localStorage.getItem("wp-theme") === "light" ? "light" : "dark",
-  )
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "dark";
+    try {
+      return localStorage.getItem("wp-theme") === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    localStorage.setItem("wp-theme", theme)
-  }, [theme])
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.theme = theme;
+    }
+    try {
+      localStorage.setItem("wp-theme", theme);
+    } catch {
+      // Ignore private browsing or storage errors
+    }
+  }, [theme]);
   return (
     <ThemeContext.Provider
       value={{
@@ -1238,7 +1426,7 @@ export default function App() {
           <HowItWorks />
           
           <Capabilities />
-         
+          
           <Pricing />
           <CallToAction />
         </main>

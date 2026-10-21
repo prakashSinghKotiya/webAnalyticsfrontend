@@ -1,0 +1,7 @@
+# MonitorMyHost Robots Policy
+User-agent: *
+Allow: /
+
+# Canonical Sitemap (6 public routes only)
+Sitemap: https://monitormyhost.com/sitemap.xml
+

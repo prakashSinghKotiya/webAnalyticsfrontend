@@ -18,5 +18,5 @@ export { useToast } from './ToastContext';
 // ── Providers (for advanced/partial mounting) ───────────────────────────────
 export { AuthProvider } from './AuthContext';
 export { SocketProvider } from './SocketContext';
-export { ThemeProvider } from './ThemeContext';
+export { ThemeProvider, ThemeContext } from './ThemeContext';
 export { ToastProvider } from './ToastContext';

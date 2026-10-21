@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { STORAGE_KEYS, THEMES } from '../constants';
 
-const ThemeContext = createContext(null);
+export const ThemeContext = createContext(null);
 
 function getInitialTheme() {
   if (typeof window === 'undefined') return THEMES.DARK;
@@ -37,6 +37,7 @@ export function ThemeProvider({ children }) {
       theme,
       setTheme,
       toggleTheme,
+      toggle: toggleTheme,
       isDark: theme === THEMES.DARK,
     }),
     [theme, toggleTheme],

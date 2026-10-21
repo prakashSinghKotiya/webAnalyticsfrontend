@@ -35,7 +35,7 @@ function RedirectToLanding() {
     window.location.replace(targetUrl);
   }, [location]);
 
-  return <FullScreenLoader label="Redirecting to Demo..." />;
+  return <FullScreenLoader label="Redirecting to Tools..." />;
 }
 
 /**
@@ -104,7 +104,14 @@ export const appRouter = createBrowserRouter([
         ],
       },
 
-      // ── DEMO ROUTES REDIRECT TO LANDING SUBDOMAIN ──────────────────────
+      // ── PUBLIC MARKETING & TOOLS ROUTES REDIRECT TO MAIN DOMAIN ───────
+      { path: 'about', element: <RedirectToLanding /> },
+      { path: 'about-us', element: <RedirectToLanding /> },
+      { path: 'contact', element: <RedirectToLanding /> },
+      { path: 'contact-me', element: <RedirectToLanding /> },
+      { path: 'contact-us', element: <RedirectToLanding /> },
+      { path: 'tools', element: <RedirectToLanding /> },
+      { path: 'tools/*', element: <RedirectToLanding /> },
       { path: 'demo', element: <RedirectToLanding /> },
       { path: 'demo/*', element: <RedirectToLanding /> },
 

@@ -4,3 +4,4 @@ export { default as PagePlaceholder } from './PagePlaceholder';
 export { default as Navbar } from './Navbar';
 export { default as MobileDrawer } from './MobileDrawer';
 export { default as Logo } from './Logo';
+export { default as Footer } from './Footer';

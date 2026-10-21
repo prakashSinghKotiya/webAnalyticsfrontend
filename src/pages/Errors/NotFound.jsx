@@ -10,7 +10,7 @@ const QUICK_TOOLS = [
   {
     name: 'TTFB Latency',
     desc: 'Regional probe latency',
-    demoPath: ROUTES.DEMO_TTFB,
+    demoPath: ROUTES.TOOLS_TTFB,
     authPath: ROUTES.TTFB,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -23,7 +23,7 @@ const QUICK_TOOLS = [
   {
     name: 'Lighthouse Audit',
     desc: 'Performance & SEO health',
-    demoPath: ROUTES.DEMO_LIGHTHOUSE,
+    demoPath: ROUTES.TOOLS_LIGHTHOUSE,
     authPath: ROUTES.LIGHTHOUSE,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -35,7 +35,7 @@ const QUICK_TOOLS = [
   {
     name: 'DNS Lookup',
     desc: 'A, AAAA, MX & TXT records',
-    demoPath: ROUTES.DEMO_DNS,
+    demoPath: ROUTES.TOOLS_DNS,
     authPath: ROUTES.DNS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -50,7 +50,7 @@ const QUICK_TOOLS = [
   {
     name: 'Redirect Tracer',
     desc: 'HTTP hop analysis & status',
-    demoPath: ROUTES.DEMO_REDIRECTS,
+    demoPath: ROUTES.TOOLS_REDIRECTS,
     authPath: ROUTES.REDIRECTS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -62,7 +62,7 @@ const QUICK_TOOLS = [
   {
     name: 'WHOIS / RDAP',
     desc: 'Domain registrar & expiration',
-    demoPath: ROUTES.DEMO_WHOIS,
+    demoPath: ROUTES.TOOLS_WHOIS,
     authPath: ROUTES.WHOIS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -164,13 +164,13 @@ export default function NotFound() {
           </Link>
 
           <Link
-            to={ROUTES.DEMO_TTFB}
+            to={ROUTES.TOOLS_TTFB}
             className="font-['Outfit',sans-serif] inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-6 py-3 text-sm font-semibold text-[var(--text)] shadow-sm transition hover:border-[var(--border-bright)] hover:bg-[var(--surface-2)] sm:w-auto"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="5 3 19 12 5 21 5 3" />
             </svg>
-            <span>Try Live Demos</span>
+            <span>Try Free Tools</span>
           </Link>
 
           <button
@@ -241,7 +241,7 @@ export default function NotFound() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-[var(--border)] py-4 text-center text-xs text-[var(--muted)]">
-        <p>© WebPulse · Real-time website performance telemetry &amp; security analytics.</p>
+        <p>© MonitorMyHost · Real-time website performance telemetry &amp; security analytics.</p>
       </footer>
     </main>
   );

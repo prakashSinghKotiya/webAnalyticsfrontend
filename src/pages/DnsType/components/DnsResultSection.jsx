@@ -136,7 +136,7 @@ function MxRecordView({ records = [], hostname = '', extraIps = {}, isDemo = fal
                 <CopyButton text={item.exchange || item.host} label="Copy Host" className="hidden sm:inline-flex" />
                 {displayIp && (
                   <Link
-                    to={isDemo ? `${ROUTES.DEMO_WHOIS}?url=${encodeURIComponent(displayIp)}` : `${ROUTES.WHOIS}?domain=${encodeURIComponent(displayIp)}`}
+                    to={isDemo ? `${ROUTES.TOOLS_WHOIS}?url=${encodeURIComponent(displayIp)}` : `${ROUTES.WHOIS}?domain=${encodeURIComponent(displayIp)}`}
                     className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--cyan)]"
                     title="Lookup IP ownership"
                   >
@@ -206,7 +206,7 @@ function AddressRecordView({ type = 'A', records = [], hostname = '', isDemo = f
               <CopyButton text={item.address} label="Copy IP" />
               {type === 'A' && (
                 <Link
-                  to={isDemo ? `${ROUTES.DEMO_WHOIS}?url=${encodeURIComponent(item.address)}` : `${ROUTES.WHOIS}?domain=${encodeURIComponent(item.address)}`}
+                  to={isDemo ? `${ROUTES.TOOLS_WHOIS}?url=${encodeURIComponent(item.address)}` : `${ROUTES.WHOIS}?domain=${encodeURIComponent(item.address)}`}
                   className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--cyan)]"
                 >
                   IP Whois

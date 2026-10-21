@@ -1,40 +1,107 @@
 # ----------------------------------------------------------------------
-# WebPulse - Production Apache / cPanel Configuration
+# MonitorMyHost - Production Apache / cPanel Configuration
+# High-performance, SEO-optimized configuration for static prerendered site
 # ----------------------------------------------------------------------
 
-# Disable Directory Browsing
+# Disable Directory Browsing and Multiviews
 Options -Indexes -MultiViews
+
+# Disable automatic directory trailing slashes (Rule 4: Canonical URLs use NO trailing slash)
+DirectorySlash Off
 
 # Enable Rewrite Engine
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # HTTPS Enforcement (optional - let cPanel/Cloudflare handle if managed there)
-  # RewriteCond %{HTTPS} off
-  # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  # ----------------------------------------------------------------------
+  # Canonical Host & HTTPS Redirection
+  # Canonical Host: https://monitormyhost.com
+  # ----------------------------------------------------------------------
 
-  # Don't rewrite real files or directories
+  # Redirect www.monitormyhost.com -> https://monitormyhost.com (301)
+  RewriteCond %{HTTP_HOST} ^www\.monitormyhost\.com$ [NC]
+  RewriteRule ^(.*)$ https://monitormyhost.com/$1 [R=301,L]
+
+  # Enforce HTTPS on main domain
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteRule ^(.*)$ https://monitormyhost.com/$1 [R=301,L]
+
+  # ----------------------------------------------------------------------
+  # Trailing Slash Normalization (Rule 4: NO trailing slash)
+  # Redirect /tools/ttfb/ -> /tools/ttfb (301)
+  # Excludes root "/"
+  # ----------------------------------------------------------------------
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteCond %{REQUEST_URI} ^/(.+)/$
+  RewriteRule ^(.+)/$ /$1 [R=301,L]
+
+  # ----------------------------------------------------------------------
+  # Backward Compatibility Redirects: /demo/* -> /tools/*
+  # ----------------------------------------------------------------------
+  RewriteRule ^demo/?$ /tools/ttfb [R=301,L]
+  RewriteRule ^demo/ttfb/?$ /tools/ttfb [R=301,L]
+  RewriteRule ^demo/lighthouse/?$ /tools/lighthouse [R=301,L]
+  RewriteRule ^demo/dns/?$ /tools/dns [R=301,L]
+  RewriteRule ^demo/redirects/?$ /tools/redirects [R=301,L]
+  RewriteRule ^demo/whois/?$ /tools/whois [R=301,L]
+  RewriteRule ^tools/?$ /tools/ttfb [R=301,L]
+
+  # ----------------------------------------------------------------------
+  # Static Route Resolution
+  # Serve generated /tools/<tool>/index.html for /tools/<tool>
+  # ----------------------------------------------------------------------
+  RewriteCond %{DOCUMENT_ROOT}/tools/$1/index.html -f
+  RewriteRule ^tools/([^/]+)$ tools/$1/index.html [L]
+
+  # Serve generated /about/index.html for /about
+  RewriteCond %{DOCUMENT_ROOT}/about/index.html -f
+  RewriteRule ^about/?$ about/index.html [L]
+
+  # Serve generated /contact/index.html for /contact
+  RewriteCond %{DOCUMENT_ROOT}/contact/index.html -f
+  RewriteRule ^contact/?$ contact/index.html [L]
+
+  # Pass existing real files directly
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  # ----------------------------------------------------------------------
+  # Domain Branching: App Subdomain vs Main Domain
+  # ----------------------------------------------------------------------
+
+  # App subdomain (webpulse.monitormyhost.com): SPA fallback for authenticated routes
+  RewriteCond %{HTTP_HOST} ^webpulse\. [NC]
+  RewriteRule ^ index.html [QSA,L]
+
+  # Main domain (monitormyhost.com): Strict 404 for unknown routes (NO SPA fallback)
+  RewriteCond %{HTTP_HOST} !^webpulse\. [NC]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-
-  # SPA fallback: Route all other requests to index.html
-  RewriteRule ^ index.html [QSA,L]
+  RewriteRule ^ - [R=404,L]
 </IfModule>
 
+# Custom Error Document for 404s
+ErrorDocument 404 /404.html
+
 # ----------------------------------------------------------------------
-# Cache Control
+# HTTP Headers & Robots Directives
 # ----------------------------------------------------------------------
 <IfModule mod_headers.c>
-  # Never cache index.html so users always get the latest bundle hash
-  <Files "index.html">
+  # Rule 5: webpulse.monitormyhost.com receives noindex via X-Robots-Tag header
+  SetEnvIfNoCase Host ^webpulse\. is_app_subdomain
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive" env=is_app_subdomain
+
+  # Never cache HTML or data feeds so users/bots receive fresh prerendered content
+  <FilesMatch "\.(html|htm|json|xml|txt)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
     Header set Expires "0"
-  </Files>
+  </FilesMatch>
 
-  # Cache static assets (hashes in filenames) for 1 year
-  <FilesMatch "\.(js|css|woff2?|png|jpe?g|gif|svg|ico)$">
+  # Cache fingerprinted static assets (hashes in filenames) for 1 year
+  <FilesMatch "\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp|avif)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 
@@ -49,6 +116,5 @@ Options -Indexes -MultiViews
 # Gzip / Brotli Compression
 # ----------------------------------------------------------------------
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json application/xml
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json application/xml image/svg+xml
 </IfModule>
-

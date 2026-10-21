@@ -7,10 +7,12 @@ import {
   registerUser as apiRegister,
   sendOtp as apiSendOtp,
 } from '../api';
-import { connectSocket, reconnectSocket, disconnectSocket } from '../api/socket';
+import {
+  connectSocket,
+  reconnectSocket,
+} from '../api/socket';
 import { onAuthExpired } from '../utils/authEvents';
 import {
-  getAuthToken,
   setAuthToken,
   removeAuthToken,
   getGuestId,
@@ -207,17 +209,17 @@ export function AuthProvider({ children }) {
   );
 }
 
-/** Read-only auth state: { user, isAuthenticated, loading }. */
+/** Read-only auth state: { user, isAuthenticated, loading }. Safe outside AuthProvider. */
 export function useAuthState() {
   const context = useContext(AuthStateContext);
-  if (!context) throw new Error('useAuthState must be used within an AuthProvider');
+  if (!context) return { user: null, isAuthenticated: false, loading: false };
   return context;
 }
 
 /** Stable auth actions: { login, logout, register, sendOtp, updateUser, checkAuth, googleLogin }. */
 export function useAuthActions() {
   const context = useContext(AuthActionsContext);
-  if (!context) throw new Error('useAuthActions must be used within an AuthProvider');
+  if (!context) return {};
   return context;
 }
 

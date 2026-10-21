@@ -16,7 +16,7 @@ function Logo() {
         </svg>
       </span>
       <span className={`${display} text-lg font-bold tracking-tight text-[var(--text)]`}>
-        Web<span className="text-[var(--cyan)]">Pulse</span>
+        Monitor<span className="text-[var(--cyan)]">MyHost</span>
       </span>
     </a>
   )
@@ -371,7 +371,7 @@ export default function Register() {
           </p>
         </div>
 
-        <footer className={`${mono} text-center text-[11px] text-[var(--muted)]`}>© 2026 WebPulse · SOC 2 Type II · GDPR ready</footer>
+        <footer className={`${mono} text-center text-[11px] text-[var(--muted)]`}>© 2026 MonitorMyHost · SOC 2 Type II · GDPR ready</footer>
       </main>
       <ShowcasePanel />
     </div>

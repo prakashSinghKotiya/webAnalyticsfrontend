@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="wp-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00e5ff" />
+      <stop offset="100%" stop-color="#00ff88" />
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#12161f" />
+  <rect x="1" y="1" width="30" height="30" rx="7" stroke="url(#wp-grad)" stroke-width="1.5" stroke-opacity="0.3" />
+  <path d="M6 16.5L10 16.5L13 9L19 23L22 16.5L26 16.5" stroke="url(#wp-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
+

@@ -26,6 +26,8 @@ import { normalizeWhoisEntry } from '../Whois/whois.utils';
 import DnsResultSection from '../DnsType/components/DnsResultSection';
 import WhoisResultSection from '../Whois/components/WhoisResultSection';
 import RedirectResultSection from '../Redirects/components/RedirectResultSection';
+import { getRouteMetadata } from '../../seo/routes';
+import Logo from '../../components/Logo';
 
 const TOOL_CONFIG = {
   ttfb: {
@@ -35,7 +37,7 @@ const TOOL_CONFIG = {
     description: 'Measure server response times across global edge probe nodes.',
     placeholder: 'https://example.com',
     authRoute: ROUTES.TTFB,
-    demoRoute: ROUTES.DEMO_TTFB,
+    demoRoute: ROUTES.TOOLS_TTFB,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -49,7 +51,7 @@ const TOOL_CONFIG = {
     description: 'Run deep Performance, Accessibility, Best Practices, and SEO audits.',
     placeholder: 'https://example.com',
     authRoute: ROUTES.LIGHTHOUSE,
-    demoRoute: ROUTES.DEMO_LIGHTHOUSE,
+    demoRoute: ROUTES.TOOLS_LIGHTHOUSE,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
@@ -64,7 +66,7 @@ const TOOL_CONFIG = {
     description: 'Lookup and inspect authoritative A, AAAA, CNAME, MX, TXT, and NS records.',
     placeholder: 'example.com',
     authRoute: ROUTES.DNS,
-    demoRoute: ROUTES.DEMO_DNS,
+    demoRoute: ROUTES.TOOLS_DNS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="4" width="20" height="7" rx="2" />
@@ -81,7 +83,7 @@ const TOOL_CONFIG = {
     description: 'Trace 301/302 HTTP redirect hops, detect loops, and inspect destination status.',
     placeholder: 'https://example.com',
     authRoute: ROUTES.REDIRECTS,
-    demoRoute: ROUTES.DEMO_REDIRECTS,
+    demoRoute: ROUTES.TOOLS_REDIRECTS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="17 1 21 5 17 9" />
@@ -98,7 +100,7 @@ const TOOL_CONFIG = {
     description: 'Query authoritative registrar data, domain registration dates, and nameservers.',
     placeholder: 'example.com',
     authRoute: ROUTES.WHOIS,
-    demoRoute: ROUTES.DEMO_WHOIS,
+    demoRoute: ROUTES.TOOLS_WHOIS,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
@@ -117,18 +119,6 @@ const TIMEOUT_CONFIG = {
   whois: 25_000,
 };
 
-function Logo() {
-  return (
-    <Link to={ROUTES.PUBLIC_HOME} className="flex items-center gap-2 font-['Outfit',sans-serif] text-lg font-bold">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--cyan)] to-[var(--green)] text-white text-xs font-black">
-        W
-      </span>
-      <span>
-        Web<span className="text-[var(--cyan)]">Pulse</span>
-      </span>
-    </Link>
-  );
-}
 
 function CircularGauge({ score, label, description }) {
   const rating = rateScore(score);
@@ -197,7 +187,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [quota, setQuota] = useState({ remaining: 6, total: 6, isLimited: false, nextAvailableAt: null });
-  const [infraHealth, setInfraHealth] = useState(null);
+  const [, setInfraHealth] = useState(null);
   const [sessionRoom, setSessionRoom] = useState(null);
 
   // Tool specific options
@@ -225,11 +215,12 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
   useEffect(() => {
     const paramUrl = searchParams.get('url');
     if (paramUrl && paramUrl !== url) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from searchParams
       setUrl(paramUrl);
     }
-  }, [searchParams]);
+  }, [searchParams, url]);
 
-  // If already authenticated, redirect to the full workspace tool on webpulse subdomain
+  // If already authenticated, redirect to the full workspace tool on app subdomain
   useEffect(() => {
     if (loading) return;
     if (isAuthenticated) {
@@ -441,7 +432,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
       setActiveTool(toolId);
       setResult(null);
       setError('');
-      const targetRoute = TOOL_CONFIG[toolId]?.demoRoute || `/demo/${toolId}`;
+      const targetRoute = TOOL_CONFIG[toolId]?.demoRoute || `/tools/${toolId}`;
       const trimmed = url.trim();
       navigate(trimmed ? `${targetRoute}?url=${encodeURIComponent(trimmed)}` : targetRoute, { replace: true });
     },
@@ -472,7 +463,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
       setResult(null);
       setPhase('running');
 
-      const targetRoute = TOOL_CONFIG[activeTool]?.demoRoute || `/demo/${activeTool}`;
+      const targetRoute = TOOL_CONFIG[activeTool]?.demoRoute || `/tools/${activeTool}`;
       navigate(`${targetRoute}?url=${encodeURIComponent(target)}`, { replace: true });
 
       const expectedCount = activeTool === 'ttfb' && ttfbMode === 'all' ? 3 : 1;
@@ -659,7 +650,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
           setError(
             err?.response?.data?.message ||
               err?.message ||
-              'Daily guest demo limit exceeded. You have reached 6 free demo tests today.'
+              'Daily guest limit exceeded. You have reached 6 free tool tests today.'
           );
         } else {
           setError(
@@ -678,6 +669,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
   );
 
   const currentTool = TOOL_CONFIG[activeTool] || TOOL_CONFIG.ttfb;
+  const seoData = getRouteMetadata(`/tools/${activeTool}`);
   const isRunning = phase === 'running';
 
   const formatResetTime = (isoString) => {
@@ -695,7 +687,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
       <div className="mx-auto w-full max-w-4xl">
         {/* Header */}
         <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4 sm:mb-8">
-          <Logo />
+          <Logo to={ROUTES.PUBLIC_HOME} />
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Live Quota Pill */}
             <span
@@ -750,7 +742,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         </header>
 
         {/* Tool Switcher Tabs */}
-        <nav aria-label="Demo tools" className="-mx-3.5 sm:mx-0 px-3.5 sm:px-0 mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <nav aria-label="Diagnostic tools" className="-mx-3.5 sm:mx-0 px-3.5 sm:px-0 mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
           {Object.values(TOOL_CONFIG).map((tool) => {
             const isActive = activeTool === tool.id;
             return (
@@ -789,7 +781,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                 </span>
                 <div>
                   <h2 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)] sm:text-lg">
-                    Daily Free Demo Limit Reached (6/6 used)
+                    Daily Free Tool Limit Reached (6/6 used)
                   </h2>
                   <p className="mt-1 text-xs sm:text-sm text-[var(--muted-2)]">
                     Guests receive a free quota of 6 tests per day across all diagnostic tools.
@@ -834,10 +826,10 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             </div>
 
             <h1 className="mt-3.5 sm:mt-4 font-['Outfit',sans-serif] text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">
-              {currentTool.title}
+              {seoData?.h1 || currentTool.title}
             </h1>
             <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[var(--muted-2)]">
-              {currentTool.description} Free guest runs are delivered live via Socket.IO with failsafe recovery.
+              {seoData?.summary || currentTool.description} Free guest runs are delivered live via Socket.IO with failsafe recovery.
             </p>
 
             {/* TTFB Mode Options */}
@@ -976,6 +968,82 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
           </section>
         )}
 
+        {/* Explanatory Content & Technical Benchmarks */}
+        {seoData?.explanation && (
+          <section className="mt-8 sm:mt-10 rounded-2xl sm:rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-5 sm:p-8 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2 font-['JetBrains_Mono',monospace] text-xs font-bold uppercase tracking-wider text-[var(--cyan)]">
+              <span>Knowledge Base</span>
+              <span>•</span>
+              <span>Technical Guide</span>
+            </div>
+            <h2 className="mt-2 font-['Outfit',sans-serif] text-lg sm:text-2xl font-bold tracking-tight text-[var(--text)]">
+              Understanding {currentTool.title}
+            </h2>
+            <p className="mt-3 text-xs sm:text-sm leading-relaxed text-[var(--muted-2)]">
+              {seoData.explanation.overview}
+            </p>
+
+            {/* Importance Points */}
+            <div className="mt-6">
+              <h3 className="font-['JetBrains_Mono',monospace] text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+                Why This Metric Matters for SEO &amp; Experience
+              </h3>
+              <ul className="mt-3 space-y-2.5">
+                {seoData.explanation.importance.map((point, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5 text-xs sm:text-sm text-[var(--text)]">
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--cyan-dim)] text-[10px] text-[var(--cyan)]">✓</span>
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Benchmarks */}
+            {seoData.explanation.benchmarks && (
+              <div className="mt-8 border-t border-[var(--border)] pt-6">
+                <h3 className="font-['JetBrains_Mono',monospace] text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+                  Industry Benchmarks &amp; Reference Thresholds
+                </h3>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {seoData.explanation.benchmarks.map((bm, idx) => (
+                    <div key={idx} className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                      <span className="font-['JetBrains_Mono',monospace] text-xs font-bold" style={{ color: bm.color }}>{bm.label}</span>
+                      <p className="mt-1 font-['Outfit',sans-serif] text-base font-extrabold text-[var(--text)]">{bm.range}</p>
+                      <p className="mt-1 text-xs text-[var(--muted-2)]">{bm.note}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Visible FAQs */}
+        {seoData?.faqs && seoData.faqs.length > 0 && (
+          <section className="mt-6 sm:mt-8 rounded-2xl sm:rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-5 sm:p-8 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2 font-['JetBrains_Mono',monospace] text-xs font-bold uppercase tracking-wider text-[var(--green)]">
+              <span>FAQ</span>
+              <span>•</span>
+              <span>Common Questions</span>
+            </div>
+            <h2 className="mt-2 font-['Outfit',sans-serif] text-lg sm:text-2xl font-bold tracking-tight text-[var(--text)]">
+              Frequently Asked Questions
+            </h2>
+            <div className="mt-6 divide-y divide-[var(--border)]">
+              {seoData.faqs.map((faq, idx) => (
+                <article key={idx} className="py-4 first:pt-0 last:pb-0">
+                  <h3 className="font-['Outfit',sans-serif] text-sm sm:text-base font-bold text-[var(--text)]">
+                    {faq.question}
+                  </h3>
+                  <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[var(--muted-2)]">
+                    {faq.answer}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* CTA Footer - Unlock Full Analytics & Complete Reports */}
         <div className="relative mt-8 sm:mt-10 overflow-hidden rounded-2xl border border-[var(--border-mid)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface-2)] p-4 sm:p-6 lg:p-8 text-center shadow-[var(--shadow-card)]">
           <div className="pointer-events-none absolute -top-24 left-1/2 h-36 w-96 -translate-x-1/2 rounded-full bg-[var(--cyan)]/10 blur-3xl" />
@@ -997,7 +1065,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
             {/* Subtitle */}
             <p className="mt-2 max-w-xl text-xs sm:text-sm leading-relaxed text-[var(--muted-2)]">
-              Free demo mode provides an instant preview. Sign in or create a free account to unlock comprehensive diagnostic responses, multi-region latency telemetry, persistent uptime tracking, and downloadable white-label audit reports.
+              Free tools provide an instant preview. Sign in or create a free account to unlock comprehensive diagnostic responses, multi-region latency telemetry, persistent uptime tracking, and downloadable white-label audit reports.
             </p>
 
             {/* Highlights Feature Pills */}

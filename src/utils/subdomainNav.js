@@ -10,7 +10,7 @@ import { SUBDOMAINS } from '../constants';
 export const LANDING_HOSTNAME = SUBDOMAINS.LANDING_HOST || 'monitormyhost.com';
 export const APP_HOSTNAME = SUBDOMAINS.APP_HOST || 'webpulse.monitormyhost.com';
 
-export const LANDING_ORIGIN = 'https://monitormyhost.com';
+export const LANDING_ORIGIN = 'https://monitormyhost.com'; 
 export const APP_ORIGIN = 'https://webpulse.monitormyhost.com';
 
 /** Check if current runtime is a local development environment */
@@ -33,7 +33,7 @@ export function isLocalhost(hostname) {
  *  4. Production hostname matching:
  *     - webpulse.monitormyhost.com -> 'app'
  *     - monitormyhost.com (and www / landing aliases) -> 'landing'
- *  5. Path heuristic on localhost (/demo or / -> landing, others -> app)
+ *  5. Path heuristic on localhost (/, /about, /contact, /tools, /demo -> landing, others -> app)
  */
 export function getActiveSubdomain() {
   if (typeof window === 'undefined') return 'landing';
@@ -70,6 +70,7 @@ export function getActiveSubdomain() {
   // Check App subdomain first to avoid prefix collisions
   if (
     hostname === APP_HOSTNAME ||
+    hostname.startsWith('app.') ||
     hostname.startsWith('webpulse.') ||
     hostname.includes('webpulse')
   ) {
@@ -90,7 +91,13 @@ export function getActiveSubdomain() {
   // 5: Fallback on localhost based on current route
   if (isLocalhost(hostname)) {
     const path = window.location.pathname;
-    if (path === '/' || path.startsWith('/demo')) {
+    if (
+      path === '/' ||
+      path.startsWith('/about') ||
+      path.startsWith('/contact') ||
+      path.startsWith('/tools') ||
+      path.startsWith('/demo')
+    ) {
       return 'landing';
     }
     return 'app';
@@ -111,7 +118,7 @@ export function isLandingSubdomain() {
   );
 }
 
-/** Returns true if running in the App (WebPulse) Subdomain context */
+/** Returns true if running in the App (MonitorMyHost) Subdomain context */
 export function isAppSubdomain() {
   return !isLandingSubdomain();
 }
