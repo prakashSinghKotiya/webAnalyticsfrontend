@@ -8,6 +8,7 @@ import {
 } from "./DomainToolPreview.jsx"
 import { ROUTES } from "../../constants"
 import { useAuthState } from "../../context"
+import { getAppUrl } from "../../utils/subdomainNav"
 
 const ThemeContext = createContext({ theme: "dark", toggle: () => {} })
 const display = "font-['Outfit',sans-serif]"
@@ -202,25 +203,25 @@ function Navbar() {
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3">
           <ThemeToggle />
-          <Link
-            to={ROUTES.LOGIN}
+          <a
+            href={getAppUrl(ROUTES.LOGIN)}
             className="hidden text-sm font-medium text-[var(--text-2)] hover:text-[var(--cyan)] sm:block"
           >
             Login
-          </Link>
-          <Link
-            to={ROUTES.REGISTER}
+          </a>
+          <a
+            href={getAppUrl(ROUTES.REGISTER)}
             className="hidden text-sm font-medium text-[var(--muted-2)] hover:text-[var(--cyan)] sm:block"
           >
             Sign Up
-          </Link>
-          <Link
-            to={ROUTES.LOGIN}
+          </a>
+          <a
+            href={getAppUrl(ROUTES.LOGIN)}
             className={`${display} inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg sm:rounded-xl bg-linear-to-br from-[var(--cyan)] to-[var(--action-end)] px-2.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:brightness-110 active:scale-95`}
           >
             <span className="hidden sm:inline">Get Started Free</span>
             <span className="sm:hidden">Get Started</span>
-          </Link>
+          </a>
           <button
             ref={triggerRef}
             type="button"
@@ -251,20 +252,20 @@ function Navbar() {
             </a>
           ))}
           <div className="flex gap-3 pt-3">
-            <Link
-              to={ROUTES.LOGIN}
+            <a
+              href={getAppUrl(ROUTES.LOGIN)}
               onClick={() => setOpen(false)}
               className={`${secondary} flex-1 text-center`}
             >
               Login
-            </Link>
-            <Link
-              to={ROUTES.REGISTER}
+            </a>
+            <a
+              href={getAppUrl(ROUTES.REGISTER)}
               onClick={() => setOpen(false)}
               className={`${primary} flex-1 text-center`}
             >
               Sign Up
-            </Link>
+            </a>
           </div>
         </div>
       )}
@@ -307,8 +308,11 @@ function Hero() {
         whois: { auth: ROUTES.WHOIS, demo: ROUTES.DEMO_WHOIS },
       }
       const selected = toolMap[tool] || toolMap.ttfb
-      const destination = isAuthenticated ? selected.auth : `${selected.demo}?url=${encodeURIComponent(parsed.href)}`
-      navigate(destination)
+      if (isAuthenticated) {
+        window.location.href = getAppUrl(`${selected.auth}?url=${encodeURIComponent(parsed.href)}`)
+      } else {
+        navigate(`${selected.demo}?url=${encodeURIComponent(parsed.href)}`)
+      }
     } catch {
       setError("Enter a valid website URL, such as https://example.com.")
     }
@@ -738,12 +742,21 @@ function CoreTools() {
               <p className="mt-2 flex-1 text-[13px] leading-6 text-[var(--muted)]">
                 {description}
               </p>
-              <Link
-                to={isAuthenticated ? (authRoute || ROUTES.LOGIN) : (demoRoute || ROUTES.LOGIN)}
-                className={`mt-5 inline-flex w-fit items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition hover:bg-[var(--surface-2)] ${tones[tone].text} ${tones[tone].border}`}
-              >
-                Explore Tool <Icon name="arrow" size={13} />
-              </Link>
+              {isAuthenticated || !demoRoute ? (
+                <a
+                  href={getAppUrl(isAuthenticated ? (authRoute || ROUTES.LOGIN) : ROUTES.LOGIN)}
+                  className={`mt-5 inline-flex w-fit items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition hover:bg-[var(--surface-2)] ${tones[tone].text} ${tones[tone].border}`}
+                >
+                  Explore Tool <Icon name="arrow" size={13} />
+                </a>
+              ) : (
+                <Link
+                  to={demoRoute}
+                  className={`mt-5 inline-flex w-fit items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition hover:bg-[var(--surface-2)] ${tones[tone].text} ${tones[tone].border}`}
+                >
+                  Explore Tool <Icon name="arrow" size={13} />
+                </Link>
+              )}
             </article>
           )
         })}
@@ -1026,14 +1039,14 @@ function Pricing() {
               <p className="mb-5 text-[13px] leading-6 text-[var(--muted)]">
                 {plan.description}
               </p>
-              <Link
-                to={ROUTES.LOGIN}
+              <a
+                href={getAppUrl(ROUTES.LOGIN)}
                 className={`${
                   plan.highlight ? primary : secondary
                 } mb-6 w-full text-center`}
               >
                 {plan.cta}
-              </Link>
+              </a>
               <ul className="space-y-3">
                 {plan.features.map((feature) => (
                   <li
@@ -1054,12 +1067,12 @@ function Pricing() {
         </div>
         <p className="mt-8 text-center text-xs text-[var(--muted)]">
           Need a new account?{" "}
-          <Link
-            to={ROUTES.REGISTER}
+          <a
+            href={getAppUrl(ROUTES.REGISTER)}
             className="font-semibold text-[var(--cyan)] hover:underline"
           >
             Sign up for free
-          </Link>
+          </a>
         </p>
       </div>
     </section>
@@ -1090,21 +1103,27 @@ function CallToAction() {
             reveal. Start with the interactive product preview.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link to={analysisRoute} className={primary}>
-              Analyze Your Site <Icon name="arrow" size={14} />
-            </Link>
-            <Link to={ROUTES.LOGIN} className={secondary}>
+            {isAuthenticated ? (
+              <a href={getAppUrl(ROUTES.TTFB)} className={primary}>
+                Analyze Your Site <Icon name="arrow" size={14} />
+              </a>
+            ) : (
+              <Link to={ROUTES.DEMO_TTFB} className={primary}>
+                Analyze Your Site <Icon name="arrow" size={14} />
+              </Link>
+            )}
+            <a href={getAppUrl(ROUTES.LOGIN)} className={secondary}>
               View Sample Report
-            </Link>
+            </a>
           </div>
           <p className="mt-6 text-xs text-[var(--muted)]">
             Don&apos;t have an account yet?{" "}
-            <Link
-              to={ROUTES.REGISTER}
+            <a
+              href={getAppUrl(ROUTES.REGISTER)}
               className="font-semibold text-[var(--cyan)] hover:underline"
             >
               Sign Up
-            </Link>
+            </a>
           </p>
         </div>
       </div>
@@ -1148,19 +1167,19 @@ function Footer() {
                 {items.map((item) => {
                   const target =
                     item === "Sign Up"
-                      ? ROUTES.REGISTER
+                      ? getAppUrl(ROUTES.REGISTER)
                       : item === "Login" || name === "Tools"
-                        ? ROUTES.LOGIN
+                        ? getAppUrl(ROUTES.LOGIN)
                         : null
                   return (
                     <li key={item}>
                       {target ? (
-                        <Link
-                          to={target}
+                        <a
+                          href={target}
                           className="text-xs text-[var(--muted)] transition hover:text-[var(--cyan)]"
                         >
                           {item}
-                        </Link>
+                        </a>
                       ) : (
                         <span className="cursor-default text-xs text-[var(--muted)]">
                           {item}

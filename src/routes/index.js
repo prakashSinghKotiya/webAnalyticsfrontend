@@ -1,3 +1,4 @@
-// Single export point for the router — avoids the index.js / index.jsx naming conflict
 export { router } from './router';
+export { landingRouter } from './landingRouter';
+export { appRouter } from './appRouter';
 export { ProtectedRoute, PublicRoute, AdminRoute } from './ProtectedRoute';

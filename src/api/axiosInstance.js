@@ -7,7 +7,7 @@ import {
   removeAuthToken,
 } from "../utils/tokenStorage";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "https://your-railway-app.up.railway.app";
+const BASE_URL ="https://api.monitormyhost.com";
 
 // Axios instance WITH credentials (for authenticated & session routes)
 export const axiosWithCreds = axios.create({

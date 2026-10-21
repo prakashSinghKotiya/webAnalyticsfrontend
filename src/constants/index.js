@@ -54,3 +54,9 @@ export const THEMES = Object.freeze({
   DARK: 'dark',
   LIGHT: 'light',
 });
+
+/** Production subdomains configuration */
+export const SUBDOMAINS = Object.freeze({
+  LANDING_HOST: 'monitormyhost.com',
+  APP_HOST: 'webpulse.monitormyhost.com',
+});

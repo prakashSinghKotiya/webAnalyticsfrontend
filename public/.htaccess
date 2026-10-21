@@ -1,0 +1,54 @@
+# ----------------------------------------------------------------------
+# WebPulse - Production Apache / cPanel Configuration
+# ----------------------------------------------------------------------
+
+# Disable Directory Browsing
+Options -Indexes -MultiViews
+
+# Enable Rewrite Engine
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # HTTPS Enforcement (optional - let cPanel/Cloudflare handle if managed there)
+  # RewriteCond %{HTTPS} off
+  # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Don't rewrite real files or directories
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # SPA fallback: Route all other requests to index.html
+  RewriteRule ^ index.html [QSA,L]
+</IfModule>
+
+# ----------------------------------------------------------------------
+# Cache Control
+# ----------------------------------------------------------------------
+<IfModule mod_headers.c>
+  # Never cache index.html so users always get the latest bundle hash
+  <Files "index.html">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </Files>
+
+  # Cache static assets (hashes in filenames) for 1 year
+  <FilesMatch "\.(js|css|woff2?|png|jpe?g|gif|svg|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Security Headers
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set X-XSS-Protection "1; mode=block"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ----------------------------------------------------------------------
+# Gzip / Brotli Compression
+# ----------------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json application/xml
+</IfModule>
+

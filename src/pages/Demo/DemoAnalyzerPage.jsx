@@ -17,6 +17,7 @@ import {
 } from '../../api/socket';
 import { ROUTES } from '../../constants';
 import { useAuthState } from '../../context';
+import { getAppUrl } from '../../utils/subdomainNav';
 import { extractReadings, formatMs, normalizeUrl, rateLatency } from '../TTFB/ttfb.utils';
 import { normalizeLighthouseEntry, rateScore, AUDIT_CATEGORIES } from '../Lighthouse/lighthouse.utils';
 import { normalizeDnsEntry, normalizeDomain } from '../DnsType/dns.utils';
@@ -228,14 +229,14 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     }
   }, [searchParams]);
 
-  // If already authenticated, redirect to the full workspace tool
+  // If already authenticated, redirect to the full workspace tool on webpulse subdomain
   useEffect(() => {
     if (loading) return;
     if (isAuthenticated) {
       const targetRoute = TOOL_CONFIG[activeTool]?.authRoute || ROUTES.HOME;
-      navigate(targetRoute, { replace: true });
+      window.location.replace(getAppUrl(targetRoute));
     }
-  }, [isAuthenticated, loading, activeTool, navigate]);
+  }, [isAuthenticated, loading, activeTool]);
 
   // 1. Session bootstrap & Socket-First flow per DEMO_FLOW.md
   useEffect(() => {
@@ -733,20 +734,18 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
               </span>
             </span>
 
-            <Link
-              to={ROUTES.LOGIN}
-              state={{ from: { pathname: currentTool.authRoute } }}
+            <a
+              href={getAppUrl(`/login?from=${encodeURIComponent(currentTool.authRoute)}`)}
               className="text-xs sm:text-sm font-semibold text-[var(--muted-2)] hover:text-[var(--text)]"
             >
               Sign in
-            </Link>
-            <Link
-              to={ROUTES.REGISTER}
-              state={{ from: { pathname: currentTool.authRoute } }}
+            </a>
+            <a
+              href={getAppUrl(`/register?from=${encodeURIComponent(currentTool.authRoute)}`)}
               className="rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
             >
               Sign up
-            </Link>
+            </a>
           </div>
         </header>
 
@@ -804,20 +803,18 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
               </div>
 
               <div className="flex items-center gap-2.5 sm:shrink-0">
-                <Link
-                  to={ROUTES.REGISTER}
-                  state={{ from: { pathname: currentTool.authRoute } }}
+                <a
+                  href={getAppUrl(`/register?from=${encodeURIComponent(currentTool.authRoute)}`)}
                   className="rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:brightness-110"
                 >
                   Create Free Account
-                </Link>
-                <Link
-                  to={ROUTES.LOGIN}
-                  state={{ from: { pathname: currentTool.authRoute } }}
+                </a>
+                <a
+                  href={getAppUrl(`/login?from=${encodeURIComponent(currentTool.authRoute)}`)}
                   className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
                 >
                   Log In
-                </Link>
+                </a>
               </div>
             </div>
           </div>

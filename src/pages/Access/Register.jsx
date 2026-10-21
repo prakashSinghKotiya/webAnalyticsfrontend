@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, useToast, useTheme } from '../../context'
 import { ROUTES } from '../../constants'
+import { getLandingUrl } from '../../utils/subdomainNav'
 
 const display = "font-['Outfit',sans-serif]"
 const mono = "font-['JetBrains_Mono',monospace]"
 
 function Logo() {
   return (
-    <Link to={ROUTES.PUBLIC_HOME} className="inline-flex items-center gap-2.5 no-underline">
+    <a href={getLandingUrl('/')} className="inline-flex items-center gap-2.5 no-underline">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--cyan)] to-[var(--green)] shadow-[0_0_16px_var(--cyan-mid)]">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -17,7 +18,7 @@ function Logo() {
       <span className={`${display} text-lg font-bold tracking-tight text-[var(--text)]`}>
         Web<span className="text-[var(--cyan)]">Pulse</span>
       </span>
-    </Link>
+    </a>
   )
 }
 
@@ -334,7 +335,7 @@ export default function Register() {
         <header className="flex items-center justify-between">
           <Logo />
           <div className="flex items-center gap-3">
-            <Link to={ROUTES.PUBLIC_HOME} className="hidden text-sm text-[var(--muted-2)] no-underline transition hover:text-[var(--text)] sm:inline">← Back to site</Link>
+            <a href={getLandingUrl('/')} className="hidden text-sm text-[var(--muted-2)] no-underline transition hover:text-[var(--text)] sm:inline">← Back to site</a>
             <ThemeButton />
           </div>
         </header>

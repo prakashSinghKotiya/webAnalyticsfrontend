@@ -4,7 +4,7 @@ import { SocketProvider } from './SocketContext';
 import { ThemeProvider } from './ThemeContext';
 import { ToastProvider } from './ToastContext';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID ="509013077515-94ku8d0b5ugdhf0c48lv7se278qp03od.apps.googleusercontent.com"
 
 /**
  * AppProviders — the single place where global providers are composed.
@@ -34,4 +34,4 @@ export function AppProviders({ children }) {
   );
 }
 
-export default AppProviders;
+export default AppProviders;

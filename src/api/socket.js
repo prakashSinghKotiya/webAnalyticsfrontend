@@ -7,11 +7,7 @@ const IS_BROWSER = typeof window !== 'undefined'
 const log = IS_DEV ? (...args) => console.debug('[socket]', ...args) : () => {}
 
 function resolveSocketUrl() {
-  const fromEnv = import.meta.env.VITE_SOCKET_URL
-  if (fromEnv) return fromEnv.replace(/\/+$/, '')
-  const apiUrl = import.meta.env.VITE_API_URL
-  if (apiUrl) return apiUrl.replace(/\/+$/, '')
-  return window.location.origin
+  return "https://api.monitormyhost.com";
 }
 
 export const SOCKET_URL = resolveSocketUrl()

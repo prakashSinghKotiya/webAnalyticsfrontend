@@ -47,7 +47,7 @@ export default function AdminSystemHealth({ stats, onRefresh, refreshing }) {
             {import.meta.env.MODE?.toUpperCase() || 'PRODUCTION'}
           </h4>
           <p className="mt-1 font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted-2)] truncate">
-            API: {import.meta.env.VITE_API_URL || 'Configured'}
+            API: {"https://api.monitormyhost.com"}
           </p>
         </div>
 
