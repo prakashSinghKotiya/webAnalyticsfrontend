@@ -1,10 +1,13 @@
 # ----------------------------------------------------------------------
-# MonitorMyHost - Production Apache / cPanel Configuration
-# High-performance, SEO-optimized configuration for static prerendered site
+# MonitorMyHost - Production Apache / LiteSpeed Configuration
+# High-performance, SEO-optimized configuration for static prerendered & SPA site
 # ----------------------------------------------------------------------
 
 # Disable Directory Browsing and Multiviews
 Options -Indexes -MultiViews
+
+# Ensure index.html is the default directory index
+DirectoryIndex index.html
 
 # Disable automatic directory trailing slashes (Rule 4: Canonical URLs use NO trailing slash)
 DirectorySlash Off
@@ -15,8 +18,21 @@ DirectorySlash Off
   RewriteBase /
 
   # ----------------------------------------------------------------------
+  # CRITICAL: Exclude API Subdomain & Backend API Endpoints
+  # Ensures api.monitormyhost.com and all backend routes (e.g. /demo/session,
+  # /demo/status, /demo/health, /auth/*, /ttfb/*, /socket.io/*, etc.)
+  # pass directly through to Node.js without triggering frontend 301 redirects,
+  # directory rewrites, or SPA index.html fallbacks.
+  # ----------------------------------------------------------------------
+  RewriteCond %{HTTP_HOST} ^api\. [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/demo/(session|status|health) [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/socket\.io [NC]
+  RewriteRule ^ - [L]
+
+  # ----------------------------------------------------------------------
   # Canonical Host & HTTPS Redirection
   # Canonical Host: https://monitormyhost.com
+  # Strictly for frontend domain
   # ----------------------------------------------------------------------
 
   # Redirect www.monitormyhost.com -> https://monitormyhost.com (301)
@@ -30,56 +46,121 @@ DirectorySlash Off
 
   # ----------------------------------------------------------------------
   # Trailing Slash Normalization (Rule 4: NO trailing slash)
-  # Redirect /tools/ttfb/ -> /tools/ttfb (301)
-  # Excludes root "/"
+  # Redirect /ttfb-test/ -> /ttfb-test (301)
+  # Excludes root "/" and existing physical files
+  # Strictly for frontend GET requests
   # ----------------------------------------------------------------------
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
   RewriteCond %{REQUEST_METHOD} =GET
+  RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_URI} ^/(.+)/$
-  RewriteRule ^(.+)/$ /$1 [R=301,L]
+  RewriteRule ^(.+)/$ /$1 [R=301,QSA,L]
 
   # ----------------------------------------------------------------------
-  # Backward Compatibility Redirects: /demo/* -> /tools/*
+  # Backward Compatibility Redirects -> Canonical Slugs (301 with QSA)
+  # Strictly for frontend domain on GET requests (never API or OPTIONS/POST)
   # ----------------------------------------------------------------------
-  RewriteRule ^demo/?$ /tools/ttfb [R=301,L]
-  RewriteRule ^demo/ttfb/?$ /tools/ttfb [R=301,L]
-  RewriteRule ^demo/lighthouse/?$ /tools/lighthouse [R=301,L]
-  RewriteRule ^demo/dns/?$ /tools/dns [R=301,L]
-  RewriteRule ^demo/redirects/?$ /tools/redirects [R=301,L]
-  RewriteRule ^demo/whois/?$ /tools/whois [R=301,L]
-  RewriteRule ^tools/?$ /tools/ttfb [R=301,L]
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^demo/?$ /ttfb-test [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^demo/ttfb/?$ /ttfb-test [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^demo/lighthouse/?$ /fullsite-report [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^demo/dns/?$ /dns-checker [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^demo/redirects/?$ /redirection-checker [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^demo/whois/?$ /whois-lookup [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^tools/?$ /ttfb-test [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^tools/ttfb/?$ /ttfb-test [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^tools/lighthouse/?$ /fullsite-report [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^tools/dns/?$ /dns-checker [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^tools/redirects/?$ /redirection-checker [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^tools/whois/?$ /whois-lookup [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^ttfb/?$ /ttfb-test [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^lighthouse/?$ /fullsite-report [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^dns/?$ /dns-checker [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^redirects/?$ /redirection-checker [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^whois/?$ /whois-lookup [R=301,QSA,L]
 
   # ----------------------------------------------------------------------
-  # Static Route Resolution
-  # Serve generated /tools/<tool>/index.html for /tools/<tool>
+  # Static Prerendered Route Resolution
+  # Maps clean URL paths to generated /<slug>/index.html internally
+  # This prevents mod_dir from issuing 301 trailing-slash redirects on directories,
+  # avoiding infinite redirect loops and serving prerendered HTML directly.
+  # Excludes api subdomain requests.
   # ----------------------------------------------------------------------
-  RewriteCond %{DOCUMENT_ROOT}/tools/$1/index.html -f
-  RewriteRule ^tools/([^/]+)$ tools/$1/index.html [L]
 
-  # Serve generated /about/index.html for /about
-  RewriteCond %{DOCUMENT_ROOT}/about/index.html -f
-  RewriteRule ^about/?$ about/index.html [L]
+  # Specific canonical prerendered tool and content routes
+  RewriteCond %{HTTP_HOST} !^api\. [NC]
+  RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f [OR]
+  RewriteCond %{REQUEST_FILENAME}/index.html -f
+  RewriteRule ^(ttfb-test|fullsite-report|dns-checker|redirection-checker|whois-lookup|about|contact)/?$ $1/index.html [QSA,L]
 
-  # Serve generated /contact/index.html for /contact
-  RewriteCond %{DOCUMENT_ROOT}/contact/index.html -f
-  RewriteRule ^contact/?$ contact/index.html [L]
+  # General rule: if any requested path is a directory containing index.html, serve that index.html directly
+  RewriteCond %{HTTP_HOST} !^api\. [NC]
+  RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f [OR]
+  RewriteCond %{REQUEST_FILENAME}/index.html -f
+  RewriteRule ^([^/]+)/?$ $1/index.html [QSA,L]
 
-  # Pass existing real files directly
+  # Pass existing physical files directly (JS, CSS, images, robots, sitemap, etc.)
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
   # ----------------------------------------------------------------------
-  # Domain Branching: App Subdomain vs Main Domain
+  # SPA Fallback for all other non-file routes
+  # Passes routing to React Router so dynamic routes, query params,
+  # and client-side redirects (e.g. /login -> app subdomain) work seamlessly.
+  # Excludes api subdomain requests.
   # ----------------------------------------------------------------------
-
-  # App subdomain (webpulse.monitormyhost.com): SPA fallback for authenticated routes
-  RewriteCond %{HTTP_HOST} ^webpulse\. [NC]
-  RewriteRule ^ index.html [QSA,L]
-
-  # Main domain (monitormyhost.com): Strict 404 for unknown routes (NO SPA fallback)
-  RewriteCond %{HTTP_HOST} !^webpulse\. [NC]
+  RewriteCond %{HTTP_HOST} !^api\. [NC]
   RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^ - [R=404,L]
+  RewriteRule ^ index.html [QSA,L]
 </IfModule>
 
 # Custom Error Document for 404s
@@ -89,7 +170,7 @@ ErrorDocument 404 /404.html
 # HTTP Headers & Robots Directives
 # ----------------------------------------------------------------------
 <IfModule mod_headers.c>
-  # Rule 5: webpulse.monitormyhost.com receives noindex via X-Robots-Tag header
+  # webpulse.monitormyhost.com receives noindex via X-Robots-Tag header
   SetEnvIfNoCase Host ^webpulse\. is_app_subdomain
   Header always set X-Robots-Tag "noindex, nofollow, noarchive" env=is_app_subdomain
 

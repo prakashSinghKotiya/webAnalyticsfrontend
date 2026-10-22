@@ -90,7 +90,7 @@ export default function ContactPage() {
             <Link to={ROUTES.PUBLIC_HOME} className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]">
               Home
             </Link>
-            <Link to="/tools/ttfb" className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]">
+            <Link to="/ttfb-test" className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]">
               Tools
             </Link>
             <Link to={ROUTES.ABOUT} className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]">

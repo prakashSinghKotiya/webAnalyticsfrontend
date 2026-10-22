@@ -3,29 +3,46 @@ import { STORAGE_KEYS, THEMES } from '../constants';
 
 export const ThemeContext = createContext(null);
 
-function getInitialTheme() {
-  if (typeof window === 'undefined') return THEMES.DARK;
-  const stored = window.localStorage.getItem(STORAGE_KEYS.THEME);
-  if (stored === THEMES.DARK || stored === THEMES.LIGHT) return stored;
-  // First visit: follow the OS preference.
-  const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches;
-  return prefersLight ? THEMES.LIGHT : THEMES.DARK;
-}
-
 /**
  * ThemeProvider — global light/dark theme.
  *
- * - Persists the choice to localStorage.
- * - Falls back to the OS `prefers-color-scheme` on first visit.
- * - Index.html applies the stored theme before hydration, so there is no
- *   flash of the wrong theme (FOUC) — this provider only takes over after.
+ * - SSR / initial render defaults strictly to THEMES.DARK to match prerendered markup.
+ * - Client-only useEffect synchronizes the actual stored/system theme after hydration.
+ * - Index.html applies the stored theme before first paint (FOUC prevention).
  */
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(getInitialTheme);
+  const [theme, setTheme] = useState(THEMES.DARK);
+
+  // Sync state with actual client preference only on the client after mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.THEME);
+      if (stored === THEMES.DARK || stored === THEMES.LIGHT) {
+        if (stored !== THEMES.DARK) {
+          setTheme(stored);
+        }
+      } else {
+        const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)')?.matches;
+        if (prefersLight) {
+          setTheme(THEMES.LIGHT);
+        }
+      }
+    } catch {
+      // Gracefully handle storage access restrictions
+    }
+  }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    window.localStorage.setItem(STORAGE_KEYS.THEME, theme);
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(STORAGE_KEYS.THEME, theme);
+      }
+    } catch {
+      // Gracefully handle storage errors
+    }
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

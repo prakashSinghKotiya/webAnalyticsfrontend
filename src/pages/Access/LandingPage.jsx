@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import NetworkGlobe from "./NetworkGlobe.jsx"
 import {
@@ -8,14 +8,14 @@ import {
 } from "./DomainToolPreview.jsx"
 import { ROUTES } from "../../constants"
 import Footer from "../../components/Footer.jsx"
-import { useAuthState } from "../../context"
+import { useAuthState, useTheme } from "../../context"
 import { getAppUrl } from "../../utils/subdomainNav"
 
-const ThemeContext = createContext({ theme: "dark", toggle: () => {} })
+// Local ThemeContext removed: Single source of truth is the global ThemeProvider
 const display = "font-['Outfit',sans-serif]"
 const mono = "font-['JetBrains_Mono',monospace]"
 const container = "mx-auto w-full max-w-[1200px] px-5 sm:px-8 lg:px-12"
-const section = "py-16 sm:py-20 lg:py-28"
+const section = "py-12 sm:py-16 lg:py-24"
 const card =
   "rounded-[20px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]"
 const primary = `${display} inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-linear-to-br from-[var(--cyan)] to-[var(--action-end)] px-6 py-3 text-sm font-bold text-white transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60`
@@ -122,22 +122,23 @@ function SectionHeading({ badge, title, children, tone = "cyan" }) {
   )
 }
 function ThemeToggle() {
-  const { theme, toggle } = useContext(ThemeContext)
+  const { toggleTheme } = useTheme()
   return (
     <button
-      onClick={toggle}
+      onClick={toggleTheme}
       type="button"
-      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      aria-label="Switch theme"
       className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg sm:rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--cyan)] transition hover:border-[var(--border-bright)]"
     >
-      <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+      <Icon name="sun" size={16} className="theme-toggle-sun" />
+      <Icon name="moon" size={16} className="theme-toggle-moon" />
     </button>
   )
 }
 const MOBILE_DEMO_SERVICES = [
   {
     name: "Global TTFB Test",
-    path: "/tools/ttfb",
+    path: "/ttfb-test",
     icon: "zap",
     badge: "35+ Nodes",
     tone: "cyan",
@@ -145,7 +146,7 @@ const MOBILE_DEMO_SERVICES = [
   },
   {
     name: "FullSite Report",
-    path: "/tools/lighthouse",
+    path: "/fullsite-report",
     icon: "chart",
     badge: "Core Vitals",
     tone: "orange",
@@ -153,7 +154,7 @@ const MOBILE_DEMO_SERVICES = [
   },
   {
     name: "DNS Inspector",
-    path: "/tools/dns",
+    path: "/dns-checker",
     icon: "dns",
     badge: "Authoritative",
     tone: "green",
@@ -161,7 +162,7 @@ const MOBILE_DEMO_SERVICES = [
   },
   {
     name: "Redirect Checker",
-    path: "/tools/redirects",
+    path: "/redirection-checker",
     icon: "arrow",
     badge: "Trace Hops",
     tone: "orange",
@@ -169,7 +170,7 @@ const MOBILE_DEMO_SERVICES = [
   },
   {
     name: "WHOIS Domain Lookup",
-    path: "/tools/whois",
+    path: "/whois-lookup",
     icon: "shield",
     badge: "Domain Intel",
     tone: "cyan",
@@ -333,13 +334,13 @@ function Navbar() {
 
       {/* ── MOBILE SIDEBAR DRAWER (GUEST & DEMO SERVICES) ── */}
       {/* Backdrop Overlay - completely covers viewport, outside header */}
-      <div
-        className={`fixed inset-0 z-[99] bg-black/80 backdrop-blur-md transition-opacity duration-300 lg:hidden ${
-          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        onClick={() => setOpen(false)}
-        aria-hidden="true"
-      />
+      {open && (
+        <div
+          className="fixed inset-0 z-[99] bg-black/80 backdrop-blur-md transition-opacity duration-300 lg:hidden"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Slide-over Drawer Panel - 100% solid, fully opaque background, top-to-bottom */}
       <aside
@@ -352,8 +353,8 @@ function Navbar() {
           backgroundColor: "var(--surface, #181b22)",
           color: "var(--text, #f0f0f0)",
         }}
-        className={`fixed inset-y-0 right-0 z-[100] flex h-screen w-full max-w-[340px] flex-col border-l border-[var(--border-mid)] bg-[var(--surface)] text-[var(--text)] shadow-2xl transition-transform duration-300 ease-out lg:hidden ${
-          open ? "translate-x-0" : "translate-x-full"
+        className={`fixed inset-y-0 right-0 z-[100] flex h-screen w-full max-w-[340px] flex-col border-l border-[var(--border-mid)] bg-[var(--surface)] text-[var(--text)] shadow-2xl transition-all duration-300 ease-out lg:hidden ${
+          open ? "translate-x-0 pointer-events-auto opacity-100 visible" : "hidden pointer-events-none"
         }`}
       >
         {/* Drawer Header */}
@@ -405,9 +406,7 @@ function Navbar() {
                     ? "Connecting ..please fix your network"
                     : "Fix your network"}
                 </p>
-                <p className="text-[10px] text-[var(--muted-2)]">
-                  35+ Global nodes streaming live results
-                </p>
+                
               </div>
             </div>
           </div>
@@ -527,7 +526,7 @@ const globeProbes = [
 ]
 
 function Hero() {
-  const { theme } = useContext(ThemeContext)
+  const { theme } = useTheme()
   const { isAuthenticated } = useAuthState()
   const navigate = useNavigate()
   const [url, setUrl] = useState("")
@@ -564,7 +563,7 @@ function Hero() {
   return (
     <section
       id="hero"
-      className="relative flex min-h-svh items-center overflow-hidden pt-24 pb-16 lg:pt-28"
+      className="relative pt-20 pb-10 sm:pt-24 sm:pb-14 lg:pt-28 lg:pb-16"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_65%_40%,var(--glow-bg),transparent_65%)]" />
       <div
@@ -580,7 +579,7 @@ function Hero() {
           >
             Analyze Your Website
             <br />
-            <span className="bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-[var(--cyan)] to-[var(--green)] bg-clip-text text-transparent">
               Speed, TTFB &amp; Global Uptime
             </span>
           </h1>
@@ -693,7 +692,7 @@ function Hero() {
             Product preview · Free online diagnostic tools.
           </p>
         </div>
-        <div className="mx-auto w-full max-w-[470px]">
+        <div className="mx-auto w-full max-w-[340px] sm:max-w-[420px] lg:max-w-[470px]">
           <NetworkGlobe theme={theme} probes={globeProbes} />
         </div>
       </div>
@@ -1067,12 +1066,7 @@ function Capabilities() {
       text: "LCP, INP, CLS, TBT, FCP — performance scoring with historical trends.",
       tone: "green",
     },
-    {
-      icon: "shield",
-      name: "Security Headers",
-      text: "Scan for HSTS, CSP, X-Frame-Options, and other security best practices.",
-      tone: "cyan",
-    },
+
    {
   icon: "activity",
   name: "Uptime Monitor",
@@ -1166,49 +1160,42 @@ function Capabilities() {
 
 function Pricing() {
   const [annual, setAnnual] = useState(true)
+
   const plans = [
     {
-      name: "Starter",
+      name: "Free",
       price: 0,
-      description: "Perfect for personal projects and quick checks.",
+      billingNote: "Forever free",
+      description: "Essential checks for developers and personal projects.",
       features: [
-        "5 tests/day",
-        "10 global locations",
-        "Basic SEO audit",
-        "Email support",
+        "15 tool tests / day",
+        "1 Uptime monitor (15-min check interval)",
+        "Standard single-region checks",
+        "Basic response time & SSL alerts",
+        "Community & email support",
       ],
       cta: "Start for Free",
+      highlight: false,
     },
     {
       name: "Pro",
-      price: annual ? 29 : 39,
-      description: "Full coverage and monitoring for developers.",
+      price: annual ? 55 : 5,
+      billingNote: annual ? "/year · Save ~8%" : "/month",
+      description: "Fast multi-region monitoring and high-volume diagnostics.",
       features: [
-        "Unlimited tests",
-        "All 35 locations",
-        "Full site reports",
-        "Uptime monitoring",
-        "Real-time alerts",
-        "API access",
+        "200 tool tests / day",
+        "Up to 20 Uptime monitors",
+        "Custom intervals (1 min, 5 min, 15 min, 30 min)",
+        "6 Global test locations (multi-region TTFB)",
+        "Instant alerts (Email, Webhooks & Slack)",
+        "Priority crawl & diagnostic queues",
+        "Direct priority support",
       ],
-      cta: "Start Pro Trial",
+      cta: "Upgrade to Pro",
       highlight: true,
     },
-    {
-      name: "Agency",
-      price: annual ? 99 : 129,
-      description: "White-label reports and bulk testing for agencies.",
-      features: [
-        "Everything in Pro",
-        "White-label PDFs",
-        "Bulk URL testing",
-        "Client dashboards",
-        "Priority support",
-        "SSO/SAML",
-      ],
-      cta: "Contact Sales",
-    },
   ]
+
   return (
     <section
       id="pricing"
@@ -1216,8 +1203,10 @@ function Pricing() {
     >
       <div className={container}>
         <SectionHeading title="Simple, Transparent Pricing">
-          No hidden fees. Cancel anytime.
+          No hidden fees. Upgrade or cancel anytime.
         </SectionHeading>
+
+        {/* Billing Toggle */}
         <div className="mb-10 flex justify-center">
           <div
             role="group"
@@ -1225,34 +1214,37 @@ function Pricing() {
             className="inline-flex rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1"
           >
             {[
-              ["Monthly", false],
-              ["Annual", true],
+              ["Monthly ($5/mo)", false],
+              ["Annual ($55/yr)", true],
             ].map(([label, value]) => (
               <button
                 key={label}
+                type="button"
                 aria-pressed={annual === value}
                 onClick={() => setAnnual(value)}
                 className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-semibold transition ${
                   annual === value
-                    ? "bg-[var(--cyan)] text-white"
+                    ? "bg-[var(--cyan)] text-white shadow-sm"
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
                 {label}
                 {value && (
-                  <span className="ml-2 rounded bg-[var(--green-dim)] px-1.5 py-0.5 text-[9px]">
-                    Save up to 25%
+                  <span className="ml-2 rounded bg-[var(--green-dim)] px-1.5 py-0.5 text-[9px] text-[var(--green)]">
+                    Save 1 Month
                   </span>
                 )}
               </button>
             ))}
           </div>
         </div>
-        <div className="grid items-stretch gap-5 md:grid-cols-3">
+
+        {/* 2-Card Centered Grid */}
+        <div className="mx-auto grid max-w-4xl items-stretch gap-6 md:grid-cols-2">
           {plans.map((plan) => (
             <article
               key={plan.name}
-              className={`relative flex flex-col rounded-2xl border p-6 ${
+              className={`relative flex flex-col rounded-2xl border p-7 transition-all ${
                 plan.highlight
                   ? "border-[var(--cyan)] bg-[var(--bg)] shadow-[var(--shadow-card)]"
                   : "border-[var(--border-mid)] bg-[var(--surface-2)]"
@@ -1260,68 +1252,67 @@ function Pricing() {
             >
               {plan.highlight && (
                 <span
-                  className={`${mono} absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--cyan)] px-3 py-1 text-[9px] text-white`}
+                  className={`${mono} absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--cyan)] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm`}
                 >
                   MOST POPULAR
                 </span>
               )}
-              <h3
-                className={`${display} text-lg font-semibold ${
-                  plan.highlight ? "text-[var(--cyan)]" : ""
-                }`}
-              >
-                {plan.name}
-              </h3>
-              <div className="my-5 flex flex-wrap items-end gap-2">
+
+              <div className="flex items-center justify-between">
+                <h3
+                  className={`${display} text-xl font-bold ${
+                    plan.highlight ? "text-[var(--cyan)]" : ""
+                  }`}
+                >
+                  {plan.name}
+                </h3>
+              </div>
+
+              {/* Price section */}
+              <div className="my-5 flex flex-wrap items-baseline gap-2">
                 <span
                   className={`${display} text-4xl font-extrabold tracking-tight`}
                 >
-                  {plan.price ? `$${plan.price}` : "Free"}
+                  {plan.price ? `$${plan.price}` : "$0"}
                 </span>
-                {Boolean(plan.price) && (
-                  <span className="pb-1 text-xs text-[var(--muted)]">
-                    {annual ? "/mo · billed annually" : "/month"}
-                  </span>
-                )}
+                <span className="text-xs text-[var(--muted)] font-medium">
+                  {plan.billingNote}
+                </span>
               </div>
-              <p className="mb-5 text-[13px] leading-6 text-[var(--muted)]">
+
+              <p className="mb-6 text-[13px] leading-relaxed text-[var(--muted)]">
                 {plan.description}
               </p>
+
               <a
-                href={getAppUrl(ROUTES.LOGIN)}
+                href={getAppUrl(ROUTES.REGISTER)}
                 className={`${
                   plan.highlight ? primary : secondary
-                } mb-6 w-full text-center`}
+                } mb-7 w-full text-center py-2.5 rounded-lg text-sm font-semibold transition`}
               >
                 {plan.cta}
               </a>
-              <ul className="space-y-3">
+
+              {/* Features List */}
+              <ul className="space-y-3.5 border-t border-[var(--border)] pt-6">
                 {plan.features.map((feature) => (
                   <li
                     key={feature}
-                    className="flex items-center gap-2 text-xs text-[var(--muted-2)]"
+                    className="flex items-start gap-2.5 text-xs leading-5 text-[var(--muted-2)]"
                   >
                     <Icon
                       name="check"
-                      size={14}
-                      className="text-[var(--green)]"
+                      size={15}
+                      className="mt-0.5 shrink-0 text-[var(--green)]"
                     />
-                    {feature}
+                    <span>{feature}</span>
                   </li>
                 ))}
               </ul>
             </article>
           ))}
         </div>
-        <p className="mt-8 text-center text-xs text-[var(--muted)]">
-          Need a new account?{" "}
-          <a
-            href={getAppUrl(ROUTES.REGISTER)}
-            className="font-semibold text-[var(--cyan)] hover:underline"
-          >
-            Sign up for free
-          </a>
-        </p>
+
       </div>
     </section>
   )
@@ -1380,34 +1371,9 @@ function CallToAction() {
 }
 
 
-export default function App() {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === "undefined") return "dark";
-    try {
-      return localStorage.getItem("wp-theme") === "light" ? "light" : "dark";
-    } catch {
-      return "dark";
-    }
-  });
-  useEffect(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.dataset.theme = theme;
-    }
-    try {
-      localStorage.setItem("wp-theme", theme);
-    } catch {
-      // Ignore private browsing or storage errors
-    }
-  }, [theme]);
+export default function LandingPage() {
   return (
-    <ThemeContext.Provider
-      value={{
-        theme,
-        toggle: () =>
-          setTheme((current) => (current === "dark" ? "light" : "dark")),
-      }}
-    >
-      <div className="min-h-screen overflow-x-clip bg-[var(--bg)] font-['Inter',sans-serif] text-[var(--text)] transition-colors [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-4 [&_a:focus-visible]:outline-[var(--cyan)] [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-4 [&_button:focus-visible]:outline-[var(--cyan)]">
+    <div className="min-h-screen overflow-x-hidden bg-[var(--bg)] font-['Inter',sans-serif] text-[var(--text)] transition-colors [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-4 [&_a:focus-visible]:outline-[var(--cyan)] [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-4 [&_button:focus-visible]:outline-[var(--cyan)]">
         <a
           href="#main-content"
           onClick={(event) => {
@@ -1432,6 +1398,6 @@ export default function App() {
         </main>
         <Footer />
       </div>
-    </ThemeContext.Provider>
+
   )
 }

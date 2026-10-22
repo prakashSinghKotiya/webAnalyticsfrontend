@@ -182,7 +182,18 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [url, setUrl] = useState(() => searchParams.get('url') || '');
+  // Extract initial query parameter (supports url, domain, target, site)
+  const getInitialUrlParam = useCallback(() => {
+    return (
+      searchParams.get('url') ||
+      searchParams.get('domain') ||
+      searchParams.get('target') ||
+      searchParams.get('site') ||
+      ''
+    ).trim();
+  }, [searchParams]);
+
+  const [url, setUrl] = useState(() => getInitialUrlParam());
   const [phase, setPhase] = useState('preparing'); // preparing | ready | running | complete | error
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -197,6 +208,8 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
   const pendingRef = useRef(null);
   const activeToolRef = useRef(activeTool);
+  const lastParamUrlRef = useRef(getInitialUrlParam());
+  const autoRanUrlRef = useRef(null);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -211,14 +224,14 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     setError('');
   }
 
-  // Keep url in sync if search parameter changes externally
+  // Keep url in sync ONLY if search parameter changes externally (e.g. back/forward navigation)
   useEffect(() => {
-    const paramUrl = searchParams.get('url');
-    if (paramUrl && paramUrl !== url) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from searchParams
+    const paramUrl = getInitialUrlParam();
+    if (paramUrl !== lastParamUrlRef.current) {
+      lastParamUrlRef.current = paramUrl;
       setUrl(paramUrl);
     }
-  }, [searchParams, url]);
+  }, [getInitialUrlParam]);
 
   // If already authenticated, redirect to the full workspace tool on app subdomain
   useEffect(() => {
@@ -432,19 +445,24 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
       setActiveTool(toolId);
       setResult(null);
       setError('');
-      const targetRoute = TOOL_CONFIG[toolId]?.demoRoute || `/tools/${toolId}`;
-      const trimmed = url.trim();
-      navigate(trimmed ? `${targetRoute}?url=${encodeURIComponent(trimmed)}` : targetRoute, { replace: true });
+      lastParamUrlRef.current = '';
+      autoRanUrlRef.current = null;
+      const targetRoute = TOOL_CONFIG[toolId]?.demoRoute || `/${toolId}`;
+      // Task 2: Reset URL parameters on tool switch. The URL only contains the clean base route.
+      navigate(targetRoute, { replace: true });
     },
-    [navigate, phase, url],
+    [navigate, phase],
   );
 
   const runDemo = useCallback(
-    async (event) => {
-      event?.preventDefault();
+    async (eventOrTarget) => {
+      if (eventOrTarget && typeof eventOrTarget.preventDefault === 'function') {
+        eventOrTarget.preventDefault();
+      }
       if (phase === 'running') return;
 
-      const trimmed = url.trim();
+      const rawInput = typeof eventOrTarget === 'string' ? eventOrTarget : url;
+      const trimmed = String(rawInput || '').trim();
       if (!trimmed) {
         setError('Please enter a website or domain to analyze.');
         return;
@@ -459,11 +477,19 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         target = normalizeUrl(trimmed);
       }
 
+      if (!target) {
+        setError('Please enter a valid website or domain.');
+        return;
+      }
+
       setError('');
       setResult(null);
       setPhase('running');
+      setUrl(target);
 
-      const targetRoute = TOOL_CONFIG[activeTool]?.demoRoute || `/tools/${activeTool}`;
+      lastParamUrlRef.current = target;
+      autoRanUrlRef.current = target;
+      const targetRoute = TOOL_CONFIG[activeTool]?.demoRoute || `/${activeTool}`;
       navigate(`${targetRoute}?url=${encodeURIComponent(target)}`, { replace: true });
 
       const expectedCount = activeTool === 'ttfb' && ttfbMode === 'all' ? 3 : 1;
@@ -475,11 +501,11 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
       try {
         // Step 1: Ensure demo session is initialized before request
-        const session = await initializeDemoSession();
+        const session = await initializeDemoSession().catch(() => null);
         if (session?.roomId) setSessionRoom(session.roomId);
 
         // Step 2: Ensure socket connected
-        await waitForSocket(5_000);
+        await waitForSocket(5_000).catch(() => {});
 
         const options = {
           mode: ttfbMode,
@@ -667,6 +693,30 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     },
     [activeTool, lighthouseStrategy, navigate, phase, ttfbMode, url],
   );
+
+  // Auto-run analysis when url query parameter is supplied on initial access or deep link
+  useEffect(() => {
+    if (loading || isAuthenticated) return;
+    if (phase !== 'ready') return;
+
+    const paramUrl = getInitialUrlParam();
+
+    // If query string has an empty url parameter, gracefully redirect to the clean base route
+    if (searchParams.has('url') && !paramUrl) {
+      const targetRoute = TOOL_CONFIG[activeTool]?.demoRoute || `/${activeTool}`;
+      navigate(targetRoute, { replace: true });
+      return;
+    }
+
+    if (!paramUrl) return;
+
+    // Avoid duplicate execution if already handled for this target
+    if (autoRanUrlRef.current === paramUrl) return;
+    if (quota.isLimited) return;
+
+    autoRanUrlRef.current = paramUrl;
+    runDemo(paramUrl);
+  }, [phase, loading, isAuthenticated, quota.isLimited, getInitialUrlParam, searchParams, activeTool, navigate, runDemo]);
 
   const currentTool = TOOL_CONFIG[activeTool] || TOOL_CONFIG.ttfb;
   const seoData = getRouteMetadata(`/tools/${activeTool}`);
@@ -884,14 +934,36 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
             {/* Form */}
             <form onSubmit={runDemo} className="mt-5 sm:mt-6 flex flex-col gap-3 sm:flex-row">
-              <input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={isRunning}
-                required
-                placeholder={currentTool.placeholder}
-                className="min-w-0 flex-1 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--cyan)]"
-              />
+              <div className="relative min-w-0 flex-1">
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  disabled={isRunning}
+                  required
+                  placeholder={currentTool.placeholder}
+                  className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-3.5 py-2.5 sm:px-4 sm:py-3 pr-10 text-sm text-[var(--text)] outline-none transition focus:border-[var(--cyan)]"
+                />
+                {url && !isRunning && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUrl('');
+                      lastParamUrlRef.current = '';
+                      autoRanUrlRef.current = null;
+                      const targetRoute = TOOL_CONFIG[activeTool]?.demoRoute || `/${activeTool}`;
+                      navigate(targetRoute, { replace: true });
+                    }}
+                    aria-label="Clear domain"
+                    title="Clear domain"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-lg text-[var(--muted-2)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition cursor-pointer"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={isRunning || quota.isLimited}

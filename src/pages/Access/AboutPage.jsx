@@ -126,7 +126,7 @@ export default function AboutPage() {
             <Link to={ROUTES.PUBLIC_HOME} className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]">
               Home
             </Link>
-            <Link to="/tools/ttfb" className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]">
+            <Link to="/ttfb-test" className="text-sm font-medium text-[var(--muted-2)] transition hover:text-[var(--text)]">
               Tools
             </Link>
             <Link to={ROUTES.ABOUT} className="text-sm font-semibold text-[var(--cyan)]">
@@ -189,7 +189,7 @@ export default function AboutPage() {
                 </svg>
               </a>
               <Link
-                to="/tools/ttfb"
+                to="/ttfb-test"
                 className="font-['Outfit',sans-serif] inline-flex items-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-6 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition"
               >
                 Try Free Diagnostic Tools

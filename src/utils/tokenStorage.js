@@ -85,6 +85,15 @@ export function setGuestId(guestId) {
   setStoredItem(STORAGE_KEYS.GUEST_ID, guestId);
 }
 
+export function getOrCreateGuestId() {
+  let gid = getGuestId();
+  if (!gid) {
+    gid = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    setGuestId(gid);
+  }
+  return gid;
+}
+
 export function removeGuestId() {
   removeStoredItem(STORAGE_KEYS.GUEST_ID);
 }

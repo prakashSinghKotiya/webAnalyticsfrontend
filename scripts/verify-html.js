@@ -2,11 +2,11 @@ import fs from 'node:fs';
 
 const pages = [
   'dist/index.html',
-  'dist/tools/ttfb/index.html',
-  'dist/tools/lighthouse/index.html',
-  'dist/tools/dns/index.html',
-  'dist/tools/redirects/index.html',
-  'dist/tools/whois/index.html',
+  'dist/ttfb-test/index.html',
+  'dist/fullsite-report/index.html',
+  'dist/dns-checker/index.html',
+  'dist/redirection-checker/index.html',
+  'dist/whois-lookup/index.html',
   'dist/404.html',
 ];
 
@@ -17,7 +17,7 @@ for (const p of pages) {
   const titleMatch = content.match(/<title>([^<]+)<\/title>/i);
   const h1Match = content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
   const canonicalMatch = content.match(/<link\s+rel=["']canonical["']\s+href=["']([^"']+)["']/i);
-  const ldJsonMatch = content.match(/<script\s+type=["']application\/ld\+json["']>([\s\S]*?)<\/script>/i);
+  const ldJsonMatch = content.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
   const cleanH1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : 'NONE';
   const hasFaq = content.includes('Frequently Asked Questions');
 

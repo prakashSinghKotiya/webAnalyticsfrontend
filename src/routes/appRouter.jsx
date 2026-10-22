@@ -87,12 +87,19 @@ export const appRouter = createBrowserRouter([
         children: [
           { path: 'home', element: <Home /> },
           { path: 'dashboard', element: <Dashboard /> },
-          { path: 'ttfb', element: <TTFBPage /> },
-          { path: 'lighthouse', element: <LighthousePage /> },
-          { path: 'uptime', element: <UptimePage /> },
-          { path: 'whois', element: <WhoisPage /> },
-          { path: 'dns', element: <DNSPage /> },
-          { path: 'redirects', element: <RedirectsPage /> },
+          { path: 'ttfb-test', element: <TTFBPage /> },
+          { path: 'fullsite-report', element: <LighthousePage /> },
+          { path: 'uptime-monitor', element: <UptimePage /> },
+          { path: 'whois-lookup', element: <WhoisPage /> },
+          { path: 'dns-checker', element: <DNSPage /> },
+          { path: 'redirection-checker', element: <RedirectsPage /> },
+          // Legacy authenticated routes backward compatibility
+          { path: 'ttfb', element: <Navigate to="/ttfb-test" replace /> },
+          { path: 'lighthouse', element: <Navigate to="/fullsite-report" replace /> },
+          { path: 'uptime', element: <Navigate to="/uptime-monitor" replace /> },
+          { path: 'whois', element: <Navigate to="/whois-lookup" replace /> },
+          { path: 'dns', element: <Navigate to="/dns-checker" replace /> },
+          { path: 'redirects', element: <Navigate to="/redirection-checker" replace /> },
           {
             path: 'admin',
             element: (

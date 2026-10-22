@@ -1,8 +1,8 @@
-import { Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '../context/ThemeContext';
 import { ToastProvider } from '../context/ToastContext';
-import { ErrorBoundary, FullScreenLoader } from '../components';
+import { ErrorBoundary } from '../components';
 import { getRouteMetadata } from '../seo/routes.js';
 
 /** Scrolls to top on navigation in browser environment */
@@ -25,11 +25,6 @@ function SEOHead() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const metadata = getRouteMetadata(pathname);
-    if (!metadata) return;
-
-    // Document Title
-    document.title = metadata.title;
 
     // Helper to update or create meta tags
     const updateMeta = (attr, key, val) => {
@@ -53,6 +48,41 @@ function SEOHead() {
       el.setAttribute('href', href);
     };
 
+    const metadata = getRouteMetadata(pathname);
+
+    // 404 / Unknown path handling: never cannibalize homepage metadata or canonical
+    if (!metadata) {
+      document.title = '404 — Page Not Found | MonitorMyHost';
+
+      updateMeta('name', 'robots', 'noindex, nofollow');
+      updateMeta('name', 'description', 'The page you requested could not be found.');
+
+      // Remove any canonical link to prevent pointing to the homepage
+      const canonicalEl = document.querySelector('link[rel="canonical"]');
+      if (canonicalEl) canonicalEl.remove();
+
+      // Remove any JSON-LD schema on 404
+      const jsonLdEl = document.getElementById('json-ld-seo-live');
+      if (jsonLdEl) jsonLdEl.remove();
+      document.querySelectorAll('script[type="application/ld+json"]').forEach((s) => s.remove());
+
+      const ogUrl = document.querySelector('meta[property="og:url"]');
+      if (ogUrl) ogUrl.remove();
+
+      updateMeta('property', 'og:title', '404 — Page Not Found | MonitorMyHost');
+      updateMeta('property', 'og:description', 'The page you requested could not be found.');
+      updateMeta('name', 'twitter:title', '404 — Page Not Found | MonitorMyHost');
+      updateMeta('name', 'twitter:description', 'The page you requested could not be found.');
+      return;
+    }
+
+    // Clean up any robots noindex meta if navigating away from a 404 page
+    const robotsEl = document.querySelector('meta[name="robots"]');
+    if (robotsEl) robotsEl.remove();
+
+    // Document Title
+    document.title = metadata.title;
+
     // Standard SEO Meta
     updateMeta('name', 'description', metadata.description);
     if (metadata.keywords) updateMeta('name', 'keywords', metadata.keywords);
@@ -72,16 +102,27 @@ function SEOHead() {
     updateMeta('name', 'twitter:description', metadata.description);
     updateMeta('name', 'twitter:image', 'https://monitormyhost.com/og-image.png');
 
-    // Structured Data JSON-LD
+    // Structured Data JSON-LD — In-place update using #json-ld-seo-live
     if (metadata.structuredData) {
       let script = document.getElementById('json-ld-seo-live');
       if (!script) {
-        script = document.createElement('script');
-        script.id = 'json-ld-seo-live';
-        script.type = 'application/ld+json';
-        document.head.appendChild(script);
+        script = document.querySelector('script[type="application/ld+json"]');
+        if (script) {
+          script.id = 'json-ld-seo-live';
+        } else {
+          script = document.createElement('script');
+          script.id = 'json-ld-seo-live';
+          script.type = 'application/ld+json';
+          document.head.appendChild(script);
+        }
       }
       script.textContent = JSON.stringify(metadata.structuredData);
+
+      // Clean up any duplicate application/ld+json tags that don't match our live ID
+      document.querySelectorAll('script[type="application/ld+json"]:not(#json-ld-seo-live)').forEach((s) => s.remove());
+    } else {
+      const script = document.getElementById('json-ld-seo-live');
+      if (script) script.remove();
     }
   }, [pathname]);
 
@@ -96,6 +137,7 @@ function SEOHead() {
  * - Absolutely NO SocketProvider (no socket singletons or connection state listeners)
  * - Absolutely NO GoogleOAuthProvider (no external OAuth client initialization)
  * - Pure, lightweight rendering for maximum Core Web Vitals and zero JS bloat.
+ * - Statically imported public routes render immediately with zero Suspense DOM teardown.
  */
 export default function PublicLayout() {
   return (
@@ -104,13 +146,9 @@ export default function PublicLayout() {
         <ErrorBoundary>
           <ScrollToTop />
           <SEOHead />
-          <Suspense fallback={<FullScreenLoader label="Loading tool…" />}>
-            <Outlet />
-          </Suspense>
+          <Outlet />
         </ErrorBoundary>
       </ToastProvider>
     </ThemeProvider>
   );
 }
-
-

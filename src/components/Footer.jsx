@@ -8,13 +8,12 @@ import Logo from './Logo';
  * Direct links for available demo tools; dynamic conversion redirect to register for upcoming/auth features.
  */
 const SERVICES_NAV = [
-  { name: 'Global TTFB Speed Test', path: '/tools/ttfb', isDemo: true },
-  { name: 'Lighthouse Performance & SEO', path: '/tools/lighthouse', isDemo: true },
-  { name: 'DNS Record Inspector', path: '/tools/dns', isDemo: true },
-  { name: 'Redirect Chain Tracer', path: '/tools/redirects', isDemo: true },
-  { name: 'WHOIS Domain Intelligence', path: '/tools/whois', isDemo: true },
+  { name: 'Global TTFB Speed Test', path: '/ttfb-test', isDemo: true },
+  { name: 'Lighthouse Performance & SEO', path: '/fullsite-report', isDemo: true },
+  { name: 'DNS Record Inspector', path: '/dns-checker', isDemo: true },
+  { name: 'Redirect Chain Tracer', path: '/redirection-checker', isDemo: true },
+  { name: 'WHOIS Domain Intelligence', path: '/whois-lookup', isDemo: true },
   { name: 'Real-Time Uptime Monitoring', path: ROUTES.REGISTER, isDemo: false, badge: 'App' },
- 
 ];
 
 const COMPANY_NAV = [

@@ -5,7 +5,7 @@ import { lookupDnsRecords } from './dnsType';
 import { checkRedirects } from './redirectCheck';
 import { whoisLookup } from './whoisLookup';
 import { connectSocket, resetSocketAuth, getSocket } from './socket';
-import { getGuestId, setGuestId, getAuthToken } from '../utils/tokenStorage';
+import { getGuestId, setGuestId, getOrCreateGuestId, getAuthToken } from '../utils/tokenStorage';
 
 let inFlightSessionPromise = null;
 let isSessionEstablished = false;
@@ -22,7 +22,7 @@ let currentSessionData = null;
  * 4. Ensures Socket.IO connects with guestId in the handshake auth payload and joins guest:<guestId> room.
  */
 export async function initializeDemoSession({ force = false } = {}) {
-  const existingGuestId = getGuestId();
+  const existingGuestId = getOrCreateGuestId();
 
   if (isSessionEstablished && currentSessionData && existingGuestId && !force) {
     return Promise.resolve(currentSessionData);
@@ -37,7 +37,7 @@ export async function initializeDemoSession({ force = false } = {}) {
 
   inFlightSessionPromise = axiosWithCreds
     .post('/demo/session', {
-      ...(existingGuestId ? { guestId: existingGuestId } : {}),
+      guestId: existingGuestId,
     })
     .then((res) => {
       isSessionEstablished = true;
@@ -53,13 +53,8 @@ export async function initializeDemoSession({ force = false } = {}) {
       return res.data;
     })
     .catch((err) => {
-      // If server error occurred but we have an existing guestId, still attempt socket connect
-      if (existingGuestId) {
-        connectSocket();
-      } else {
-        isSessionEstablished = false;
-        currentSessionData = null;
-      }
+      // Connect socket even if session handshake had a warning, so socket rooms can be joined
+      connectSocket();
       throw err;
     })
     .finally(() => {

@@ -41,17 +41,17 @@ async function prerender() {
       `<meta name="description" content="${escapeAttr(route.description)}" />`,
       `<meta name="keywords" content="${escapeAttr(route.keywords)}" />`,
       `<link rel="canonical" href="${route.canonical}" />`,
-      `<meta property="og:title" content="${escapeAttr(route.title)}" />`,
+      `<meta property="og:title" content="${escapeAttr(route.ogTitle || route.title)}" />`,
       `<meta property="og:description" content="${escapeAttr(route.description)}" />`,
       `<meta property="og:url" content="${route.canonical}" />`,
       `<meta property="og:type" content="website" />`,
       `<meta property="og:site_name" content="MonitorMyHost" />`,
       `<meta property="og:image" content="https://monitormyhost.com/og-image.png" />`,
       `<meta name="twitter:card" content="summary_large_image" />`,
-      `<meta name="twitter:title" content="${escapeAttr(route.title)}" />`,
+      `<meta name="twitter:title" content="${escapeAttr(route.twitterTitle || route.title)}" />`,
       `<meta name="twitter:description" content="${escapeAttr(route.description)}" />`,
       `<meta name="twitter:image" content="https://monitormyhost.com/og-image.png" />`,
-      `<script type="application/ld+json">${JSON.stringify(route.structuredData)}</script>`,
+      `<script id="json-ld-seo-live" type="application/ld+json">${JSON.stringify(route.structuredData)}</script>`,
     ].join('\n    ');
 
     // Replace default head elements
@@ -92,7 +92,7 @@ async function prerender() {
   notFoundPage = notFoundPage.replace(/<title>[\s\S]*?<\/title>/i, '');
   notFoundPage = notFoundPage.replace(/<meta\s+name=["']description["'][\s\S]*?>/i, '');
   const notFoundHead = [
-    '<title>Page Not Found — 404 | MonitorMyHost</title>',
+    '<title>404 — Page Not Found | MonitorMyHost</title>',
     '<meta name="description" content="The page you requested could not be found." />',
     '<meta name="robots" content="noindex, nofollow" />',
   ].join('\n    ');

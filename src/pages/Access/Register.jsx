@@ -281,7 +281,7 @@ function ShowcasePanel() {
       <div className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-[var(--green-dim)] blur-3xl" />
       <div className="relative">
         <span className={`${mono} inline-flex items-center gap-2 rounded-full border border-[var(--border-bright)] bg-[var(--cyan-dim)] px-3 py-1 text-[11px] uppercase tracking-[0.1em] text-[var(--cyan)]`}>
-          <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-[var(--green)]" /> 42 probe locations live
+          <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-[var(--green)]" /> REGISTER
         </span>
         <h2 className={`${display} mt-6 max-w-md text-4xl font-extrabold leading-[1.08] tracking-tight text-[var(--text)]`}>
           Know how fast your site is before your users do.
@@ -310,7 +310,7 @@ function ShowcasePanel() {
         </div>
       </div>
       <div className="relative grid grid-cols-3 gap-6 border-t border-[var(--border)] pt-6">
-        {[['99.99%', 'uptime tracked'], ['1.2B', 'checks / month'], ['30s', 'check interval']].map(([v, l]) => (
+        {[['99.99%', 'uptime tracked'], ['5 K+', 'checks / month'], ['30s', 'check interval']].map(([v, l]) => (
           <div key={l}>
             <div className={`${mono} text-xl font-semibold text-[var(--cyan)]`}>{v}</div>
             <div className="mt-1 text-xs text-[var(--muted)]">{l}</div>

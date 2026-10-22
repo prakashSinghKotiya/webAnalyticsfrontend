@@ -9,7 +9,21 @@ import { defineConfig } from 'vite';
  * title, h1, FAQs, and JSON-LD as the production build.
  */
 function devPrerenderPlugin() {
-  const publicPaths = ['/', '/about', '/contact', '/tools/ttfb', '/tools/lighthouse', '/tools/dns', '/tools/redirects', '/tools/whois'];
+  const publicPaths = [
+    '/',
+    '/about',
+    '/contact',
+    '/ttfb-test',
+    '/fullsite-report',
+    '/dns-checker',
+    '/redirection-checker',
+    '/whois-lookup',
+    '/tools/ttfb',
+    '/tools/lighthouse',
+    '/tools/dns',
+    '/tools/redirects',
+    '/tools/whois',
+  ];
 
   return {
     name: 'vite-plugin-dev-prerender',
@@ -31,22 +45,37 @@ function devPrerenderPlugin() {
 
           const appHtml = render(cleanPath);
 
+          if (!route) {
+            const notFoundHead = [
+              '<title>404 — Page Not Found | MonitorMyHost</title>',
+              '<meta name="description" content="The page you requested could not be found." />',
+              '<meta name="robots" content="noindex, nofollow" />',
+            ].join('\n    ');
+
+            let modified = html;
+            modified = modified.replace(/<title>[\s\S]*?<\/title>/i, '');
+            modified = modified.replace(/<meta\s+name=["']description["'][\s\S]*?>/i, '');
+            modified = modified.replace('</head>', `  ${notFoundHead}\n  </head>`);
+            modified = modified.replace('<div id="root"></div>', `<div id="root">${appHtml}</div>`);
+            return modified;
+          }
+
           const headInjections = [
             `<title>${route.title}</title>`,
             `<meta name="description" content="${route.description}" />`,
             `<meta name="keywords" content="${route.keywords}" />`,
             `<link rel="canonical" href="${route.canonical}" />`,
-            `<meta property="og:title" content="${route.title}" />`,
+            `<meta property="og:title" content="${route.ogTitle || route.title}" />`,
             `<meta property="og:description" content="${route.description}" />`,
             `<meta property="og:url" content="${route.canonical}" />`,
             `<meta property="og:type" content="website" />`,
             `<meta property="og:site_name" content="MonitorMyHost" />`,
             `<meta property="og:image" content="https://monitormyhost.com/og-image.png" />`,
             `<meta name="twitter:card" content="summary_large_image" />`,
-            `<meta name="twitter:title" content="${route.title}" />`,
+            `<meta name="twitter:title" content="${route.twitterTitle || route.title}" />`,
             `<meta name="twitter:description" content="${route.description}" />`,
             `<meta name="twitter:image" content="https://monitormyhost.com/og-image.png" />`,
-            `<script type="application/ld+json">${JSON.stringify(route.structuredData)}</script>`,
+            `<script id="json-ld-seo-live" type="application/ld+json">${JSON.stringify(route.structuredData)}</script>`,
           ].join('\n    ');
 
           let modified = html;

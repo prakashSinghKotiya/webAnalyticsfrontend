@@ -96,7 +96,12 @@ export function getActiveSubdomain() {
       path.startsWith('/about') ||
       path.startsWith('/contact') ||
       path.startsWith('/tools') ||
-      path.startsWith('/demo')
+      path.startsWith('/demo') ||
+      path.startsWith('/ttfb-test') ||
+      path.startsWith('/fullsite-report') ||
+      path.startsWith('/dns-checker') ||
+      path.startsWith('/redirection-checker') ||
+      path.startsWith('/whois-lookup')
     ) {
       return 'landing';
     }
