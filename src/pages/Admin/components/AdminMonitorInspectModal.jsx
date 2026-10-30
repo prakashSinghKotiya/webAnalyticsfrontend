@@ -2,7 +2,6 @@ import { useState, useEffect, memo } from 'react';
 import { getAdminMonitorDetails } from '../../../api';
 import {
   getMonitorStatusBadgeConfig,
-  getMonitorHealthBadgeConfig,
   formatLatency,
   formatDateTime,
   getRelativeTime,
@@ -42,7 +41,9 @@ function AdminMonitorInspectModal({
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch
     loadDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monitorId]);
 
   if (!monitor) return null;
@@ -63,7 +64,6 @@ function AdminMonitorInspectModal({
 
   const currentMonitor = details?.monitor || monitor;
   const statusCfg = getMonitorStatusBadgeConfig(currentMonitor.status);
-  const healthCfg = getMonitorHealthBadgeConfig(liveResult || currentMonitor.lastResult);
   const recentResults = details?.recentResults || [];
 
   return (
@@ -92,7 +92,7 @@ function AdminMonitorInspectModal({
                 </span>
               </div>
               <p className="text-xs text-[var(--muted-2)]">
-                Tenant: {currentMonitor.userId?.name || 'User'} ({currentMonitor.userId?.email || '—'}) • Interval: {currentMonitor.interval || '5m'}
+                Tenant: {currentMonitor.userId?.name || 'User'} ({currentMonitor.userId?.email || '—'}) • Interval: {currentMonitor.interval === '10m' ? '15m' : (currentMonitor.interval || '15m')}
               </p>
             </div>
           </div>

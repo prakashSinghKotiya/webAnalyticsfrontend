@@ -39,3 +39,22 @@ export const getUserDetails = async (config = {}) => {
   });
   return data;
 };
+
+// Send OTP for forgot password (validates account exists before sending)
+export const sendForgotPasswordOtp = async (email) => {
+  const { data } = await axiosWithCreds.post("/user/forgot-password/send-otp", { email });
+  return data;
+};
+
+// Reset password with OTP verification
+export const forgotPassword = async ({ email, otp, password, newPassword }) => {
+  const { data } = await axiosWithCreds.post("/user/forgot-password", {
+    email,
+    otp,
+    password: password || newPassword,
+  });
+  return data;
+};
+
+export const resetPassword = forgotPassword;
+

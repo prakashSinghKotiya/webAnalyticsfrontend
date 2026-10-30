@@ -13,6 +13,8 @@
 @import '@fontsource/inter/600.css';
 @import 'tailwindcss';
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
+
 /* ── Dark theme (default) ──────────────────────────────────────────────────── */
 :root,
 [data-theme="dark"] {

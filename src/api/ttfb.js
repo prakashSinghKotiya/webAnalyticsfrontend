@@ -3,17 +3,18 @@ import { axiosWithCreds } from "./axiosInstance";
 
 export const TTFB_REGIONS = Object.freeze([
   { value: "india", label: "India" },
-  { value: "europe", label: "Europe" },
-  { value: "usa", label: "USA" },
+  { value: "singapore", label: "Singapore" },
+  { value: "canada", label: "Canada" },
 ]);
 
 /** Sentinel region that fans a job out to every probe queue. */
 export const ALL_REGIONS = "All";
 
 export const findTTFB = async (url, region) => {
+  const normRegion = String(region || "india").trim().toLowerCase();
   const { data } = await axiosWithCreds.post("/ttfb/find", {
     url,
-    region,
+    region: normRegion,
   });
   return data;
 };

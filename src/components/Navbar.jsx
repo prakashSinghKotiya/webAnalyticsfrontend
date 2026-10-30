@@ -110,6 +110,9 @@ function UserMenu({ user, onLogout, isAdmin }) {
   const [prevPath, setPrevPath] = useState(location.pathname);
   const ref = useRef(null);
 
+  const roleLower = (user?.role || '').toLowerCase();
+  const isSuper = roleLower === 'superadmin' || roleLower === 'super_admin';
+
   if (prevPath !== location.pathname) {
     setPrevPath(location.pathname);
     setOpen(false);
@@ -150,11 +153,16 @@ function UserMenu({ user, onLogout, isAdmin }) {
               <span className="font-['JetBrains_Mono',monospace] inline-block rounded-full border border-[var(--border-bright)] bg-[var(--cyan-dim)] px-2 py-0.5 text-[9px] uppercase tracking-[0.1em] text-[var(--cyan)]">
                 {user?.plan || 'free'}
               </span>
-              {isAdmin && (
+              {isSuper ? (
+                <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.2)]">
+                  <span className="h-1 w-1 rounded-full bg-purple-400 animate-pulse" />
+                  SuperAdmin
+                </span>
+              ) : isAdmin ? (
                 <span className="font-['JetBrains_Mono',monospace] inline-block rounded-full border border-[var(--cyan)]/40 bg-[var(--cyan-dim)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--cyan)]">
                   {user?.role || 'Admin'}
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -170,13 +178,17 @@ function UserMenu({ user, onLogout, isAdmin }) {
               className={({ isActive }) =>
                 `flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition no-underline mb-1 ${
                   isActive
-                    ? 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
+                    ? isSuper
+                      ? 'bg-purple-500/20 text-purple-300 font-semibold'
+                      : 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
+                    : isSuper
+                    ? 'text-[var(--text-2)] hover:bg-purple-500/10 hover:text-purple-300'
                     : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
                 }`
               }
             >
               {I.shield}
-              <span>Admin Panel</span>
+              <span>{isSuper ? 'SuperAdmin Panel' : 'Admin Panel'}</span>
             </NavLink>
           )}
 
@@ -195,6 +207,9 @@ function UserMenu({ user, onLogout, isAdmin }) {
 }
 
 export default function Navbar({ user, onLogout, isAdmin, onMenuOpen }) {
+  const roleLower = (user?.role || '').toLowerCase();
+  const isSuper = roleLower === 'superadmin' || roleLower === 'super_admin';
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--bg)]/90 px-4 backdrop-blur-md sm:px-6">
       {/* Left */}
@@ -245,13 +260,17 @@ export default function Navbar({ user, onLogout, isAdmin, onMenuOpen }) {
               className={({ isActive }) =>
                 `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium no-underline transition ${
                   isActive
-                    ? 'bg-[var(--cyan-dim)] text-[var(--cyan)]'
+                    ? isSuper
+                      ? 'bg-purple-500/20 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                      : 'bg-[var(--cyan-dim)] text-[var(--cyan)]'
+                    : isSuper
+                    ? 'text-purple-400/90 hover:bg-purple-500/10 hover:text-purple-300'
                     : 'text-[var(--muted-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
                 }`
               }
             >
               {I.shield}
-              <span className="ml-1">Admin</span>
+              <span className="ml-1">{isSuper ? 'SuperAdmin' : 'Admin'}</span>
             </NavLink>
           )}
         </nav>

@@ -1,144 +1,132 @@
 import { memo, useState } from 'react';
-import { formatMs, rateLatency, regionLabel, relativeTime } from '../ttfb.utils';
+import {
+  buildTtfbHeadlineAndSubtitle,
+  formatMs,
+  rateLatency,
+  regionLabel,
+  relativeTime,
+} from '../ttfb.utils';
 
-const CARD = 'rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-8';
+/* ── Reading Row with Expandable Probe Breakdown ──────────────────────────── */
 
-/** Single headline metric (fastest / slowest / average). */
-function StatCard({ label, value, hint, token }) {
+function RegionReadingRow({ reading, maxLatency, isExpandedByDefault = false }) {
+  const [expanded, setExpanded] = useState(isExpandedByDefault);
+
+  const ttfbMs = Number(reading.ttfb ?? reading.ms) || 0;
+  const totalMs = Number(reading.totalToFirstByte) || 0;
+  // Calculate relative bar width (balanced between 15% and 85%)
+  const ratio = maxLatency > 0 ? ttfbMs / maxLatency : 1;
+  const barWidth = Math.max(15, Math.min(85, Math.round(ratio * 70)));
+
+  // Detailed timing line 1:
+  const line1Parts = [];
+  if (reading.dns != null) line1Parts.push(`DNS ${formatMs(reading.dns)}`);
+  if (reading.tcp != null) line1Parts.push(`TCP ${formatMs(reading.tcp)}`);
+  if (reading.tls != null) line1Parts.push(`TLS ${formatMs(reading.tls)}`);
+  if (ttfbMs > 0) line1Parts.push(`TTFB (server) ${formatMs(ttfbMs)}`);
+  if (totalMs > 0 && totalMs !== ttfbMs) line1Parts.push(`Total to 1st byte ${formatMs(totalMs)}`);
+
+  const line2Parts = [];
+  if (reading.min != null && reading.max != null) {
+    line2Parts.push(`Min / max ${formatMs(reading.min)} / ${formatMs(reading.max)}`);
+  }
+  if (reading.samples != null) {
+    line2Parts.push(`${reading.samples} samples`);
+  }
+  if (reading.reliable != null) {
+    line2Parts.push(reading.reliable ? 'reliable' : 'unreliable');
+  }
+  if (reading.statusCode != null) {
+    line2Parts.push(`HTTP ${reading.statusCode}`);
+  }
+
+  // Fallbacks if detailed sub-timings were not reported by worker
+  const line1 = line1Parts.length > 0
+    ? line1Parts.join(' · ')
+    : `TTFB ${formatMs(ttfbMs)} · HTTP ${reading.statusCode || 200}`;
+  const line2 = line2Parts.length > 0
+    ? line2Parts.join(' · ')
+    : `Verified via ${regionLabel(reading.region)} edge node`;
+
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
-      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--muted-2)]">
-        {label}
-      </p>
-      <p
-        className="mt-1.5 font-['Outfit',sans-serif] text-2xl font-bold leading-none tabular-nums"
-        style={{ color: token }}
+    <div className="py-3 border-b border-[var(--border)]/70 last:border-b-0">
+      {/* Row Header: Region Name | Progress Bar | Latency | + / - Toggle */}
+      <div
+        onClick={() => setExpanded((prev) => !prev)}
+        className="flex items-center gap-3 sm:gap-6 cursor-pointer select-none group"
       >
-        {value}
-      </p>
-      {hint ? <p className="mt-1.5 truncate text-xs text-[var(--muted-2)]">{hint}</p> : null}
+        {/* Region Name */}
+        <span className="w-24 sm:w-32 shrink-0 text-sm font-medium text-[var(--text)] group-hover:text-[var(--cyan)] transition-colors">
+          {regionLabel(reading.region)}
+        </span>
+
+        {/* Progress Bar Track & Dark Forest Green Fill */}
+        <div className="flex-1 h-1.5 w-full bg-[#f0eae1] dark:bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[#065f46] dark:bg-[#10b981] transition-all duration-500 ease-out"
+            style={{ width: `${barWidth}%` }}
+          />
+        </div>
+
+        {/* Latency Value */}
+        <div className="w-20 sm:w-28 shrink-0 text-right">
+          <span className="text-sm font-semibold text-[var(--text)] tabular-nums">
+            {formatMs(ttfbMs)}
+          </span>
+          {totalMs > 0 && totalMs !== ttfbMs && (
+            <span className="hidden sm:block text-[10px] text-[var(--muted-2)] tabular-nums">
+              tot {formatMs(totalMs)}
+            </span>
+          )}
+        </div>
+
+        {/* Toggle Expander (+ / -) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((prev) => !prev);
+          }}
+          className="flex h-5 w-5 shrink-0 items-center justify-center text-xs font-semibold text-[var(--muted-2)] group-hover:text-[var(--text)] transition-colors"
+          aria-label={expanded ? 'Collapse probe details' : 'Expand probe details'}
+        >
+          {expanded ? '−' : '+'}
+        </button>
+      </div>
+
+      {/* Expanded Timing Breakdown */}
+      {expanded && (
+        <div className="mt-2.5 sm:pl-32 sm:pr-32 space-y-1 text-xs text-[var(--muted-2)] leading-relaxed">
+          <p>{line1}</p>
+          <p>{line2}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-/** One probe reading: region, latency and a relative bar. Expandable for details. */
-function ReadingRow({ reading, slowest, isExpandedByDefault }) {
-  const { region, ms, statusCode, dns, tcp, tls, totalToFirstByte, min, max, samples, reliable } = reading;
-  const [expanded, setExpanded] = useState(isExpandedByDefault || false);
-  const { label, token } = rateLatency(ms);
-  const ratio = slowest ? (Number(ms) / slowest) * 100 : 100;
-  const width = Math.max(6, Math.min(100, Number.isFinite(ratio) ? ratio : 100));
+/* ── ResultPanel Component ────────────────────────────────────────────────── */
 
-  return (
-    <li className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden">
-      <div 
-        className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto_140px_auto] items-center gap-x-4 gap-y-2 px-4 py-3 cursor-pointer hover:bg-[var(--surface)] transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-[var(--text)]">{regionLabel(region)}</p>
-          <p className="text-xs" style={{ color: token }}>
-            {label}
-          </p>
-        </div>
-        {statusCode ? (
-          <span className="rounded-md border border-[var(--border-mid)] bg-[var(--surface)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted-2)]">
-            HTTP {statusCode}
-          </span>
-        ) : <span />}
-        <span
-          className="font-['JetBrains_Mono',monospace] text-sm font-semibold tabular-nums"
-          style={{ color: token }}
-        >
-          {formatMs(ms)}
-        </span>
-        <div className="hidden sm:block h-2 w-full overflow-hidden rounded-full bg-[var(--bar-track)]">
-          <div
-            className="h-full rounded-full transition-[width] duration-500 ease-out"
-            style={{ width: `${width}%`, backgroundColor: token }}
-          />
-        </div>
-        <div className="text-[var(--muted)] flex items-center justify-center">
-          {expanded ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          )}
-        </div>
-      </div>
-      
-      {expanded && (
-        <div className="border-t border-[var(--border)] bg-[var(--surface)] p-4 sm:px-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="flex flex-col">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">TTFB</span>
-              <span className="text-sm font-medium text-[var(--text)]">{formatMs(ms)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">Total to First Byte</span>
-              <span className="text-sm font-medium text-[var(--text)]">{formatMs(totalToFirstByte)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">DNS Lookup</span>
-              <span className="text-sm font-medium text-[var(--text)]">{formatMs(dns)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">TCP Connection</span>
-              <span className="text-sm font-medium text-[var(--text)]">{formatMs(tcp)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">TLS Handshake</span>
-              <span className="text-sm font-medium text-[var(--text)]">{formatMs(tls)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">Min / Max</span>
-              <span className="text-sm font-medium text-[var(--text)]">
-                {formatMs(min)} / {formatMs(max)}
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">Samples</span>
-              <span className="text-sm font-medium text-[var(--text)]">{samples ?? '—'}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--muted-2)]">Reliable</span>
-              <span className="text-sm font-medium text-[var(--text)]">
-                {reliable === true ? 'Yes' : reliable === false ? 'No' : '—'}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-    </li>
-  );
-}
-
-/**
- * ResultPanel — the measurement output area.
- *
- * Renders exactly one of four states: idle hint, live scan progress, error, or
- * the full result breakdown. Memoized so typing in the URL field never re-renders
- * it, and so the progress bar only updates while a scan is in flight.
- */
-function ResultPanel({ result, isScanning, progress, error }) {
+function ResultPanel({ result, isScanning = false, progress = {}, error = null, onReRun = null }) {
+  // Scanning / Loading State
   if (isScanning) {
     const pct = progress.expected
       ? Math.min(100, Math.round((progress.received / progress.expected) * 100))
       : 0;
 
     return (
-      <section className={CARD} aria-live="polite" aria-busy="true">
+      <section className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-3">
           <span
             className="h-5 w-5 flex-none animate-spin rounded-full border-2 border-[var(--cyan)] border-t-transparent"
             aria-hidden="true"
           />
           <div>
-            <p className="font-['Outfit',sans-serif] text-sm font-semibold text-[var(--text)]">
-              Probing {progress.expected} region{progress.expected === 1 ? '' : 's'}…
-            </p>
+            <h3 className="font-['Outfit',sans-serif] text-base font-semibold text-[var(--text)]">
+              Probing {progress.expected || 3} edge region{progress.expected === 1 ? '' : 's'}…
+            </h3>
             <p className="text-xs text-[var(--muted-2)]">
-              {progress.received} of {progress.expected} results received
+              {progress.received || 0} of {progress.expected || 3} probe responses received
             </p>
           </div>
         </div>
@@ -152,103 +140,212 @@ function ResultPanel({ result, isScanning, progress, error }) {
     );
   }
 
+  // Error State
   if (error) {
     return (
-      <section className={CARD} role="alert">
+      <section className="rounded-3xl border border-[var(--red)]/30 bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]" role="alert">
         <div className="flex items-start gap-3">
           <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-[var(--red)]/30 bg-[var(--red)]/10 text-sm font-bold text-[var(--red)]">
             !
           </span>
           <div>
-            <p className="text-sm font-semibold text-[var(--text)]">Measurement failed</p>
+            <h3 className="font-['Outfit',sans-serif] text-base font-semibold text-[var(--text)]">
+              Measurement failed
+            </h3>
             <p className="mt-0.5 text-sm text-[var(--muted-2)]">{error}</p>
+            {onReRun && (
+              <button
+                type="button"
+                onClick={onReRun}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-4 py-1.5 text-xs font-semibold text-[var(--text)] hover:text-[var(--cyan)]"
+              >
+                Retry Scan
+              </button>
+            )}
           </div>
         </div>
       </section>
     );
   }
 
+  // Empty State
   if (!result) {
     return (
-      <section className={`${CARD} flex flex-col items-center justify-center py-14 text-center`}>
-        <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--cyan-dim)] text-[var(--cyan)]">
+      <section className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-10 sm:p-12 text-center shadow-[var(--shadow-card)]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--cyan-dim)] text-[var(--cyan)]">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 2a10 10 0 1 0 10 10" />
-            <polyline points="12 12 18 6" />
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
-        </span>
-        <p className="font-['Outfit',sans-serif] text-base font-semibold text-[var(--text)]">
+        </div>
+        <h3 className="mt-4 font-['Outfit',sans-serif] text-base font-semibold text-[var(--text)]">
           No measurement yet
-        </p>
-        <p className="mt-1 max-w-sm text-sm text-[var(--muted-2)]">
-          Enter a URL above and run a scan — results stream in live from the probe regions.
+        </h3>
+        <p className="mt-1 max-w-sm mx-auto text-xs sm:text-sm text-[var(--muted-2)]">
+          Enter a URL above and run a scan — real-time latency streams in live from worldwide edge probes.
         </p>
       </section>
     );
   }
 
-  const readings = result.readings ?? [];
-  const fastestRegion = [...readings].sort((a, b) => Number(a.ms) - Number(b.ms))[0]?.region;
-  const avgRating = rateLatency(result.avg);
+  // Normalize readings array
+  const readings = Array.isArray(result.readings) ? result.readings : [];
+  const validReadings = readings.filter((r) => r && r.ms != null && Number.isFinite(Number(r.ms)));
+
+  // Calculate fastest, slowest, average if not on result
+  const fastestReading = [...validReadings].sort((a, b) => Number(a.ms) - Number(b.ms))[0];
+  const slowestReading = [...validReadings].sort((a, b) => Number(b.ms) - Number(a.ms))[0];
+
+  const fastestMs = result.fastest != null ? result.fastest : fastestReading?.ms;
+  const slowestMs = result.slowest != null ? result.slowest : slowestReading?.ms;
+  const avgMs = result.avg != null ? result.avg : fastestMs;
+
+  const fastestRegion = fastestReading?.region;
+  const slowestRegion = slowestReading?.region;
+
+  const avgRating = rateLatency(avgMs);
+  const maxLatency = Math.max(...validReadings.map((r) => Number(r.ms) || 0), Number(slowestMs) || 1);
+
+  // Dynamic Headline & Subtitle matching Image 1
+  const { headline, subtitle } = buildTtfbHeadlineAndSubtitle(
+    result.url,
+    avgMs,
+    validReadings.length || 3,
+  );
+
+  // Top meta: "Measured just now · all regions · HTTP 403"
+  const relTime = relativeTime(result.createdAt) || 'just now';
+  const regionText = regionLabel(result.region || (validReadings.length > 1 ? 'all' : validReadings[0]?.region)).toLowerCase();
+  const statusText = result.statusCode ? `HTTP ${result.statusCode}` : 'HTTP 200';
+  const topMeta = `Measured ${relTime} · ${regionText} · ${statusText}`;
 
   return (
-    <section className={`${CARD} fade-up-delay-1`}>
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-['Outfit',sans-serif] text-lg font-semibold text-[var(--text)]">
-            Measurement result
-          </h2>
-          <p className="mt-0.5 truncate font-['JetBrains_Mono',monospace] text-xs text-[var(--muted-2)]">
-            {result.url}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {result.statusCode ? (
-            <span className={`rounded-full border px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] font-semibold ${
-              result.statusCode >= 200 && result.statusCode < 300
-                ? 'border-[var(--green)]/30 bg-[var(--green)]/10 text-[var(--green)]'
-                : 'border-[var(--orange)]/30 bg-[var(--orange)]/10 text-[var(--orange)]'
-            }`}>
-              HTTP {result.statusCode}
-            </span>
-          ) : null}
-          <span className="rounded-full border border-[var(--border-bright)] bg-[var(--cyan-dim)] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--cyan)]">
-            {regionLabel(result.region)}
-          </span>
-          <span className="text-xs text-[var(--muted-2)]">{relativeTime(result.createdAt)}</span>
-        </div>
-      </header>
-
-      <div className="mb-5 grid gap-3 sm:grid-cols-3">
-        <StatCard
-          label="Fastest"
-          value={formatMs(result.fastest)}
-          hint={fastestRegion ? regionLabel(fastestRegion) : undefined}
-          token="var(--green)"
-        />
-        <StatCard
-          label="Slowest"
-          value={formatMs(result.slowest)}
-          token={rateLatency(result.slowest).token}
-        />
-        <StatCard
-          label="Average"
-          value={formatMs(result.avg)}
-          hint={avgRating.label}
-          token={avgRating.token}
-        />
+    <section className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-10 shadow-[var(--shadow-card)]">
+      {/* ── Top Meta Line ──────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--muted-2)]">
+        <span>{topMeta}</span>
+        {onReRun && (
+          <button
+            type="button"
+            onClick={onReRun}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--text)] hover:border-[var(--border-bright)] hover:text-[var(--cyan)] transition"
+            title="Re-run TTFB scan"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+            <span>Re-test</span>
+          </button>
+        )}
       </div>
 
-      <ul className="flex flex-col gap-2">
-        {readings.map((reading) => (
-          <ReadingRow
-            key={`${result.id}-${reading.region}`}
-            reading={{ ...reading, statusCode: reading.statusCode || result.statusCode }}
-            slowest={result.slowest}
-            isExpandedByDefault={readings.length === 1 || reading.region === fastestRegion}
+      {/* ── Headline: "chatgpt.com responds fast" ──────────────────────────── */}
+      <h2 className="mt-3 font-['Outfit',sans-serif] text-2xl sm:text-4xl font-bold tracking-tight text-[var(--text)]">
+        {headline}
+      </h2>
+
+      {/* ── Subtitle: "Average time to first byte is 7 ms — excellent..." ──── */}
+      <p className="mt-2 text-sm leading-relaxed text-[var(--muted-2)]">
+        {subtitle}
+      </p>
+
+      {/* ── 3 Stat Columns (Fastest | Slowest | Average) or (TTFB | Total | Quality) ──── */}
+      {validReadings.length === 1 ? (
+        <div className="mt-8 grid grid-cols-3 gap-4 sm:gap-10">
+          {/* TTFB (Server) */}
+          <div>
+            <span className="text-xs text-[var(--muted-2)] font-normal">TTFB (Server)</span>
+            <p className="mt-1 font-['Outfit',sans-serif] text-2xl sm:text-4xl font-bold tracking-tight text-[var(--text)]">
+              {formatMs(avgMs)}
+            </p>
+            <span className="mt-1 inline-block text-xs text-[var(--muted-2)]">
+              {regionLabel(validReadings[0]?.region)} probe
+            </span>
+          </div>
+
+          {/* Total to First Byte */}
+          <div>
+            <span className="text-xs text-[var(--muted-2)] font-normal">Total to 1st Byte</span>
+            <p className="mt-1 font-['Outfit',sans-serif] text-2xl sm:text-4xl font-bold tracking-tight text-[var(--text)]">
+              {formatMs(validReadings[0]?.totalToFirstByte ?? avgMs)}
+            </p>
+            <span className="mt-1 inline-block text-xs text-[var(--muted-2)]">
+              DNS + TCP + TLS + Wait
+            </span>
+          </div>
+
+          {/* Rating */}
+          <div>
+            <span className="text-xs text-[var(--muted-2)] font-normal">Rating</span>
+            <p
+              className="mt-1 font-['Outfit',sans-serif] text-2xl sm:text-4xl font-bold tracking-tight"
+              style={{ color: avgRating.token }}
+            >
+              {avgRating.label}
+            </p>
+            <span className="mt-1 inline-block text-xs text-[var(--muted-2)]">
+              {validReadings[0]?.statusCode ? `HTTP ${validReadings[0].statusCode}` : 'HTTP 200'}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-8 grid grid-cols-3 gap-4 sm:gap-10">
+          {/* Fastest */}
+          <div>
+            <span className="text-xs text-[var(--muted-2)] font-normal">Fastest</span>
+            <p className="mt-1 font-['Outfit',sans-serif] text-2xl sm:text-4xl font-bold tracking-tight text-[var(--text)]">
+              {formatMs(fastestMs)}
+            </p>
+            <span className="mt-1 inline-block text-xs text-[var(--muted-2)]">
+              {fastestRegion ? regionLabel(fastestRegion) : 'Fastest node'}
+            </span>
+          </div>
+
+          {/* Slowest */}
+          <div>
+            <span className="text-xs text-[var(--muted-2)] font-normal">Slowest</span>
+            <p className="mt-1 font-['Outfit',sans-serif] text-2xl sm:text-4xl font-bold tracking-tight text-[var(--text)]">
+              {formatMs(slowestMs)}
+            </p>
+            <span className="mt-1 inline-block text-xs text-[var(--muted-2)]">
+              {slowestRegion ? regionLabel(slowestRegion) : 'Slowest node'}
+            </span>
+          </div>
+
+          {/* Average */}
+          <div>
+            <span className="text-xs text-[var(--muted-2)] font-normal">Average</span>
+            <p className="mt-1 font-['Outfit',sans-serif] text-2xl sm:text-4xl font-bold tracking-tight text-[var(--text)]">
+              {formatMs(avgMs)}
+            </p>
+            <span className="mt-1 inline-block text-xs text-[var(--muted-2)]" style={{ color: avgRating.token }}>
+              {avgRating.label || 'Excellent'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── "By region" Section Label ──────────────────────────────────────── */}
+      <div className="mt-10 mb-2">
+        <h3 className="font-['Outfit',sans-serif] text-sm font-semibold text-[var(--text)]">
+          By region
+        </h3>
+      </div>
+
+      {/* ── Region Rows with Forest Green Bars & Accordion Details ─────────── */}
+      <div className="divide-y-0">
+        {validReadings.map((reading, idx) => (
+          <RegionReadingRow
+            key={`${result.id || 'ttfb'}-${reading.region || idx}`}
+            reading={{
+              ...reading,
+              statusCode: reading.statusCode || result.statusCode,
+            }}
+            maxLatency={maxLatency}
+            isExpandedByDefault={idx === 0 || reading.region === fastestRegion}
           />
         ))}
-      </ul>
+      </div>
     </section>
   );
 }

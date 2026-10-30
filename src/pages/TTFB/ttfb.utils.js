@@ -112,6 +112,8 @@ export function summarize(readings = []) {
 
 /** Keys the worker may use for the latency value, most specific first. */
 const MS_KEYS = [
+  'totalToFirstByte',
+  'TotalresponseTime',
   'ttfb',
   'ttfbMs',
   'ttfbTime',
@@ -168,7 +170,7 @@ function extractMetrics(source) {
   // `data`, while keeping only the region and headline TTFB on the outer row.
   const details = source.result ?? source.data ?? source.metrics ?? source;
   const fields = [
-    'totalToFirstByte', 'dns', 'tcp', 'tls', 'min', 'max', 'samples',
+    'totalToFirstByte', 'serverWait', 'ttfb', 'dns', 'tcp', 'tls', 'min', 'max', 'samples',
     'reliable', 'statusCode',
   ];
   return Object.fromEntries(
@@ -181,32 +183,56 @@ function extractMetrics(source) {
 /**
  * Normalize a `ttfbCompleted` socket payload into `[{ region, ms, ...metrics }]`.
  *
- * Intentionally defensive: the backend emits once per probe for `find`, and
- * once (or once per queue) for `findAll`, so the shape varies. Unknown shapes
- * resolve to an empty array and are ignored by the caller.
+ * `ttfb` represents the headline Time To First Byte (server wait/processing).
+ * `totalToFirstByte` represents full start-to-byte duration including DNS, TCP & TLS.
  */
 export function extractReadings(payload) {
-
- // console.log("rAW TTFB PAYLOAD ", payload)
   const list = pickArray(payload);
   if (list) {
     const readings = [];
     for (const item of list) {
-      const ms = pickMs(item);
+      const detailSource = item?.result ?? item?.data ?? item?.metrics ?? item;
+      const rawWait = detailSource?.ttfb ?? detailSource?.serverWait ?? detailSource?.ttfbMs ?? item?.ttfb ?? item?.serverWait ?? item?.ttfbMs;
+      const rawTotal = detailSource?.totalToFirstByte ?? item?.totalToFirstByte;
+      const ttfb = rawWait != null && Number.isFinite(Number(rawWait)) ? Number(rawWait) : null;
+      const totalToFirstByte = rawTotal != null && Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : null;
+      const ms = ttfb != null ? ttfb : (totalToFirstByte != null ? totalToFirstByte : pickMs(item));
+      const serverWait = ttfb;
+
       if (ms != null) {
-        const detailSource = item?.result ?? item?.data ?? item?.metrics ?? item;
-        readings.push({ region: pickRegion(item), ms, ...extractMetrics(detailSource) });
+        readings.push({
+          region: pickRegion(item),
+          ms,
+          ttfb: ttfb ?? ms,
+          totalToFirstByte: totalToFirstByte ?? ms,
+          serverWait,
+          ...extractMetrics(detailSource),
+        });
       }
     }
     if (readings.length) return readings;
   }
 
   const nested = payload?.data ?? payload?.result ?? payload?.payload;
-  const ms = pickMs(payload) ?? pickMs(nested);
+  const detailSource = nested ?? payload;
+  const rawWait = detailSource?.ttfb ?? detailSource?.serverWait ?? detailSource?.ttfbMs ?? payload?.ttfb ?? payload?.serverWait ?? payload?.ttfbMs;
+  const rawTotal = detailSource?.totalToFirstByte ?? payload?.totalToFirstByte;
+  const ttfb = rawWait != null && Number.isFinite(Number(rawWait)) ? Number(rawWait) : null;
+  const totalToFirstByte = rawTotal != null && Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : null;
+  const ms = ttfb != null ? ttfb : (totalToFirstByte != null ? totalToFirstByte : (pickMs(detailSource) ?? pickMs(payload)));
+  const serverWait = ttfb;
+
   if (ms != null) {
     const region = pickRegion(payload, pickRegion(nested));
     const metrics = { ...extractMetrics(nested), ...extractMetrics(payload) };
-    return [{ region, ms, ...metrics }];
+    return [{
+      region,
+      ms,
+      ttfb: ttfb ?? ms,
+      totalToFirstByte: totalToFirstByte ?? ms,
+      serverWait,
+      ...metrics,
+    }];
   }
 
   return [];
@@ -227,18 +253,28 @@ const REGION_LABELS = new Map(
 /** Display label for a backend region key (`india` → `India`). */
 export function regionLabel(region) {
   if (!region) return 'Unknown';
-  if (region === ALL_REGIONS) return 'All regions';
-  return REGION_LABELS.get(String(region).toLowerCase()) || String(region);
+  const str = String(region).trim().toLowerCase();
+  if (str === ALL_REGIONS.toLowerCase() || str === 'all') return 'All regions';
+  return REGION_LABELS.get(str) || (str.charAt(0).toUpperCase() + str.slice(1));
 }
 
 /* ── DB Record Normalization ─────────────────────────────────────────── */
 
-/** Convert a raw MongoDB TTFB document into a UI measurement entry. */
+/** Convert a raw PostgreSQL/MongoDB TTFB document into a UI measurement entry. */
 export function normalizeDbEntry(doc) {
   if (!doc) return null;
-  const ms = doc.result?.ttfb != null ? Number(doc.result.ttfb) : null;
+  const id = doc.id ?? doc._id;
+  const rawWait = doc.result?.ttfb ?? doc.result?.serverWait ?? doc.result?.ttfbMs;
+  const rawTotal = doc.result?.totalToFirstByte;
+  const ttfb = rawWait != null && Number.isFinite(Number(rawWait)) ? Number(rawWait) : null;
+  const totalToFirstByte = rawTotal != null && Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : null;
+  const ms = ttfb != null ? ttfb : (totalToFirstByte != null ? totalToFirstByte : null);
+  const serverWait = ttfb;
+
   const metrics = doc.result ? {
-    totalToFirstByte: doc.result.totalToFirstByte,
+    ttfb: ttfb ?? ms,
+    totalToFirstByte: totalToFirstByte ?? ms,
+    serverWait,
     dns: doc.result.dns,
     tcp: doc.result.tcp,
     tls: doc.result.tls,
@@ -246,11 +282,12 @@ export function normalizeDbEntry(doc) {
     max: doc.result.max,
     samples: doc.result.samples,
     reliable: doc.result.reliable,
+    statusCode: doc.result.statusCode,
   } : {};
-  const readings = ms != null ? [{ region: doc.region, ms, statusCode: doc.result?.statusCode, ...metrics }] : [];
+  const readings = ms != null ? [{ region: doc.region, ms, ttfb: ttfb ?? ms, totalToFirstByte: totalToFirstByte ?? ms, serverWait, statusCode: doc.result?.statusCode, ...metrics }] : [];
   return {
-    id: doc._id,
-    dbId: doc._id,
+    id,
+    dbId: id,
     url: doc.url,
     region: doc.region,
     readings,
@@ -264,12 +301,13 @@ export function normalizeDbEntry(doc) {
   };
 }
 
-/** Group regional MongoDB records into unified multi-probe sessions. */
+/** Group regional records into unified multi-probe sessions. */
 export function groupDbRecords(records = []) {
   if (!Array.isArray(records) || !records.length) return [];
   const groups = [];
   for (const doc of records) {
     if (!doc) continue;
+    const docId = doc.id ?? doc._id;
     const docTime = new Date(doc.createdAt).getTime();
     const existing = groups.find((g) => {
       if (g.url !== doc.url) return false;
@@ -278,9 +316,17 @@ export function groupDbRecords(records = []) {
       return !g.readings.some((r) => r.region?.toLowerCase() === doc.region?.toLowerCase());
     });
 
-    const ms = doc.result?.ttfb != null ? Number(doc.result.ttfb) : null;
+    const rawWait = doc.result?.ttfb ?? doc.result?.serverWait ?? doc.result?.ttfbMs;
+    const rawTotal = doc.result?.totalToFirstByte;
+    const ttfb = rawWait != null && Number.isFinite(Number(rawWait)) ? Number(rawWait) : null;
+    const totalToFirstByte = rawTotal != null && Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : null;
+    const ms = ttfb != null ? ttfb : (totalToFirstByte != null ? totalToFirstByte : null);
+    const serverWait = ttfb;
+
     const metrics = doc.result ? {
-      totalToFirstByte: doc.result.totalToFirstByte,
+      ttfb: ttfb ?? ms,
+      totalToFirstByte: totalToFirstByte ?? ms,
+      serverWait,
       dns: doc.result.dns,
       tcp: doc.result.tcp,
       tls: doc.result.tls,
@@ -288,8 +334,9 @@ export function groupDbRecords(records = []) {
       max: doc.result.max,
       samples: doc.result.samples,
       reliable: doc.result.reliable,
+      statusCode: doc.result.statusCode,
     } : {};
-    const reading = ms != null ? { region: doc.region, ms, statusCode: doc.result?.statusCode, ...metrics } : null;
+    const reading = ms != null ? { region: doc.region, ms, ttfb: ttfb ?? ms, totalToFirstByte: totalToFirstByte ?? ms, serverWait, statusCode: doc.result?.statusCode, ...metrics } : null;
 
     if (existing) {
       if (reading) existing.readings.push(reading);
@@ -298,14 +345,14 @@ export function groupDbRecords(records = []) {
       existing.avg = sums.avg;
       existing.fastest = sums.fastest;
       existing.slowest = sums.slowest;
-      existing.docIds.push(doc._id);
+      if (docId) existing.docIds.push(docId);
       if (doc.status === 'failed') existing.status = 'failed';
     } else {
       const readings = reading ? [reading] : [];
       groups.push({
-        id: doc._id,
-        dbId: doc._id,
-        docIds: [doc._id],
+        id: docId,
+        dbId: docId,
+        docIds: docId ? [docId] : [],
         url: doc.url,
         region: doc.region,
         readings,
@@ -321,4 +368,53 @@ export function groupDbRecords(records = []) {
   }
   return groups;
 }
+
+/**
+ * Builds user-friendly headline and subtitle sentence matching Image 1:
+ * "chatgpt.com responds fast"
+ * "Time to first byte is 18 ms — excellent response time."
+ */
+export function buildTtfbHeadlineAndSubtitle(url, avgMs, regionCount = 3) {
+  let hostname;
+  try {
+    const parsed = new URL(normalizeUrl(url));
+    hostname = parsed.hostname.replace(/^www\./i, '');
+  } catch {
+    hostname = String(url || '')
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/.*$/, '')
+      .replace(/^www\./i, '') || 'Target site';
+  }
+
+  const n = Number(avgMs);
+  let statusPhrase;
+  let qualityClause;
+
+  if (!Number.isFinite(n) || n == null) {
+    statusPhrase = 'response recorded';
+    qualityClause = 'latency verified across probe locations.';
+  } else if (n <= 150) {
+    statusPhrase = 'responds fast';
+    qualityClause = regionCount > 1 ? 'excellent everywhere we checked.' : 'excellent response time.';
+  } else if (n <= 350) {
+    statusPhrase = 'responds moderately';
+    qualityClause = regionCount > 1 ? 'good performance across most regions.' : 'good response time.';
+  } else if (n <= 700) {
+    statusPhrase = 'shows moderate latency';
+    qualityClause = 'could be improved with CDN edge caching.';
+  } else {
+    statusPhrase = 'responds slowly';
+    qualityClause = regionCount > 1 ? 'high response time detected across probes.' : 'high response time detected.';
+  }
+
+  const headline = `${hostname} ${statusPhrase}`;
+  const subtitle = Number.isFinite(n) && n != null
+    ? (regionCount > 1
+        ? `Average time to first byte is ${Math.round(n)} ms — ${qualityClause}`
+        : `Time to first byte is ${Math.round(n)} ms — ${qualityClause}`)
+    : `Time to first byte recorded — ${qualityClause}`;
+
+  return { hostname, headline, subtitle };
+}
+
 

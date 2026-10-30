@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { ADMIN_ROLES, ROUTES } from '../constants';
+import { ADMIN_ROLES, SUPER_ADMIN_ROLES, ROUTES } from '../constants';
 import { useAuthState } from '../context/AuthContext';
 import FullScreenLoader from '../components/FullScreenLoader';
 
@@ -60,6 +60,26 @@ export function AdminRoute({ children }) {
 
   if (!isAllowed) {
     return <Navigate to={ROUTES.HOME} replace />;
+  }
+
+  return children;
+}
+
+/** SuperAdmin-only area: requires an authenticated user with SuperAdmin role. */
+export function SuperAdminRoute({ children }) {
+  const { user, isAuthenticated, loading, location } = useAuthGate();
+
+  if (loading) return <FullScreenLoader label="Checking session…" />;
+
+  if (!isAuthenticated) {
+    return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
+  }
+
+  const role = (user?.role || '').toLowerCase();
+  const isSuper = role === 'superadmin' || role === 'super_admin' || SUPER_ADMIN_ROLES.includes(user?.role);
+
+  if (!isSuper) {
+    return <Navigate to={ROUTES.ADMIN} replace />;
   }
 
   return children;

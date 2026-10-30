@@ -19,6 +19,7 @@ export function ThemeProvider({ children }) {
       const stored = localStorage.getItem(STORAGE_KEYS.THEME);
       if (stored === THEMES.DARK || stored === THEMES.LIGHT) {
         if (stored !== THEMES.DARK) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- Client mount sync
           setTheme(stored);
         }
       } else {
@@ -35,6 +36,11 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-theme', theme);
+      if (theme === THEMES.DARK) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     }
     try {
       if (typeof window !== 'undefined' && window.localStorage) {

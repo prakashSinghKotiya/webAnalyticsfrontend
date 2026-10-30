@@ -168,7 +168,14 @@ function LoginForm() {
         label="Password"
         id="password"
         error={errors.password}
-        right={<span className="text-xs text-[var(--cyan)] cursor-pointer hover:underline">Forgot password?</span>}
+        right={
+          <Link
+            to={ROUTES.FORGOT_PASSWORD}
+            className="text-xs text-[var(--cyan)] cursor-pointer hover:underline"
+          >
+            Forgot password?
+          </Link>
+        }
       >
         <PasswordInput
           id="password"

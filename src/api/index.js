@@ -2,13 +2,26 @@
 export { sendOtp, verifyOtp, loginWithGoogle } from './auth';
 
 // User API
-export { registerUser, loginUser, logoutUser, getUserDetails } from './user';
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  getUserDetails,
+  forgotPassword,
+  resetPassword,
+  sendForgotPasswordOtp,
+} from './user';
 
 // Admin API
 export {
   getAllUsers,
   forceLogoutUser,
   deleteUser,
+  promoteUserToAdmin,
+  demoteAdminToUser,
+  updateUserRole,
+  getUserRole,
+  getRoleAuditLogs,
   getAdminMonitorStats,
   getAdminMonitors,
   getAdminMonitorIncidents,
@@ -117,9 +130,19 @@ export {
   emitCatchup,
   resetSocketAuth,
   SOCKET_URL,
+  PROD_SOCKET_URL,
+  DEV_SOCKET_URL,
   EMIT,
   ON,
 } from './socket';
 
 // Axios instances
-export { axiosWithCreds, axiosWithoutCreds, api } from './axiosInstance';
+export {
+  axiosWithCreds,
+  axiosWithoutCreds,
+  api,
+  BASE_URL,
+  PROD_API_URL,
+  DEV_API_URL,
+  getApiBaseUrl,
+} from './axiosInstance';

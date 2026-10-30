@@ -12,7 +12,7 @@ function AdminMonitorBulkModal({
   onConfirm,
   loading = false,
 }) {
-  const [selectedInterval, setSelectedInterval] = useState('5m');
+  const [selectedInterval, setSelectedInterval] = useState('15m');
   const [olderThanDays, setOlderThanDays] = useState('all'); // 'all' | '7' | '30'
 
   if (!open) return null;
@@ -104,9 +104,9 @@ function AdminMonitorBulkModal({
                 onChange={(e) => setSelectedInterval(e.target.value)}
                 className="w-full cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] p-2.5 text-xs text-[var(--text)] outline-none focus:border-[var(--cyan)]"
               >
-                <option value="1m">1 minute (high frequency)</option>
-                <option value="5m">5 minutes (standard)</option>
-                <option value="10m">10 minutes</option>
+                <option value="1m" disabled>🔒 1 minute (Coming soon)</option>
+                <option value="5m" disabled>🔒 5 minutes (Coming soon)</option>
+                <option value="15m">15 minutes (Default)</option>
                 <option value="30m">30 minutes</option>
                 <option value="1h">1 hour</option>
               </select>

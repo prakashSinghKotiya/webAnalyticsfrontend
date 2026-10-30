@@ -85,7 +85,7 @@ function AdminMonitorFilters({
             <option value="all">All Frequencies</option>
             <option value="1m">1 Min Frequency</option>
             <option value="5m">5 Min Frequency</option>
-            <option value="10m">10 Min Frequency</option>
+            <option value="15m">15 Min Frequency</option>
             <option value="30m">30 Min Frequency</option>
             <option value="1h">1 Hour Frequency</option>
           </select>

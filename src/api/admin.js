@@ -4,11 +4,23 @@ import { axiosWithCreds } from "./axiosInstance";
 // USER ACCOUNT RBAC API
 // ==========================================
 
-// Admin: Get all users (paginated with optional search)
-export const getAllUsers = async (page = 1, limit = 10, search = '') => {
+// Admin: Get all users (paginated with optional search & filters)
+export const getAllUsers = async (page = 1, limit = 10, search = '', filters = {}) => {
   const params = { page, limit };
   if (search && search.trim()) {
     params.search = search.trim();
+  }
+  if (filters?.role && filters.role !== 'all') {
+    params.role = filters.role;
+  }
+  if (filters?.plan && filters.plan !== 'all') {
+    params.plan = filters.plan;
+  }
+  if (filters?.sortBy) {
+    params.sortBy = filters.sortBy;
+  }
+  if (filters?.sortOrder) {
+    params.sortOrder = filters.sortOrder;
   }
   const { data } = await axiosWithCreds.get("/admin/getusers", {
     params,
@@ -18,13 +30,64 @@ export const getAllUsers = async (page = 1, limit = 10, search = '') => {
 
 // Admin: Force logout a user
 export const forceLogoutUser = async (userId) => {
-  const { data } = await axiosWithCreds.post(`/admin/${userId}/logout`);
-  return data;
+  const cleanId = encodeURIComponent(String(userId));
+  try {
+    const { data } = await axiosWithCreds.post(`/admin/users/${cleanId}/logout`);
+    return data;
+  } catch {
+    const { data } = await axiosWithCreds.post(`/admin/${cleanId}/logout`);
+    return data;
+  }
 };
 
 // Admin: Soft delete a user
 export const deleteUser = async (userId) => {
-  const { data } = await axiosWithCreds.post(`/admin/${userId}`);
+  const cleanId = encodeURIComponent(String(userId));
+  try {
+    const { data } = await axiosWithCreds.delete(`/admin/users/${cleanId}`);
+    return data;
+  } catch {
+    const { data } = await axiosWithCreds.post(`/admin/${cleanId}`);
+    return data;
+  }
+};
+
+// ==========================================
+// SUPER_ADMIN EXCLUSIVE ROLE MANAGEMENT API
+// ==========================================
+
+// SuperAdmin: Promote a regular user to Admin
+export const promoteUserToAdmin = async (userId) => {
+  const cleanId = encodeURIComponent(String(userId));
+  const { data } = await axiosWithCreds.post(`/admin/users/${cleanId}/promote`);
+  return data;
+};
+
+// SuperAdmin: Demote an Admin to regular User (revokes sessions and disconnects sockets)
+export const demoteAdminToUser = async (userId) => {
+  const cleanId = encodeURIComponent(String(userId));
+  const { data } = await axiosWithCreds.post(`/admin/users/${cleanId}/demote`);
+  return data;
+};
+
+// SuperAdmin: RESTful role update ('Admin' or 'User')
+export const updateUserRole = async (userId, role) => {
+  const cleanId = encodeURIComponent(String(userId));
+  const { data } = await axiosWithCreds.patch(`/admin/users/${cleanId}/role`, { role });
+  return data;
+};
+
+// SuperAdmin & Admin: Inspect user role details
+export const getUserRole = async (userId) => {
+  const cleanId = encodeURIComponent(String(userId));
+  const { data } = await axiosWithCreds.get(`/admin/users/${cleanId}/role`);
+  return data;
+};
+
+// SuperAdmin: Retrieve role change audit log telemetry
+export const getRoleAuditLogs = async (page = 1, limit = 20) => {
+  const params = { page, limit };
+  const { data } = await axiosWithCreds.get("/admin/audit-logs", { params });
   return data;
 };
 
@@ -72,7 +135,7 @@ export const getAdminMonitorDetails = async (id) => {
 };
 
 // 5. Admin provision / create a new monitor
-export const adminCreateMonitor = async ({ url, interval = "5m", userId }) => {
+export const adminCreateMonitor = async ({ url, interval = "15m", userId }) => {
   const { data } = await axiosWithCreds.post("/admin/monitors", {
     url,
     interval,

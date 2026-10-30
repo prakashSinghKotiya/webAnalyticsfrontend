@@ -4,6 +4,9 @@ import Logo from './Logo';
 import { I, TOOL_GROUPS } from './navConfig.jsx';
 
 export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin }) {
+  const roleLower = (user?.role || '').toLowerCase();
+  const isSuper = roleLower === 'superadmin' || roleLower === 'super_admin';
+
   const handleNav = (callback) => {
     if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -89,12 +92,18 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
                 onClick={() => handleNav()}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm no-underline transition ${
-                    isActive ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]' : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
+                    isActive
+                      ? isSuper
+                        ? 'bg-purple-500/20 font-semibold text-purple-300'
+                        : 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
+                      : isSuper
+                      ? 'text-purple-400 hover:bg-purple-500/10'
+                      : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
                   }`
                 }
               >
                 {I.shield}
-                Admin Panel
+                {isSuper ? 'SuperAdmin Panel' : 'Admin Panel'}
               </NavLink>
             </div>
           )}
@@ -109,11 +118,15 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
               <p className="truncate text-sm font-semibold text-[var(--text)]">{user?.name || 'Account'}</p>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="font-['JetBrains_Mono',monospace] truncate text-[10px] text-[var(--muted)]">{user?.plan || 'free'} plan</p>
-                {isAdmin && (
+                {isSuper ? (
+                  <span className="font-['JetBrains_Mono',monospace] rounded-full border border-purple-500/40 bg-purple-500/15 px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-wider text-purple-400">
+                    SuperAdmin
+                  </span>
+                ) : isAdmin ? (
                   <span className="font-['JetBrains_Mono',monospace] rounded-full border border-[var(--cyan)]/30 bg-[var(--cyan-dim)] px-1.5 py-0.2 text-[8px] uppercase tracking-wider text-[var(--cyan)]">
                     {user?.role || 'Admin'}
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -124,13 +137,17 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
               className={({ isActive }) =>
                 `mb-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium no-underline transition ${
                   isActive
-                    ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
+                    ? isSuper
+                      ? 'bg-purple-500/20 font-semibold text-purple-300'
+                      : 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
+                    : isSuper
+                    ? 'text-purple-400 hover:bg-purple-500/10'
                     : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
                 }`
               }
             >
               {I.shield}
-              Admin Panel
+              {isSuper ? 'SuperAdmin Panel' : 'Admin Panel'}
             </NavLink>
           )}
           <button

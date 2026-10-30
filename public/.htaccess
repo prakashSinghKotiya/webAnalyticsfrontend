@@ -60,6 +60,26 @@ DirectorySlash Off
   # Backward Compatibility Redirects -> Canonical Slugs (301 with QSA)
   # Strictly for frontend domain on GET requests (never API or OPTIONS/POST)
   # ----------------------------------------------------------------------
+  # Underscore aliases redirected to canonical hyphenated slugs
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^ttfb_test/?$ /ttfb-test [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^fullsite_report/?$ /fullsite-report [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^dns_checker/?$ /dns-checker [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^redirection_checker/?$ /redirection-checker [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^whois_lookup/?$ /whois-lookup [R=301,QSA,L]
   RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
   RewriteCond %{REQUEST_METHOD} =GET
   RewriteRule ^demo/?$ /ttfb-test [R=301,QSA,L]

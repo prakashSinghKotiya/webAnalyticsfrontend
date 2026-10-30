@@ -196,7 +196,7 @@ function RedirectHealthInsights({ chain, inputUrl, finalUrl }) {
 
 /* ── Main Result Section (Section 2) ─────────────────────────────────────── */
 
-function RedirectResultSection({ result, isChecking, error, onReRun, isDemo = false }) {
+function RedirectResultSection({ result, isChecking, error, onReRun }) {
   // Active checking state
   if (isChecking) {
     return (

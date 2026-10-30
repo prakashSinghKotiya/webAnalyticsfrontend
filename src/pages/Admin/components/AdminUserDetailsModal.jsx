@@ -6,6 +6,13 @@ import {
   getPlanBadgeConfig,
   getUserInitials,
   copyToClipboard,
+  canPromoteToAdmin,
+  canDemoteToUser,
+  canDeleteUser,
+  canForceLogoutUser,
+  getDeleteRestrictionReason,
+  getForceLogoutRestrictionReason,
+  isSuperAdmin,
 } from '../admin.utils';
 
 export default function AdminUserDetailsModal({
@@ -14,6 +21,8 @@ export default function AdminUserDetailsModal({
   onClose,
   onPromptForceLogout,
   onPromptDeleteUser,
+  onPromptPromoteUser,
+  onPromptDemoteUser,
   actionInProgress,
 }) {
   const [copiedKey, setCopiedKey] = useState(null);
@@ -29,11 +38,20 @@ export default function AdminUserDetailsModal({
   if (!user) return null;
 
   const uId = getUserId(user);
-  const isSelf = currentUser && getUserId(currentUser) === uId;
+  const isSelf = Boolean(currentUser && String(getUserId(currentUser)) === String(uId));
   const roleBadge = getRoleBadgeConfig(user.role);
-  const planBadge = getPlanBadgeConfig(user.plan);
+  const planBadge = getPlanBadgeConfig(user.plan || user.plans);
   const initials = getUserInitials(user.name);
   const isActionBusy = actionInProgress[uId];
+
+  const canPromote = canPromoteToAdmin(currentUser, user);
+  const canDemote = canDemoteToUser(currentUser, user);
+  const canDelete = canDeleteUser(currentUser, user);
+  const deleteReason = getDeleteRestrictionReason(currentUser, user);
+  const canLogout = canForceLogoutUser(currentUser, user);
+  const logoutReason = getForceLogoutRestrictionReason(currentUser, user);
+  const isTargetSuper = (user.role || '').toLowerCase() === 'superadmin';
+  const currentUserIsSuper = isSuperAdmin(currentUser);
 
   const handleCopy = async (text, key) => {
     const ok = await copyToClipboard(text);
@@ -104,6 +122,11 @@ export default function AdminUserDetailsModal({
                 <span
                   className={`font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${roleBadge.className}`}
                 >
+                  {roleBadge.isSuperAdmin && (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" className="text-purple-400">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                  )}
                   <span className={`h-1.5 w-1.5 rounded-full ${roleBadge.indicator}`} />
                   {roleBadge.label}
                 </span>
@@ -172,15 +195,73 @@ export default function AdminUserDetailsModal({
                 Security Status
               </span>
               <p className="font-['JetBrains_Mono',monospace] text-[var(--text)] truncate">
-                {user.isDeleted ? 'Soft-deleted' : 'Active Account'}
+                {(user.deleted || user.isDeleted) ? 'Soft-deleted' : 'Active Account'}
               </p>
             </div>
           </div>
 
+          {/* SuperAdmin Role Administration Panel */}
+          {currentUserIsSuper && !isSelf && (
+            <div className="rounded-xl border border-purple-500/25 bg-purple-500/5 p-3.5 space-y-2">
+              <div className="flex items-center gap-1.5 text-purple-400">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span className="font-['JetBrains_Mono',monospace] text-[11px] font-bold uppercase tracking-wider">
+                  SuperAdmin Role Authority
+                </span>
+              </div>
+
+              {canPromote && (
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <p className="text-xs text-[var(--muted-2)]">
+                    Elevate this regular user to Admin status.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onPromptPromoteUser && onPromptPromoteUser(user);
+                    }}
+                    disabled={isActionBusy}
+                    className="cursor-pointer rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/25 transition disabled:opacity-40"
+                  >
+                    Promote to Admin
+                  </button>
+                </div>
+              )}
+
+              {canDemote && (
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <p className="text-xs text-[var(--muted-2)]">
+                    Demote this Admin to regular User and invalidate active sessions.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onPromptDemoteUser && onPromptDemoteUser(user);
+                    }}
+                    disabled={isActionBusy}
+                    className="cursor-pointer rounded-xl border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/25 transition disabled:opacity-40"
+                  >
+                    Demote to User
+                  </button>
+                </div>
+              )}
+
+              {isTargetSuper && (
+                <p className="text-xs text-purple-300">
+                  This user is a Root SuperAdmin. SuperAdmins cannot be demoted or deleted via API. Use server CLI provisioning for adjustments.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Quick Admin Actions */}
           <div className="pt-2">
             <p className="font-['JetBrains_Mono',monospace] mb-2 text-[10px] uppercase tracking-wider text-[var(--muted)]">
-              Administrative Actions
+              Session & Account Controls
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
@@ -189,8 +270,9 @@ export default function AdminUserDetailsModal({
                   onClose();
                   onPromptForceLogout(user);
                 }}
-                disabled={isSelf || isActionBusy}
-                className="flex-1 cursor-pointer rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-xs font-semibold text-orange-400 transition hover:bg-orange-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={!canLogout || isActionBusy}
+                className="flex-1 cursor-pointer rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-xs font-semibold text-orange-400 transition hover:bg-orange-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                title={logoutReason}
               >
                 Force Terminate Session
               </button>
@@ -201,15 +283,21 @@ export default function AdminUserDetailsModal({
                   onClose();
                   onPromptDeleteUser(user);
                 }}
-                disabled={isSelf || isActionBusy}
-                className="flex-1 cursor-pointer rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={!canDelete || isActionBusy}
+                className="flex-1 cursor-pointer rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                title={deleteReason}
               >
-                Delete / Suspend User
+                Delete User Account
               </button>
             </div>
             {isSelf && (
               <p className="mt-2 text-center text-[11px] text-[var(--muted)]">
                 Actions are disabled because this is your currently logged-in account.
+              </p>
+            )}
+            {!isSelf && (!canDelete || !canLogout) && (
+              <p className="mt-2 text-center text-[11px] text-[var(--muted)]">
+                {deleteReason || logoutReason}
               </p>
             )}
           </div>

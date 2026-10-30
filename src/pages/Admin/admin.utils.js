@@ -3,11 +3,210 @@
  */
 
 /**
+ * Check if a user has SuperAdmin role.
+ */
+export function isSuperAdmin(user) {
+  if (!user) return false;
+  const role = (typeof user === 'string' ? user : user.role || '').toLowerCase();
+  return role === 'superadmin' || role === 'super_admin';
+}
+
+/**
+ * Check if a user has Admin or SuperAdmin role.
+ */
+export function isAdmin(user) {
+  if (!user) return false;
+  const role = (typeof user === 'string' ? user : user.role || '').toLowerCase();
+  return role === 'admin' || role === 'superadmin' || role === 'super_admin';
+}
+
+/**
+ * Determines whether currentUser has permission to promote targetUser to Admin.
+ * Only SuperAdmins can promote Users to Admin. Self-promotion and deleted users prohibited.
+ */
+export function canPromoteToAdmin(currentUser, targetUser) {
+  if (!isSuperAdmin(currentUser) || !targetUser) return false;
+  const currentId = getUserId(currentUser);
+  const targetId = getUserId(targetUser);
+  if (currentId && targetId && String(currentId) === String(targetId)) return false;
+  if (targetUser.deleted || targetUser.isDeleted) return false;
+  const targetRole = (targetUser.role || 'User').toLowerCase();
+  return targetRole === 'user';
+}
+
+/**
+ * Determines whether currentUser has permission to demote targetUser to regular User.
+ * Only SuperAdmins can demote Admins to User. SuperAdmins cannot be demoted via API.
+ */
+export function canDemoteToUser(currentUser, targetUser) {
+  if (!isSuperAdmin(currentUser) || !targetUser) return false;
+  const currentId = getUserId(currentUser);
+  const targetId = getUserId(targetUser);
+  if (currentId && targetId && String(currentId) === String(targetId)) return false;
+  if (targetUser.deleted || targetUser.isDeleted) return false;
+  const targetRole = (targetUser.role || '').toLowerCase();
+  return targetRole === 'admin';
+}
+
+/**
+ * Determines whether currentUser has permission to delete targetUser.
+ * Boundaries:
+ * - Cannot delete self
+ * - SuperAdmins cannot be deleted via admin endpoints (neither by Admin nor SuperAdmin)
+ * - Regular Admin cannot delete other Admins
+ * - SuperAdmin can delete regular Users and Admins
+ */
+export function canDeleteUser(currentUser, targetUser) {
+  if (!currentUser || !targetUser) return false;
+  const currentId = getUserId(currentUser);
+  const targetId = getUserId(targetUser);
+  if (currentId && targetId && String(currentId) === String(targetId)) return false;
+  if (targetUser.deleted || targetUser.isDeleted) return false;
+
+  const targetRole = (targetUser.role || 'User').toLowerCase();
+  // SuperAdmin accounts cannot be deleted through ordinary endpoints
+  if (targetRole === 'superadmin' || targetRole === 'super_admin') return false;
+
+  // If target is Admin, only SuperAdmin can delete
+  if (targetRole === 'admin') {
+    return isSuperAdmin(currentUser);
+  }
+
+  // Regular Users can be deleted by Admin or SuperAdmin
+  return isAdmin(currentUser);
+}
+
+/**
+ * Reason why a user cannot be deleted, for helpful tooltips.
+ */
+export function getDeleteRestrictionReason(currentUser, targetUser) {
+  if (!currentUser || !targetUser) return '';
+  const currentId = getUserId(currentUser);
+  const targetId = getUserId(targetUser);
+  if (currentId && targetId && String(currentId) === String(targetId)) {
+    return 'You cannot delete your own account.';
+  }
+  const targetRole = (targetUser.role || 'User').toLowerCase();
+  if (targetRole === 'superadmin' || targetRole === 'super_admin') {
+    return 'SuperAdmin accounts are immutable and cannot be deleted via API.';
+  }
+  if (targetRole === 'admin' && !isSuperAdmin(currentUser)) {
+    return 'Admins cannot delete peer Admin accounts. SuperAdmin authority required.';
+  }
+  return '';
+}
+
+/**
+ * Determines whether currentUser has permission to force logout targetUser.
+ * Boundaries:
+ * - Cannot force logout self (use standard logout)
+ * - Ordinary Admin cannot force logout a SuperAdmin or another Admin
+ * - SuperAdmin can force logout anyone (Users and Admins)
+ */
+export function canForceLogoutUser(currentUser, targetUser) {
+  if (!currentUser || !targetUser) return false;
+  const currentId = getUserId(currentUser);
+  const targetId = getUserId(targetUser);
+  if (currentId && targetId && String(currentId) === String(targetId)) return false;
+
+  const targetRole = (targetUser.role || 'User').toLowerCase();
+  if (targetRole === 'superadmin' || targetRole === 'super_admin') {
+    return isSuperAdmin(currentUser);
+  }
+  if (targetRole === 'admin') {
+    return isSuperAdmin(currentUser);
+  }
+  return isAdmin(currentUser);
+}
+
+/**
+ * Reason why a user cannot be force-logged-out, for helpful tooltips.
+ */
+export function getForceLogoutRestrictionReason(currentUser, targetUser) {
+  if (!currentUser || !targetUser) return '';
+  const currentId = getUserId(currentUser);
+  const targetId = getUserId(targetUser);
+  if (currentId && targetId && String(currentId) === String(targetId)) {
+    return 'You cannot force logout your own active session.';
+  }
+  const targetRole = (targetUser.role || 'User').toLowerCase();
+  if (targetRole === 'superadmin' && !isSuperAdmin(currentUser)) {
+    return 'Admins cannot force logout a SuperAdmin.';
+  }
+  if (targetRole === 'admin' && !isSuperAdmin(currentUser)) {
+    return 'Admins cannot force logout peer Admin accounts. SuperAdmin authority required.';
+  }
+  return '';
+}
+
+/**
+ * Get badge styling for role audit log action strings.
+ */
+export function getActionBadgeConfig(action) {
+  const normalized = (action || '').toUpperCase();
+  switch (normalized) {
+    case 'PROMOTE_TO_ADMIN':
+      return {
+        label: 'Promoted To Admin',
+        className: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+        icon: '↑',
+      };
+    case 'DEMOTE_TO_USER':
+      return {
+        label: 'Demoted To User',
+        className: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+        icon: '↓',
+      };
+    case 'CLI_PROVISION':
+      return {
+        label: 'CLI Provision',
+        className: 'bg-purple-500/15 text-purple-400 border border-purple-500/30',
+        icon: '★',
+      };
+    case 'DELETE_USER':
+      return {
+        label: 'User Deleted',
+        className: 'bg-red-500/15 text-red-400 border border-red-500/30',
+        icon: '✕',
+      };
+    case 'FORCE_LOGOUT':
+      return {
+        label: 'Force Logout',
+        className: 'bg-orange-500/15 text-orange-400 border border-orange-500/30',
+        icon: '⏻',
+      };
+    default:
+      return {
+        label: action || 'Action',
+        className: 'bg-[var(--surface-3)] text-[var(--muted-2)] border border-[var(--border)]',
+        icon: '•',
+      };
+  }
+}
+
+/**
  * Extract user ID safely across MongoDB _id or standard id.
+ * Always returns a clean string representation.
  */
 export function getUserId(user) {
-  if (!user) return '';
-  return user._id || user.id || '';
+  if (user === null || user === undefined) return '';
+  if (typeof user === 'string' || typeof user === 'number') return String(user);
+  const id = user.id ?? user._id ?? user.userId;
+  return id != null ? String(id) : '';
+}
+
+/**
+ * Safely format user ID for display.
+ * For long identifiers (e.g. MongoDB ObjectIds, UUIDs) shows the tail.
+ * For numeric IDs (e.g. 1, 42) shows the complete integer ID.
+ */
+export function formatUserId(id) {
+  if (id === null || id === undefined || id === '') return 'No ID';
+  const str = String(id);
+  if (str.length > 8) {
+    return `ID: …${str.slice(-6)}`;
+  }
+  return `ID: ${str}`;
 }
 
 /**
@@ -56,11 +255,13 @@ export function getRoleBadgeConfig(role) {
 
   switch (normalized) {
     case 'superadmin':
+    case 'super_admin':
       return {
         label: 'SuperAdmin',
         className: 'bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.15)]',
-        indicator: 'bg-purple-400',
+        indicator: 'bg-purple-400 animate-pulse',
         isPrivileged: true,
+        isSuperAdmin: true,
       };
     case 'admin':
       return {
@@ -68,6 +269,7 @@ export function getRoleBadgeConfig(role) {
         className: 'bg-[var(--cyan-dim)] text-[var(--cyan)] border border-[var(--cyan)]/35 shadow-[0_0_10px_var(--cyan-dim)]',
         indicator: 'bg-[var(--cyan)]',
         isPrivileged: true,
+        isSuperAdmin: false,
       };
     default:
       return {
@@ -81,8 +283,13 @@ export function getRoleBadgeConfig(role) {
 
 /**
  * Get badge properties for subscription / usage plan.
+ * Accepts either plan string or user object.
  */
-export function getPlanBadgeConfig(plan) {
+export function getPlanBadgeConfig(planOrUser) {
+  const plan =
+    typeof planOrUser === 'object' && planOrUser !== null
+      ? planOrUser.plan || planOrUser.plans
+      : planOrUser;
   const normalized = (plan || 'free').toLowerCase();
 
   switch (normalized) {
@@ -109,7 +316,8 @@ export function getPlanBadgeConfig(plan) {
  */
 export function getUserInitials(name) {
   if (!name || typeof name !== 'string') return 'U';
-  const parts = name.trim().split(/\s+/);
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'U';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
@@ -152,7 +360,7 @@ export function exportUsersToCsv(users, filename = 'users-export.csv') {
     `"${(u.name || '').replace(/"/g, '""')}"`,
     `"${(u.email || '').replace(/"/g, '""')}"`,
     `"${u.role || 'User'}"`,
-    `"${u.plan || 'free'}"`,
+    `"${u.plan || u.plans || 'free'}"`,
     `"${u.createdAt || ''}"`,
   ]);
 
@@ -270,11 +478,12 @@ export function formatIntervalLabel(interval) {
   const map = {
     '1m': 'Every 1 min',
     '5m': 'Every 5 mins',
-    '10m': 'Every 10 mins',
+    '10m': 'Every 15 mins',
+    '15m': 'Every 15 mins',
     '30m': 'Every 30 mins',
     '1h': 'Every 1 hour',
   };
-  return map[interval] || interval || '5m';
+  return map[interval] || interval || '15m';
 }
 
 /**

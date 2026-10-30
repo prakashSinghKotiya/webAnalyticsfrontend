@@ -1,4 +1,5 @@
 import { useSocket } from '../../../context';
+import { isSuperAdmin } from '../admin.utils';
 
 export default function AdminHeader({
   currentUser,
@@ -8,22 +9,32 @@ export default function AdminHeader({
   totalUsers,
 }) {
   const { isConnected } = useSocket();
+  const isSuper = isSuperAdmin(currentUser);
 
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       {/* Title & Badge */}
       <div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <h1 className="font-['Outfit',sans-serif] text-2xl font-bold tracking-tight text-[var(--text)] sm:text-3xl">
-            Admin Dashboard
+            {isSuper ? 'SuperAdmin Control Plane' : 'Admin Dashboard'}
           </h1>
-          <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full border border-[var(--cyan)]/35 bg-[var(--cyan-dim)] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cyan)] shadow-[0_0_12px_var(--cyan-dim)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--cyan)] animate-pulse" />
-            Privileged
-          </span>
+          {isSuper ? (
+            <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-400 shadow-[0_0_14px_rgba(168,85,247,0.25)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+              SuperAdmin • Root Authority
+            </span>
+          ) : (
+            <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full border border-[var(--cyan)]/35 bg-[var(--cyan-dim)] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cyan)] shadow-[0_0_12px_var(--cyan-dim)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--cyan)] animate-pulse" />
+              Privileged
+            </span>
+          )}
         </div>
         <p className="mt-1 text-sm text-[var(--muted-2)]">
-          Manage platform accounts, monitor user sessions, and inspect system telemetry.
+          {isSuper
+            ? 'Full system telemetry, monitor orchestration, and exclusive user role administration (Promote & Demote).'
+            : 'Manage platform accounts, monitor user sessions, and inspect system telemetry.'}
         </p>
       </div>
 

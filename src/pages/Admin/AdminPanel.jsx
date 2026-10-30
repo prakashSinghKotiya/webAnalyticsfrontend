@@ -51,14 +51,28 @@ export default function AdminPanel() {
     confirmModal,
     promptForceLogout,
     promptDeleteUser,
+    promptPromoteUser,
+    promptDemoteUser,
     closeConfirmModal,
     handleForceLogout,
     handleDeleteUser,
+    handlePromoteUser,
+    handleDemoteUser,
     inspectUser,
     setInspectUser,
     auditLogs,
     handleRefresh,
     handleExportCsv,
+
+    // SuperAdmin Exclusive Role & Audit Log Telemetry
+    isSuperAdminUser,
+    serverAuditLogs,
+    serverAuditPagination,
+    serverAuditPage,
+    setServerAuditPage,
+    serverAuditLoading,
+    serverAuditError,
+    fetchServerAuditLogs,
 
     // Uptime Monitors RBAC
     monitors,
@@ -142,8 +156,8 @@ export default function AdminPanel() {
     },
     {
       id: 'audit',
-      label: 'Activity Audit',
-      count: auditLogs.length,
+      label: isSuperAdminUser ? 'Role & Security Audit' : 'Activity Audit',
+      count: isSuperAdminUser ? (serverAuditPagination?.total || 0) : auditLogs.length,
       icon: (
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -156,10 +170,13 @@ export default function AdminPanel() {
   const handleHeaderRefresh = useCallback(() => {
     if (activeTab === 'monitors') {
       handleRefreshMonitors();
+    } else if (activeTab === 'audit' && isSuperAdminUser) {
+      fetchServerAuditLogs(serverAuditPage);
+      handleRefresh();
     } else {
       handleRefresh();
     }
-  }, [activeTab, handleRefreshMonitors, handleRefresh]);
+  }, [activeTab, handleRefreshMonitors, handleRefresh, isSuperAdminUser, fetchServerAuditLogs, serverAuditPage]);
 
   const handleHeaderExport = useCallback(() => {
     if (activeTab === 'monitors') {
@@ -360,6 +377,8 @@ export default function AdminPanel() {
             onInspect={(target) => setInspectUser(target)}
             onPromptForceLogout={promptForceLogout}
             onPromptDeleteUser={promptDeleteUser}
+            onPromptPromoteUser={promptPromoteUser}
+            onPromptDemoteUser={promptDemoteUser}
             actionInProgress={actionInProgress}
             onResetFilters={() => {
               setSearchQuery('');
@@ -391,7 +410,17 @@ export default function AdminPanel() {
       {/* ── TAB 4: ACTIVITY AUDIT ──────────────────────────────────────── */}
       {activeTab === 'audit' && (
         <section>
-          <AdminAuditLogs auditLogs={auditLogs} />
+          <AdminAuditLogs
+            auditLogs={auditLogs}
+            isSuperAdminUser={isSuperAdminUser}
+            serverAuditLogs={serverAuditLogs}
+            serverAuditPagination={serverAuditPagination}
+            serverAuditPage={serverAuditPage}
+            onPageChange={setServerAuditPage}
+            serverAuditLoading={serverAuditLoading}
+            serverAuditError={serverAuditError}
+            onRefreshServerAudit={fetchServerAuditLogs}
+          />
         </section>
       )}
 
@@ -404,11 +433,13 @@ export default function AdminPanel() {
           onClose={() => setInspectUser(null)}
           onPromptForceLogout={promptForceLogout}
           onPromptDeleteUser={promptDeleteUser}
+          onPromptPromoteUser={promptPromoteUser}
+          onPromptDemoteUser={promptDemoteUser}
           actionInProgress={actionInProgress}
         />
       )}
 
-      {/* User Destructive Action Confirmation Modal */}
+      {/* User Destructive & Role Action Confirmation Modal */}
       {confirmModal.open && (
         <AdminConfirmModal
           open={confirmModal.open}
@@ -417,6 +448,8 @@ export default function AdminPanel() {
           onClose={closeConfirmModal}
           onConfirmLogout={handleForceLogout}
           onConfirmDelete={handleDeleteUser}
+          onConfirmPromote={handlePromoteUser}
+          onConfirmDemote={handleDemoteUser}
           isLoading={Boolean(
             confirmModal.user && actionInProgress[confirmModal.user?._id || confirmModal.user?.id]
           )}

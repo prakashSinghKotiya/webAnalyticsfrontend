@@ -33,8 +33,8 @@ export default function AdminStatsOverview({ stats }) {
     },
     {
       title: 'Privileged Staff',
-      value: stats.admins,
-      subtitle: 'Admins & SuperAdmins',
+      value: stats.totalStaff != null ? stats.totalStaff : stats.admins,
+      subtitle: `${stats.superAdmins || 0} SuperAdmin • ${stats.admins || 0} Admin`,
       color: '#a855f7',
       bgColor: 'rgba(168,85,247,0.12)',
       icon: (

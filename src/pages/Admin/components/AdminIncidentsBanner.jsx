@@ -75,7 +75,7 @@ function AdminIncidentsBanner({ incidents, onInspectMonitor, onFilterDown }) {
             const err = inc.lastResult?.error || inc.lastResult?.reason || 'Probe unreachable';
             return (
               <div
-                key={inc._id}
+                key={inc._id || inc.id}
                 className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-black/20 p-2.5 border border-red-500/20 hover:border-red-500/40 transition"
               >
                 <div className="flex items-center gap-2 overflow-hidden">

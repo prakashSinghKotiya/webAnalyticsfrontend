@@ -246,9 +246,14 @@ export default function useTTFB() {
 
         const job = isAll ? await findTTFBAllRegions(url) : await findTTFB(url, region);
 
-        const jobId = job?.jobId;
+        const jobId = job?.ttfbdbId || job?.jobId;
         const jobIds = isAll
-          ? (Array.isArray(job?.jobs) ? job.jobs.map((j) => j.jobId) : (Array.isArray(jobId) ? jobId : [jobId])).filter(Boolean)
+          ? (Array.isArray(job?.jobs)
+              ? job.jobs.map((j) => j.ttfbdbId || j.jobId)
+              : Array.isArray(jobId)
+              ? jobId
+              : [jobId]
+            ).filter(Boolean)
           : (jobId ? [jobId] : []);
 
         const expected = isAll
@@ -283,13 +288,25 @@ export default function useTTFB() {
                     return;
                   }
                   if (check.result) {
-                    const reading = {
-                      region: check.region || check.result.region || 'probe',
-                      ms: check.result.ttfbMs || check.result.ms || 0,
+                    const extracted = extractReadings(check)[0] || extractReadings(check.result)[0];
+                    const reading = extracted || {
+                      region: check.region || check.result?.region || 'probe',
+                      ms: check.result?.ttfb ?? check.result?.totalToFirstByte ?? 0,
+                      ttfb: check.result?.ttfb,
+                      totalToFirstByte: check.result?.totalToFirstByte,
                       raw: check.result,
                     };
-                    if (!pendingRef.current.readings.some((r) => r.region === reading.region)) {
+                    const key = reading.region.toLowerCase();
+                    const existingIndex = pendingRef.current.readings.findIndex(
+                      (r) => r.region.toLowerCase() === key,
+                    );
+                    if (existingIndex < 0) {
                       pendingRef.current.readings.push(reading);
+                    } else {
+                      pendingRef.current.readings[existingIndex] = {
+                        ...pendingRef.current.readings[existingIndex],
+                        ...reading,
+                      };
                     }
                     setProgress({
                       received: pendingRef.current.readings.length,

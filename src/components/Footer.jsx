@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants';
-import { getAppUrl, getLandingUrl } from '../utils/subdomainNav';
+import { getAppUrl } from '../utils/subdomainNav';
 import Logo from './Logo';
 
 /**

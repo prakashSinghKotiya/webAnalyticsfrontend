@@ -72,6 +72,66 @@ export function formatCleanDate(iso) {
   }
 }
 
+/**
+ * Formats ISO date into "Feb 17, 2009"
+ */
+export function formatMediumDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      const match = String(iso).match(/^\d{4}-\d{2}-\d{2}/);
+      if (match) {
+        const [y, m, day] = match[0].split('-');
+        const dateObj = new Date(Date.UTC(Number(y), Number(m) - 1, Number(day)));
+        return dateObj.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: 'UTC',
+        });
+      }
+      return String(iso);
+    }
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  } catch {
+    return String(iso);
+  }
+}
+
+/**
+ * Constructs user-friendly sentence summary matching Image 2:
+ * "Registered 17 years ago with Cloudflare, Inc. Renews in 2,311 days (Feb 17, 2033). Fully locked and DNSSEC signed."
+ */
+export function buildWhoisSentenceSummary({
+  domainAge,
+  registrarName,
+  daysRemaining,
+  expirationDate,
+  statuses = [],
+  isDnssecSigned = false,
+}) {
+  const agePart = domainAge ? `Registered ${domainAge} ago` : 'Registered';
+  const renewalDays = daysRemaining != null ? daysRemaining.toLocaleString('en-US') : null;
+  const renewalDate = expirationDate ? formatMediumDate(expirationDate) : null;
+  const isLocked = statuses.some((st) => /prohibited|lock/i.test(st));
+  const lockPart = isLocked ? 'Fully locked' : 'Standard status';
+  const dnssecPart = isDnssecSigned ? 'DNSSEC signed' : 'DNSSEC unsigned';
+
+  return {
+    agePart,
+    registrarName: registrarName || 'accredited registrar',
+    renewalDays,
+    renewalDate,
+    securitySummary: `${lockPart} and ${dnssecPart}.`,
+  };
+}
+
 export function cleanStatusString(statusCode) {
   if (!statusCode) return '';
   // Strip URL parts (e.g. "clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited" -> "clientDeleteProhibited")

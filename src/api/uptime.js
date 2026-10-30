@@ -1,11 +1,11 @@
 import { axiosWithCreds } from "./axiosInstance";
 
 export const UPTIME_INTERVALS = Object.freeze([
-  { value: '1m', label: '1 minute (high frequency)' },
-  { value: '5m', label: '5 minutes (recommended)' },
-  { value: '10m', label: '10 minutes' },
-  { value: '30m', label: '30 minutes' },
-  { value: '1h', label: '1 hour' },
+  { value: '1m', label: '1 minute (Coming soon)', disabled: true, locked: true },
+  { value: '5m', label: '5 minutes (Coming soon)', disabled: true, locked: true },
+  { value: '15m', label: '15 minutes (Default)', disabled: false, locked: false },
+  { value: '30m', label: '30 minutes', disabled: false, locked: false },
+  { value: '1h', label: '1 hour', disabled: false, locked: false },
 ]);
 
 export const UPTIME_STATUSES = Object.freeze({
@@ -20,7 +20,7 @@ export const getMonitors = async () => {
 };
 
 // Create new monitor
-export const createMonitor = async (url, interval = '5m') => {
+export const createMonitor = async (url, interval = '15m') => {
   const { data } = await axiosWithCreds.post('/uptime/create', {
     url,
     interval,

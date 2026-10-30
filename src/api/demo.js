@@ -146,11 +146,28 @@ export async function getDemoHealth() {
  * Failsafe polling fallback: polls status until job finishes (completed/failed) or times out.
  * Guarantees 100% result delivery even if WebSocket connection is interrupted.
  */
-export async function pollDemoResult(service, id, { timeoutMs = 30000, intervalMs = 2500 } = {}) {
+export async function pollDemoResult(service, idOrResponse, { timeoutMs = 30000, intervalMs = 2500 } = {}) {
+  const resolvedId =
+    typeof idOrResponse === 'object' && idOrResponse !== null
+      ? idOrResponse.lighthousedbId ||
+        idOrResponse.ttfbdbId ||
+        idOrResponse.dnsRecordId ||
+        idOrResponse.redirectCheckId ||
+        idOrResponse.whoisDbId ||
+        idOrResponse.data?._id ||
+        idOrResponse.data?.id ||
+        idOrResponse.jobId
+      : idOrResponse;
+
+  const targetId = String(resolvedId || '');
+  if (!targetId) {
+    throw new Error(`Cannot poll ${service}: Missing valid job identifier`);
+  }
+
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
     try {
-      const res = await getDemoStatus(service, id);
+      const res = await getDemoStatus(service, targetId);
       if (res?.success && (res.status === 'completed' || res.status === 'failed')) {
         return res;
       }
@@ -159,5 +176,5 @@ export async function pollDemoResult(service, id, { timeoutMs = 30000, intervalM
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
-  throw new Error(`Timed out polling status for ${service} (ID: ${id})`);
+  throw new Error(`Timed out polling status for ${service} (ID: ${targetId})`);
 }

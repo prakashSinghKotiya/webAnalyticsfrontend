@@ -213,7 +213,34 @@ export default function AboutPage() {
           </div>
         </section>
 
-
+        {/* Core Architectural Pillars */}
+        <section aria-label="Core architectural pillars" className="py-16 sm:py-24">
+          <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <span className="font-['JetBrains_Mono',monospace] text-xs font-bold uppercase tracking-wider text-[var(--cyan)]">
+                Core Architectural Pillars
+              </span>
+              <h2 className="font-['Outfit',sans-serif] mt-3 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight">
+                Engineered for Reliability at Scale
+              </h2>
+            </div>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {pillars.map((pillar) => (
+                <div key={pillar.title} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 transition hover:border-[var(--border-bright)]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--surface-2)] text-[var(--cyan)] mb-4">
+                    {pillar.icon}
+                  </div>
+                  <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)] mb-2">
+                    {pillar.title}
+                  </h3>
+                  <p className="text-xs leading-relaxed text-[var(--muted-2)]">
+                    {pillar.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* Frequently Asked Questions (SEO Keyword Rich) */}
         <section aria-labelledby="faq-heading" className="border-t border-[var(--border)] py-16 sm:py-24">

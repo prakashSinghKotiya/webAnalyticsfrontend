@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../constants';
-import { getAppUrl, getLandingUrl } from '../../utils/subdomainNav';
+import { getAppUrl } from '../../utils/subdomainNav';
 import { useTheme } from '../../context';
 import { Logo, Footer } from '../../components';
 

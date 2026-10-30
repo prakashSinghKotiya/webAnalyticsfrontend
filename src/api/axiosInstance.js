@@ -3,11 +3,45 @@ import { notifyAuthExpired } from "../utils/authEvents";
 import {
   getAuthToken,
   getGuestId,
+  getOrCreateGuestId,
   setGuestId,
   removeAuthToken,
 } from "../utils/tokenStorage";
 
-const BASE_URL ="https://api.monitormyhost.com";
+/**
+ * Hardcoded production API default for cPanel deployments.
+ * In production on cPanel, this URL is always used without requiring server-side env variables.
+ * In local development, the app automatically connects to DEV_API_URL ("http://localhost:5000").
+ */
+export const PROD_API_URL = "https://api.monitormyhost.com";
+export const DEV_API_URL = "http://localhost:5000";
+
+export function getApiBaseUrl() {
+  // 1. Vite dev server mode (npm run dev)
+  if (import.meta.env.DEV) {
+    return DEV_API_URL;
+  }
+
+  // 2. Local browser runtime detection (localhost, 127.0.0.1, local preview)
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "[::1]" ||
+      host === "::1" ||
+      host.endsWith(".localhost")
+    ) {
+      return DEV_API_URL;
+    }
+  }
+
+  // 3. Fallback to hardcoded production API for cPanel dist deployment
+  return PROD_API_URL;
+}
+
+export const BASE_URL = getApiBaseUrl();
 
 // Axios instance WITH credentials (for authenticated & session routes)
 export const axiosWithCreds = axios.create({
@@ -42,7 +76,7 @@ function attachAuthHeaders(config) {
     config.headers["x-session-id"] = token;
   }
 
-  const guestId = getGuestId();
+  const guestId = token ? getGuestId() : getOrCreateGuestId();
   if (guestId) {
     config.headers["x-guest-id"] = guestId;
   }
@@ -69,7 +103,8 @@ axiosWithCreds.interceptors.request.use(attachAuthHeaders, (error) => Promise.re
 // Also allow public/OTP requests to attach guestId if available
 axiosWithoutCreds.interceptors.request.use((config) => {
   if (!config.headers) config.headers = {};
-  const guestId = getGuestId();
+  const token = getAuthToken();
+  const guestId = token ? getGuestId() : getOrCreateGuestId();
   if (guestId) {
     config.headers["x-guest-id"] = guestId;
   }

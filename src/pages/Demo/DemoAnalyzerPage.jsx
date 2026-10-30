@@ -11,6 +11,7 @@ import {
   emitCatchup,
   isSocketConnected,
   registerCatchupJob,
+  subscribeToConnectionState,
   subscribeToEvents,
   unregisterCatchupJob,
   waitForSocket,
@@ -18,7 +19,8 @@ import {
 import { ROUTES } from '../../constants';
 import { useAuthState } from '../../context';
 import { getAppUrl } from '../../utils/subdomainNav';
-import { extractReadings, formatMs, normalizeUrl, rateLatency } from '../TTFB/ttfb.utils';
+import { extractReadings, normalizeUrl, summarize } from '../TTFB/ttfb.utils';
+import { TTFB_REGIONS } from '../../api/ttfb';
 import { normalizeLighthouseEntry, rateScore, AUDIT_CATEGORIES } from '../Lighthouse/lighthouse.utils';
 import { normalizeDnsEntry, normalizeDomain } from '../DnsType/dns.utils';
 import { normalizeRedirectEntry, normalizeRedirectUrl } from '../Redirects/redirects.utils';
@@ -26,6 +28,7 @@ import { normalizeWhoisEntry } from '../Whois/whois.utils';
 import DnsResultSection from '../DnsType/components/DnsResultSection';
 import WhoisResultSection from '../Whois/components/WhoisResultSection';
 import RedirectResultSection from '../Redirects/components/RedirectResultSection';
+import ResultPanel from '../TTFB/components/ResultPanel';
 import { getRouteMetadata } from '../../seo/routes';
 import Logo from '../../components/Logo';
 
@@ -193,7 +196,10 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     ).trim();
   }, [searchParams]);
 
-  const [url, setUrl] = useState(() => getInitialUrlParam());
+  // Initial render matches SSR prerender (empty url & no clear button) to prevent React #418 error
+  const [url, setUrl] = useState('');
+  const [hasHydrated, setHasHydrated] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [phase, setPhase] = useState('preparing'); // preparing | ready | running | complete | error
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -203,12 +209,13 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
   // Tool specific options
   const [ttfbMode, setTtfbMode] = useState('all');
+  const [ttfbRegion, setTtfbRegion] = useState('india');
   const [lighthouseStrategy, setLighthouseStrategy] = useState('mobile');
   const [progress, setProgress] = useState({ received: 0, expected: 0 });
 
   const pendingRef = useRef(null);
   const activeToolRef = useRef(activeTool);
-  const lastParamUrlRef = useRef(getInitialUrlParam());
+  const lastParamUrlRef = useRef('');
   const autoRanUrlRef = useRef(null);
 
   useEffect(() => {
@@ -224,14 +231,34 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     setError('');
   }
 
-  // Keep url in sync ONLY if search parameter changes externally (e.g. back/forward navigation)
+  // After client mount & hydration, synchronize query params into url state
   useEffect(() => {
+    const unsub = subscribeToConnectionState((state) => {
+      setSocketConnected(state.status === 'connected');
+    });
+
+    queueMicrotask(() => {
+      setHasHydrated(true);
+      setSocketConnected(isSocketConnected());
+      const initialParam = getInitialUrlParam();
+      if (initialParam) {
+        lastParamUrlRef.current = initialParam;
+        setUrl(initialParam);
+      }
+    });
+
+    return unsub;
+  }, [getInitialUrlParam]);
+
+  // Keep url in sync if search parameter changes externally (e.g. back/forward navigation)
+  useEffect(() => {
+    if (!hasHydrated) return;
     const paramUrl = getInitialUrlParam();
     if (paramUrl !== lastParamUrlRef.current) {
       lastParamUrlRef.current = paramUrl;
       setUrl(paramUrl);
     }
-  }, [getInitialUrlParam]);
+  }, [getInitialUrlParam, hasHydrated]);
 
   // If already authenticated, redirect to the full workspace tool on app subdomain
   useEffect(() => {
@@ -289,19 +316,24 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     const checkMatchingJob = (payload, expectedKind) => {
       const pending = pendingRef.current;
       if (!pending || pending.kind !== expectedKind) return false;
+      if (!pending.jobIds || !pending.jobIds.length) return true;
 
-      const incomingId = String(
-        payload?.jobId ||
-          payload?.ttfbdbId ||
-          payload?.dnsRecordId ||
-          payload?.redirectCheckId ||
-          payload?.recordId ||
-          payload?.whoisDbId ||
-          payload?.lighthousedbId ||
-          '',
-      );
+      // Extract all candidate identifiers across socket payload schemas
+      const candidateIds = [
+        payload?.lighthousedbId,
+        payload?.ttfbdbId,
+        payload?.dnsRecordId,
+        payload?.redirectCheckId,
+        payload?.recordId,
+        payload?.whoisDbId,
+        payload?.id,
+        payload?._id,
+        payload?.jobId,
+      ]
+        .filter(Boolean)
+        .map(String);
 
-      return pending.jobIds.includes(incomingId) || !pending.jobIds.length;
+      return candidateIds.some((cId) => pending.jobIds.includes(cId));
     };
 
     const handleTtfbResult = (payload) => {
@@ -314,11 +346,17 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         return;
       }
 
-      const reading = extractReadings(payload)[0];
-      if (!reading) return;
+      const readings = extractReadings(payload);
+      if (!readings.length) return;
 
-      if (!pending.readings.some((item) => item.region === reading.region)) {
-        pending.readings.push(reading);
+      for (const reading of readings) {
+        const key = reading.region.toLowerCase();
+        const existingIdx = pending.readings.findIndex((item) => item.region.toLowerCase() === key);
+        if (existingIdx < 0) {
+          pending.readings.push(reading);
+        } else {
+          pending.readings[existingIdx] = { ...pending.readings[existingIdx], ...reading };
+        }
       }
 
       setProgress({ received: pending.readings.length, expected: pending.expected });
@@ -509,6 +547,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
         const options = {
           mode: ttfbMode,
+          region: ttfbRegion,
           strategy: lighthouseStrategy,
         };
 
@@ -525,20 +564,36 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
           });
         }
 
-        // Collect matching jobIds
+        // Collect matching jobIds - prefer database primary keys over pg-boss UUIDs
+        let pollingJobIds = [];
         if (activeTool === 'ttfb' && ttfbMode === 'all') {
-          inFlightJobIds = response?.jobs?.map((j) => String(j.jobId)).filter(Boolean) || [];
+          const dbIds =
+            response?.jobs
+              ?.map((j) => String(j.ttfbdbId || ''))
+              .filter(Boolean) || [];
+          const bossIds =
+            response?.jobs
+              ?.map((j) => String(j.jobId || ''))
+              .filter(Boolean) || [];
+
+          pollingJobIds = dbIds.length ? dbIds : bossIds;
+          inFlightJobIds = [...new Set([...dbIds, ...bossIds])];
         } else {
-          const singleId = String(
-            response?.jobId ||
+          const dbId = String(
+            response?.lighthousedbId ||
               response?.ttfbdbId ||
               response?.dnsRecordId ||
               response?.redirectCheckId ||
               response?.whoisDbId ||
-              response?.lighthousedbId ||
+              response?.data?._id ||
+              response?.data?.id ||
               '',
           );
-          if (singleId) inFlightJobIds = [singleId];
+          const bossJobId = response?.jobId ? String(response.jobId) : '';
+          const primaryId = dbId || bossJobId;
+
+          pollingJobIds = primaryId ? [primaryId] : [];
+          inFlightJobIds = [dbId, bossJobId].filter(Boolean);
         }
 
         // Register with socket catchup manager (for reconnect auto-recovery)
@@ -582,8 +637,8 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
           // Watchdog 1: At 8s, proactively emit socket 'catchup'
           watchdogTimer = setTimeout(() => {
-            if (pendingRef.current && inFlightJobIds.length > 0) {
-              const catchupPayload = inFlightJobIds.map((id) => ({
+            if (pendingRef.current && pollingJobIds.length > 0) {
+              const catchupPayload = pollingJobIds.map((id) => ({
                 service: activeTool === 'redirects' ? 'redirect' : activeTool,
                 id,
               }));
@@ -592,9 +647,9 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
             // Watchdog 2: At 12s, initiate fallback HTTP status polling (GET /demo/status/:service/:id)
             pollingInterval = setInterval(async () => {
-              if (!pendingRef.current || !inFlightJobIds.length) return;
+              if (!pendingRef.current || !pollingJobIds.length) return;
               try {
-                for (const jId of inFlightJobIds) {
+                for (const jId of pollingJobIds) {
                   const statusData = await getDemoStatus(activeTool, jId);
                   if (statusData?.success && (statusData.status === 'completed' || statusData.status === 'failed')) {
                     if (statusData.status === 'failed') {
@@ -605,13 +660,20 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                     }
 
                     if (activeTool === 'ttfb') {
-                      const reading = {
-                        region: statusData.result?.region || 'probe',
-                        ms: statusData.result?.ttfbMs || statusData.result?.ms || 0,
+                      const extracted = extractReadings(statusData)[0] || extractReadings(statusData.result)[0];
+                      const reading = extracted || {
+                        region: statusData.region || statusData.result?.region || 'probe',
+                        ms: statusData.result?.ttfb ?? statusData.result?.totalToFirstByte ?? 0,
+                        ttfb: statusData.result?.ttfb,
+                        totalToFirstByte: statusData.result?.totalToFirstByte,
                         raw: statusData.result,
                       };
-                      if (!pendingRef.current.readings.some((r) => r.region === reading.region)) {
+                      const key = reading.region.toLowerCase();
+                      const existingIdx = pendingRef.current.readings.findIndex((r) => r.region.toLowerCase() === key);
+                      if (existingIdx < 0) {
                         pendingRef.current.readings.push(reading);
+                      } else {
+                        pendingRef.current.readings[existingIdx] = { ...pendingRef.current.readings[existingIdx], ...reading };
                       }
                       setProgress({
                         received: pendingRef.current.readings.length,
@@ -635,7 +697,22 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
         // Normalize result per service schema
         let parsed = rawData;
-        if (activeTool === 'lighthouse') {
+        if (activeTool === 'ttfb') {
+          const readings = Array.isArray(rawData) ? rawData : extractReadings(rawData);
+          const sums = summarize(readings);
+          const firstReading = readings[0] || {};
+          parsed = {
+            id: `demo_ttfb_${Date.now()}`,
+            url: target,
+            region: ttfbMode === 'all' ? 'all' : (firstReading.region || ttfbRegion),
+            readings,
+            avg: sums.avg ?? firstReading.ms,
+            fastest: sums.fastest ?? firstReading.ms,
+            slowest: sums.slowest ?? firstReading.ms,
+            statusCode: firstReading.statusCode || 200,
+            createdAt: new Date().toISOString(),
+          };
+        } else if (activeTool === 'lighthouse') {
           parsed = normalizeLighthouseEntry(rawData);
         } else if (activeTool === 'dns') {
           parsed = normalizeDnsEntry({ url: target, result: rawData?.result || rawData });
@@ -696,7 +773,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
   // Auto-run analysis when url query parameter is supplied on initial access or deep link
   useEffect(() => {
-    if (loading || isAuthenticated) return;
+    if (!hasHydrated || loading || isAuthenticated) return;
     if (phase !== 'ready') return;
 
     const paramUrl = getInitialUrlParam();
@@ -715,8 +792,10 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
     if (quota.isLimited) return;
 
     autoRanUrlRef.current = paramUrl;
-    runDemo(paramUrl);
-  }, [phase, loading, isAuthenticated, quota.isLimited, getInitialUrlParam, searchParams, activeTool, navigate, runDemo]);
+    queueMicrotask(() => {
+      runDemo(paramUrl);
+    });
+  }, [hasHydrated, phase, loading, isAuthenticated, quota.isLimited, getInitialUrlParam, searchParams, activeTool, navigate, runDemo]);
 
   const currentTool = TOOL_CONFIG[activeTool] || TOOL_CONFIG.ttfb;
   const seoData = getRouteMetadata(`/tools/${activeTool}`);
@@ -768,11 +847,11 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             >
               <span
                 className={`h-2 w-2 rounded-full ${
-                  isSocketConnected() ? 'bg-[var(--green)]' : 'bg-[var(--orange)] animate-pulse'
+                  socketConnected ? 'bg-[var(--green)]' : 'bg-[var(--orange)] animate-pulse'
                 }`}
               />
               <span className="font-['JetBrains_Mono',monospace]">
-                {isSocketConnected() ? 'Live Socket' : 'Connecting'}
+                {socketConnected ? 'Live Socket' : 'Connecting'}
               </span>
             </span>
 
@@ -884,26 +963,49 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
             {/* TTFB Mode Options */}
             {activeTool === 'ttfb' && (
-              <div className="mt-5 grid grid-cols-2 gap-3" role="group" aria-label="TTFB probes">
-                {[
-                  ['single', 'Single Location', 'India node'],
-                  ['all', 'All Global Nodes', 'India, Europe & USA'],
-                ].map(([val, lbl, hnt]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    disabled={isRunning}
-                    onClick={() => setTtfbMode(val)}
-                    className={`rounded-xl border p-3 text-left transition ${
-                      ttfbMode === val
-                        ? 'border-[var(--cyan)] bg-[var(--cyan-dim)] text-[var(--cyan)]'
-                        : 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] hover:border-[var(--cyan-mid)]'
-                    }`}
-                  >
-                    <span className="block text-sm font-bold">{lbl}</span>
-                    <span className="mt-0.5 block text-xs opacity-75">{hnt}</span>
-                  </button>
-                ))}
+              <div className="mt-5 space-y-3">
+                <div className="grid grid-cols-2 gap-3" role="group" aria-label="TTFB probes">
+                  {[
+                    ['single', 'Single Location', `${TTFB_REGIONS.find((r) => r.value === ttfbRegion)?.label || 'Regional'} node`],
+                    ['all', 'All Global Nodes', 'India, Canada & Singapore'],
+                  ].map(([val, lbl, hnt]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      disabled={isRunning}
+                      onClick={() => setTtfbMode(val)}
+                      className={`rounded-xl border p-3 text-left transition ${
+                        ttfbMode === val
+                          ? 'border-[var(--cyan)] bg-[var(--cyan-dim)] text-[var(--cyan)]'
+                          : 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] hover:border-[var(--cyan-mid)]'
+                      }`}
+                    >
+                      <span className="block text-sm font-bold">{lbl}</span>
+                      <span className="mt-0.5 block text-xs opacity-75">{hnt}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {ttfbMode === 'single' && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <span className="text-xs font-medium text-[var(--muted-2)]">Probe Region:</span>
+                    {TTFB_REGIONS.map((r) => (
+                      <button
+                        key={r.value}
+                        type="button"
+                        disabled={isRunning}
+                        onClick={() => setTtfbRegion(r.value)}
+                        className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                          ttfbRegion === r.value
+                            ? 'bg-[var(--cyan)] text-[var(--bg-deep)] shadow-sm'
+                            : 'border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted-2)] hover:border-[var(--border-bright)] hover:text-[var(--text)]'
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -943,7 +1045,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                   placeholder={currentTool.placeholder}
                   className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-3.5 py-2.5 sm:px-4 sm:py-3 pr-10 text-sm text-[var(--text)] outline-none transition focus:border-[var(--cyan)]"
                 />
-                {url && !isRunning && (
+                {hasHydrated && url && !isRunning && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1026,7 +1128,9 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         {/* Results Panels for All 5 Tools */}
         {result && (
           <section className="fade-up mt-6">
-            {activeTool === 'ttfb' && <TtfbResult readings={result} />}
+            {activeTool === 'ttfb' && (
+              <ResultPanel result={result} onReRun={runDemo} />
+            )}
             {activeTool === 'lighthouse' && <LighthouseResult report={result} />}
             {activeTool === 'dns' && (
               <DnsResultSection result={result} isDemo={true} onReRun={runDemo} />
@@ -1209,42 +1313,6 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 /* Result Renderers                                                           */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-function TtfbResult({ readings }) {
-  const items = Array.isArray(readings) ? readings : [readings];
-  return (
-    <div className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)]">
-      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-        <div>
-          <span className="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-wider text-[var(--cyan)]">
-            TTFB RESPONSE TIME
-          </span>
-          <h2 className="font-['Outfit',sans-serif] mt-0.5 text-xl font-bold">Regional Server Latency</h2>
-        </div>
-        <span className="rounded-full bg-[var(--green-dim)] px-3 py-1 font-['JetBrains_Mono',monospace] text-xs font-bold text-[var(--green)]">
-          Complete
-        </span>
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        {items.map((r, i) => {
-          const rating = rateLatency(r?.ms);
-          return (
-            <article key={r?.region || i} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
-              <span className="font-['JetBrains_Mono',monospace] text-xs font-semibold uppercase text-[var(--muted)]">
-                {r?.region || 'Probe'}
-              </span>
-              <p className="mt-2 text-3xl font-extrabold tracking-tight" style={{ color: rating.token }}>
-                {formatMs(r?.ms)}
-              </p>
-              <span className="mt-1 inline-block text-xs font-medium" style={{ color: rating.token }}>
-                {rating.label}
-              </span>
-            </article>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function LighthouseResult({ report }) {
   const scores = report?.scores || {};

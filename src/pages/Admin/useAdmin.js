@@ -3,6 +3,11 @@ import {
   getAllUsers,
   forceLogoutUser as apiForceLogout,
   deleteUser as apiDeleteUser,
+  promoteUserToAdmin as apiPromoteUserToAdmin,
+  demoteAdminToUser as apiDemoteAdminToUser,
+  updateUserRole as apiUpdateUserRole,
+  getUserRole as apiGetUserRole,
+  getRoleAuditLogs as apiGetRoleAuditLogs,
   getAdminMonitorStats,
   getAdminMonitors,
   getAdminMonitorIncidents,
@@ -25,6 +30,13 @@ import {
   getUserId,
   exportUsersToCsv,
   exportMonitorsToCsv,
+  isSuperAdmin,
+  canPromoteToAdmin,
+  canDemoteToUser,
+  canDeleteUser,
+  canForceLogoutUser,
+  getDeleteRestrictionReason,
+  getForceLogoutRestrictionReason,
 } from './admin.utils';
 
 /**
@@ -49,20 +61,35 @@ function extractUsersPayload(response, page, limit) {
     }
 
     total =
+      response.pagination?.totalUsers ??
+      response.pagination?.total ??
       response.totalUsers ??
       response.total ??
       response.count ??
-      response.pagination?.total ??
       list.length;
 
     totalPages =
+      response.pagination?.totalPages ??
       response.totalPages ??
       response.pages ??
-      response.pagination?.totalPages ??
       Math.max(1, Math.ceil(total / limit));
   }
 
-  return { list, total, totalPages };
+  // Normalize each user to ensure id, _id, plan, and plans are safely accessible
+  const normalizedList = list.map((u) => {
+    if (!u || typeof u !== 'object') return u;
+    const plan = u.plan || u.plans || 'free';
+    const id = u.id != null ? u.id : u._id;
+    return {
+      ...u,
+      id,
+      _id: u._id != null ? u._id : id,
+      plan,
+      plans: u.plans || plan,
+    };
+  });
+
+  return { list: normalizedList, total, totalPages };
 }
 
 /**
@@ -165,6 +192,25 @@ export default function useAdmin(currentUser) {
     },
   ]);
 
+  // ==========================================
+  // SERVER ROLE AUDIT LOGS (SUPER_ADMIN)
+  // ==========================================
+  const [serverAuditLogs, setServerAuditLogs] = useState([]);
+  const [serverAuditPagination, setServerAuditPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
+  const [serverAuditPage, setServerAuditPage] = useState(1);
+  const [serverAuditLimit, setServerAuditLimit] = useState(20);
+  const [serverAuditLoading, setServerAuditLoading] = useState(false);
+  const [serverAuditError, setServerAuditError] = useState(null);
+
+  const isSuperAdminUser = useMemo(() => isSuperAdmin(currentUser), [currentUser]);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -183,14 +229,60 @@ export default function useAdmin(currentUser) {
     setAuditLogs((prev) => [entry, ...prev.slice(0, 49)]);
   }, []);
 
+  // Fetch Server-side Database Role Audit Logs (SuperAdmin only)
+  const fetchServerAuditLogs = useCallback(
+    async (currentPage = serverAuditPage, currentLimit = serverAuditLimit) => {
+      if (!isSuperAdmin(currentUser)) return;
+      try {
+        setServerAuditLoading(true);
+        setServerAuditError(null);
+        const res = await apiGetRoleAuditLogs(currentPage, currentLimit);
+        if (!mountedRef.current) return;
+        if (res?.success && Array.isArray(res.data)) {
+          setServerAuditLogs(res.data);
+          if (res.pagination) {
+            setServerAuditPagination(res.pagination);
+          }
+        }
+      } catch (err) {
+        if (!mountedRef.current) return;
+        console.warn('[useAdmin] Error fetching role audit logs:', err?.message);
+        setServerAuditError(err?.message || err?.error || 'Failed to fetch security role audit logs');
+      } finally {
+        if (mountedRef.current) setServerAuditLoading(false);
+      }
+    },
+    [currentUser, serverAuditPage, serverAuditLimit]
+  );
+
+  useEffect(() => {
+    if (isSuperAdmin(currentUser)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch
+      fetchServerAuditLogs(serverAuditPage, serverAuditLimit);
+    }
+  }, [currentUser, serverAuditPage, serverAuditLimit, fetchServerAuditLogs]);
+
   // ==========================================
   // USERS DATA FETCHING
   // ==========================================
   const fetchUsers = useCallback(
-    async (currentPage = page, currentLimit = limit, currentSearch = searchQuery) => {
+    async (
+      currentPage = page,
+      currentLimit = limit,
+      currentSearch = searchQuery,
+      currentRole = roleFilter,
+      currentPlan = planFilter,
+      currentSortBy = sortBy,
+      currentSortOrder = sortOrder
+    ) => {
       try {
         setError(null);
-        const data = await getAllUsers(currentPage, currentLimit, currentSearch);
+        const data = await getAllUsers(currentPage, currentLimit, currentSearch, {
+          role: currentRole,
+          plan: currentPlan,
+          sortBy: currentSortBy,
+          sortOrder: currentSortOrder,
+        });
         if (!mountedRef.current) return;
 
         const { list, total, totalPages: pages } = extractUsersPayload(data, currentPage, currentLimit);
@@ -208,12 +300,13 @@ export default function useAdmin(currentUser) {
         }
       }
     },
-    [page, limit, searchQuery]
+    [page, limit, searchQuery, roleFilter, planFilter, sortBy, sortOrder]
   );
 
   useEffect(() => {
-    fetchUsers(page, limit, searchQuery);
-  }, [page, limit, fetchUsers, searchQuery]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch
+    fetchUsers(page, limit, searchQuery, roleFilter, planFilter, sortBy, sortOrder);
+  }, [page, limit, fetchUsers, searchQuery, roleFilter, planFilter, sortBy, sortOrder]);
 
   // ==========================================
   // MONITORS DATA FETCHING
@@ -280,6 +373,7 @@ export default function useAdmin(currentUser) {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch
     fetchMonitorsData(monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery);
     fetchMonitorStatsData();
     fetchIncidentsData();
@@ -308,6 +402,7 @@ export default function useAdmin(currentUser) {
             return {
               ...mon,
               lastResult: payload.result,
+              ...(payload.hostinginfo ? { hostinginfo: payload.hostinginfo } : {}),
               lastCheckedAt: payload.checkedAt || new Date().toISOString(),
             };
           }
@@ -365,24 +460,50 @@ export default function useAdmin(currentUser) {
   // USERS DERIVED STATS & FILTERING
   // ==========================================
   const processedUsers = useMemo(() => {
+    const query = searchQuery ? searchQuery.trim().toLowerCase() : '';
+
     return users.filter((u) => {
+      // Role filter
       if (roleFilter !== 'all' && (u.role || 'User').toLowerCase() !== roleFilter.toLowerCase()) {
         return false;
       }
-      if (planFilter !== 'all' && (u.plan || 'free').toLowerCase() !== planFilter.toLowerCase()) {
+      // Plan filter
+      const userPlan = (u.plan || u.plans || 'free').toLowerCase();
+      if (planFilter !== 'all' && userPlan !== planFilter.toLowerCase()) {
         return false;
+      }
+      // Client-side search fallback
+      if (query) {
+        const uId = String(getUserId(u)).toLowerCase();
+        const name = (u.name || '').toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        const role = (u.role || '').toLowerCase();
+        if (
+          !name.includes(query) &&
+          !email.includes(query) &&
+          !role.includes(query) &&
+          !userPlan.includes(query) &&
+          !uId.includes(query)
+        ) {
+          return false;
+        }
       }
       return true;
     });
-  }, [users, roleFilter, planFilter]);
+  }, [users, roleFilter, planFilter, searchQuery]);
 
   const stats = useMemo(() => {
     let adminsCount = 0;
+    let superAdminsCount = 0;
     let proCount = 0;
     users.forEach((u) => {
       const r = (u.role || '').toLowerCase();
-      if (r === 'admin' || r === 'superadmin') adminsCount++;
-      const p = (u.plan || '').toLowerCase();
+      if (r === 'superadmin' || r === 'super_admin') {
+        superAdminsCount++;
+      } else if (r === 'admin') {
+        adminsCount++;
+      }
+      const p = (u.plan || u.plans || '').toLowerCase();
       if (p === 'pro' || p === 'enterprise') proCount++;
     });
 
@@ -390,6 +511,8 @@ export default function useAdmin(currentUser) {
       total: totalUsers,
       displayed: processedUsers.length,
       admins: adminsCount,
+      superAdmins: superAdminsCount,
+      totalStaff: adminsCount + superAdminsCount,
       proUsers: proCount,
       freeUsers: Math.max(0, processedUsers.length - proCount),
     };
@@ -400,9 +523,9 @@ export default function useAdmin(currentUser) {
   // ==========================================
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchUsers(page, limit, searchQuery);
+    await fetchUsers(page, limit, searchQuery, roleFilter, planFilter, sortBy, sortOrder);
     toast.success('Accounts list updated');
-  }, [fetchUsers, page, limit, searchQuery, toast]);
+  }, [fetchUsers, page, limit, searchQuery, roleFilter, planFilter, sortBy, sortOrder, toast]);
 
   const handleExportCsv = useCallback(() => {
     if (!processedUsers.length) {
@@ -424,6 +547,14 @@ export default function useAdmin(currentUser) {
     setConfirmModal({ open: true, type: 'delete', user });
   }, []);
 
+  const promptPromoteUser = useCallback((user) => {
+    setConfirmModal({ open: true, type: 'promote', user });
+  }, []);
+
+  const promptDemoteUser = useCallback((user) => {
+    setConfirmModal({ open: true, type: 'demote', user });
+  }, []);
+
   const closeConfirmModal = useCallback(() => {
     setConfirmModal({ open: false, type: null, user: null });
   }, []);
@@ -432,6 +563,13 @@ export default function useAdmin(currentUser) {
     async (targetUser) => {
       const targetId = getUserId(targetUser);
       if (!targetId) return;
+
+      if (!canForceLogoutUser(currentUser, targetUser)) {
+        const reason = getForceLogoutRestrictionReason(currentUser, targetUser);
+        toast.error(reason || 'Access denied: You cannot force logout this account.');
+        closeConfirmModal();
+        return;
+      }
 
       setActionInProgress((prev) => ({ ...prev, [targetId]: 'logout' }));
       closeConfirmModal();
@@ -452,7 +590,7 @@ export default function useAdmin(currentUser) {
         });
       }
     },
-    [closeConfirmModal, appendAuditLog, toast]
+    [currentUser, closeConfirmModal, appendAuditLog, toast]
   );
 
   const handleDeleteUser = useCallback(
@@ -460,8 +598,10 @@ export default function useAdmin(currentUser) {
       const targetId = getUserId(targetUser);
       if (!targetId) return;
 
-      if (currentUser && getUserId(currentUser) === targetId) {
-        toast.error('You cannot delete your own active administrator account.');
+      if (!canDeleteUser(currentUser, targetUser)) {
+        const reason = getDeleteRestrictionReason(currentUser, targetUser);
+        toast.error(reason || 'Access denied: You cannot delete this account.');
+        closeConfirmModal();
         return;
       }
 
@@ -473,10 +613,10 @@ export default function useAdmin(currentUser) {
         toast.success(`User ${targetUser.name || targetUser.email} has been removed.`);
         appendAuditLog('DELETE_USER', `Soft-deleted user ${targetUser.name || targetUser.email} (${targetId})`);
 
-        setUsers((prev) => prev.filter((u) => getUserId(u) !== targetId));
+        setUsers((prev) => prev.filter((u) => String(getUserId(u)) !== String(targetId)));
         setTotalUsers((prev) => Math.max(0, prev - 1));
 
-        if (inspectUser && getUserId(inspectUser) === targetId) {
+        if (inspectUser && String(getUserId(inspectUser)) === String(targetId)) {
           setInspectUser(null);
         }
       } catch (err) {
@@ -493,6 +633,155 @@ export default function useAdmin(currentUser) {
     },
     [currentUser, closeConfirmModal, inspectUser, appendAuditLog, toast]
   );
+
+  // SuperAdmin Role Management Actions
+  const handlePromoteUser = useCallback(
+    async (targetUser) => {
+      const targetId = getUserId(targetUser);
+      if (!targetId) return;
+
+      if (!canPromoteToAdmin(currentUser, targetUser)) {
+        toast.error('You do not have permission to promote this user.');
+        closeConfirmModal();
+        return;
+      }
+
+      setActionInProgress((prev) => ({ ...prev, [targetId]: 'promote' }));
+      closeConfirmModal();
+
+      try {
+        const res = await apiPromoteUserToAdmin(targetId);
+        toast.success(`User ${targetUser.name || targetUser.email} has been promoted to Admin.`);
+        appendAuditLog(
+          'PROMOTE_TO_ADMIN',
+          `Promoted ${targetUser.name || targetUser.email} (ID: ${targetId}) to Admin role.`
+        );
+
+        setUsers((prev) =>
+          prev.map((u) => (String(getUserId(u)) === String(targetId) ? { ...u, role: 'Admin' } : u))
+        );
+        if (inspectUser && String(getUserId(inspectUser)) === String(targetId)) {
+          setInspectUser((prev) => ({ ...prev, role: 'Admin' }));
+        }
+
+        if (isSuperAdmin(currentUser)) {
+          fetchServerAuditLogs(serverAuditPage, serverAuditLimit);
+        }
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to promote user to Admin';
+        toast.error(msg);
+        appendAuditLog('PROMOTE_TO_ADMIN_FAILED', `Failed to promote ${targetUser.name}: ${msg}`, 'error');
+      } finally {
+        setActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+      }
+    },
+    [currentUser, closeConfirmModal, inspectUser, appendAuditLog, toast, fetchServerAuditLogs, serverAuditPage, serverAuditLimit]
+  );
+
+  const handleDemoteUser = useCallback(
+    async (targetUser) => {
+      const targetId = getUserId(targetUser);
+      if (!targetId) return;
+
+      if (!canDemoteToUser(currentUser, targetUser)) {
+        toast.error('You do not have permission to demote this user.');
+        closeConfirmModal();
+        return;
+      }
+
+      setActionInProgress((prev) => ({ ...prev, [targetId]: 'demote' }));
+      closeConfirmModal();
+
+      try {
+        const res = await apiDemoteAdminToUser(targetId);
+        toast.success(
+          `Admin ${targetUser.name || targetUser.email} demoted to regular User. Active sessions and sockets invalidated.`
+        );
+        appendAuditLog(
+          'DEMOTE_TO_USER',
+          `Demoted Admin ${targetUser.name || targetUser.email} (ID: ${targetId}) to regular User. Sessions purged.`
+        );
+
+        setUsers((prev) =>
+          prev.map((u) => (String(getUserId(u)) === String(targetId) ? { ...u, role: 'User' } : u))
+        );
+        if (inspectUser && String(getUserId(inspectUser)) === String(targetId)) {
+          setInspectUser((prev) => ({ ...prev, role: 'User' }));
+        }
+
+        if (isSuperAdmin(currentUser)) {
+          fetchServerAuditLogs(serverAuditPage, serverAuditLimit);
+        }
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to demote Admin';
+        toast.error(msg);
+        appendAuditLog('DEMOTE_TO_USER_FAILED', `Failed to demote ${targetUser.name}: ${msg}`, 'error');
+      } finally {
+        setActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+      }
+    },
+    [currentUser, closeConfirmModal, inspectUser, appendAuditLog, toast, fetchServerAuditLogs, serverAuditPage, serverAuditLimit]
+  );
+
+  const handleUpdateUserRole = useCallback(
+    async (targetUser, newRole) => {
+      const targetId = getUserId(targetUser);
+      if (!targetId) return;
+
+      if (!isSuperAdmin(currentUser)) {
+        toast.error('SuperAdmin privileges required to update user roles.');
+        return;
+      }
+
+      setActionInProgress((prev) => ({ ...prev, [targetId]: 'roleUpdate' }));
+
+      try {
+        const res = await apiUpdateUserRole(targetId, newRole);
+        toast.success(`Role for ${targetUser.name || targetUser.email} updated to ${newRole}.`);
+        appendAuditLog(
+          'UPDATE_USER_ROLE',
+          `Changed role of ${targetUser.name || targetUser.email} (ID: ${targetId}) to ${newRole}.`
+        );
+
+        setUsers((prev) =>
+          prev.map((u) => (String(getUserId(u)) === String(targetId) ? { ...u, role: newRole } : u))
+        );
+        if (inspectUser && String(getUserId(inspectUser)) === String(targetId)) {
+          setInspectUser((prev) => ({ ...prev, role: newRole }));
+        }
+
+        if (isSuperAdmin(currentUser)) {
+          fetchServerAuditLogs(serverAuditPage, serverAuditLimit);
+        }
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || `Failed to update role to ${newRole}`;
+        toast.error(msg);
+        appendAuditLog('UPDATE_USER_ROLE_FAILED', `Failed role change: ${msg}`, 'error');
+      } finally {
+        setActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+      }
+    },
+    [currentUser, inspectUser, appendAuditLog, toast, fetchServerAuditLogs, serverAuditPage, serverAuditLimit]
+  );
+
+  const handleGetUserRole = useCallback(async (userId) => {
+    return apiGetUserRole(userId);
+  }, []);
 
   const handleSort = useCallback((field) => {
     setSortBy((prev) => {
@@ -777,7 +1066,7 @@ export default function useAdmin(currentUser) {
         toast.success(`Exported ${list.length} monitor records to CSV.`);
         appendAuditLog('EXPORT_MONITORS_CSV', `Exported ${list.length} monitor records.`);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to export monitors dataset');
     }
   }, [monitors, appendAuditLog, toast]);
@@ -833,14 +1122,32 @@ export default function useAdmin(currentUser) {
     confirmModal,
     promptForceLogout,
     promptDeleteUser,
+    promptPromoteUser,
+    promptDemoteUser,
     closeConfirmModal,
     handleForceLogout,
     handleDeleteUser,
+    handlePromoteUser,
+    handleDemoteUser,
+    handleUpdateUserRole,
+    handleGetUserRole,
     inspectUser,
     setInspectUser,
     auditLogs,
     handleRefresh,
     handleExportCsv,
+
+    // SuperAdmin Exclusive Role & Audit Log Telemetry
+    isSuperAdminUser,
+    serverAuditLogs,
+    serverAuditPagination,
+    serverAuditPage,
+    setServerAuditPage,
+    serverAuditLimit,
+    setServerAuditLimit,
+    serverAuditLoading,
+    serverAuditError,
+    fetchServerAuditLogs,
 
     // Uptime Monitor RBAC State & Actions
     monitors,

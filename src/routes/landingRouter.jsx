@@ -64,6 +64,13 @@ export const landingRouter = createBrowserRouter([
       { path: 'redirection-checker', element: <DemoRedirectsPage /> },
       { path: 'whois-lookup', element: <DemoWhoisPage /> },
 
+      // Underscore aliases and common typos redirected to canonical hyphenated slugs
+      { path: 'ttfb_test', element: <RedirectWithSearch to="/ttfb-test" /> },
+      { path: 'fullsite_report', element: <RedirectWithSearch to="/fullsite-report" /> },
+      { path: 'dns_checker', element: <RedirectWithSearch to="/dns-checker" /> },
+      { path: 'redirection_checker', element: <RedirectWithSearch to="/redirection-checker" /> },
+      { path: 'whois_lookup', element: <RedirectWithSearch to="/whois-lookup" /> },
+
       // Backward compatibility redirects from /tools/* and /demo/* to canonical slugs (preserving search params)
       { path: 'tools', element: <RedirectWithSearch to="/ttfb-test" /> },
       { path: 'tools/ttfb', element: <RedirectWithSearch to="/ttfb-test" /> },
@@ -83,6 +90,8 @@ export const landingRouter = createBrowserRouter([
       // ── SEAMLESS REDIRECTS TO APP SUBDOMAIN ────────────────────────────
       { path: 'login', element: <RedirectToApp /> },
       { path: 'register', element: <RedirectToApp /> },
+      { path: 'forgot-password', element: <RedirectToApp /> },
+      { path: 'reset-password', element: <RedirectToApp /> },
       { path: 'dashboard', element: <RedirectToApp /> },
       { path: 'home', element: <RedirectToApp /> },
       { path: 'uptime-monitor', element: <RedirectToApp /> },

@@ -28,6 +28,12 @@ const routes = [
       { path: 'dns-checker', element: <DemoDnsPage /> },
       { path: 'redirection-checker', element: <DemoRedirectsPage /> },
       { path: 'whois-lookup', element: <DemoWhoisPage /> },
+      // Underscore aliases
+      { path: 'ttfb_test', element: <Navigate to="/ttfb-test" replace /> },
+      { path: 'fullsite_report', element: <Navigate to="/fullsite-report" replace /> },
+      { path: 'dns_checker', element: <Navigate to="/dns-checker" replace /> },
+      { path: 'redirection_checker', element: <Navigate to="/redirection-checker" replace /> },
+      { path: 'whois_lookup', element: <Navigate to="/whois-lookup" replace /> },
       // Backward compatibility redirects for legacy /tools/* paths
       { path: 'tools/ttfb', element: <Navigate to="/ttfb-test" replace /> },
       { path: 'tools/lighthouse', element: <Navigate to="/fullsite-report" replace /> },

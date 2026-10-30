@@ -11,7 +11,6 @@ function AdminMonitorStats({ stats, onSelectStatusFilter }) {
   const paused = stats.pausedMonitors || 0;
   const up = stats.health?.up || 0;
   const down = stats.health?.down || 0;
-  const pending = stats.health?.pending || 0;
   const totalChecks = stats.totalChecksRecorded || 0;
   const activePercent = total > 0 ? Math.round((active / total) * 100) : 0;
   const upPercent = total > 0 ? Math.round((up / total) * 100) : 0;
@@ -152,13 +151,13 @@ function AdminMonitorStats({ stats, onSelectStatusFilter }) {
 
         <div className="flex flex-wrap items-center gap-2">
           {Object.entries({
-            '1m': '1 Min (High)',
-            '5m': '5 Min (Std)',
-            '10m': '10 Min',
+            '1m': '1 Min (Locked)',
+            '5m': '5 Min (Locked)',
+            '15m': '15 Min (Default)',
             '30m': '30 Min',
             '1h': '1 Hour',
           }).map(([key, label]) => {
-            const count = intervals[key] || 0;
+            const count = (intervals[key] || 0) + (key === '15m' ? (intervals['10m'] || 0) : 0);
             return (
               <div
                 key={key}

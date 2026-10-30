@@ -85,6 +85,7 @@ export default function TTFBPage() {
         isScanning={isScanning}
         progress={progress}
         error={status === 'error' ? error : null}
+        onReRun={handleSubmit}
       />
 
       {/* ── History ─────────────────────────────────────────────────────── */}

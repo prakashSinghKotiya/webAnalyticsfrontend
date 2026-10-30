@@ -10,7 +10,7 @@ import {
 import { UPTIME_INTERVALS } from '../../../api/uptime';
 
 const CARD =
-  'rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] sm:p-8';
+  'rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-10 shadow-[var(--shadow-card)]';
 
 /** Single monitor card with status, interval, actions and live latency tag */
 function MonitorCard({
@@ -24,11 +24,13 @@ function MonitorCard({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editUrl, setEditUrl] = useState(monitor.url);
-  const [editInterval, setEditInterval] = useState(monitor.interval || '5m');
+  const [editInterval, setEditInterval] = useState(monitor.interval === '10m' ? '15m' : (monitor.interval || '15m'));
 
   const id = monitor._id || monitor.id;
   const isPaused = monitor.status === 'paused';
-  const meta = getStatusMeta(monitor.lastCheck?.status || monitor.status);
+  const unwrap = (obj) => (obj && typeof obj === 'object' && obj.result ? obj.result : obj);
+  const last = unwrap(monitor.lastCheck || monitor.lastResult);
+  const meta = getStatusMeta(last?.status || monitor.status);
 
   const isPausingOrResuming = actionState === 'pause' || actionState === 'resume';
   const isDeleting = actionState === 'delete';
@@ -46,10 +48,10 @@ function MonitorCard({
 
   return (
     <li
-      className={`group relative flex flex-col justify-between rounded-xl border p-5 transition ${
+      className={`group relative flex flex-col justify-between rounded-2xl border p-5 transition ${
         isSelected
-          ? 'border-[var(--border-bright)] bg-[var(--cyan-dim)]/20 shadow-[0_0_24px_var(--cyan-dim)]'
-          : 'border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--border-bright)]/60'
+          ? 'border-[var(--green)]/70 bg-[var(--green-dim)]/40 shadow-xs'
+          : 'border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--border-bright)]'
       }`}
     >
       <div>
@@ -58,14 +60,11 @@ function MonitorCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span
-                className="h-2.5 w-2.5 flex-none rounded-full"
-                style={{
-                  backgroundColor: meta.color,
-                  boxShadow: `0 0 8px ${meta.color}`,
-                }}
+                className="h-2 w-2 flex-none rounded-full"
+                style={{ backgroundColor: meta.dotColor || meta.color }}
               />
               <span
-                className="rounded px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[10px] font-bold uppercase tracking-wider"
+                className="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
                 style={{
                   backgroundColor: meta.bgColor,
                   color: meta.color,
@@ -74,7 +73,7 @@ function MonitorCard({
                 {isPaused ? 'Paused' : meta.label}
               </span>
 
-              <span className="font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted)]">
+              <span className="text-[11px] text-[var(--muted-2)]">
                 {formatInterval(monitor.interval)}
               </span>
             </div>
@@ -86,7 +85,7 @@ function MonitorCard({
                   type="text"
                   value={editUrl}
                   onChange={(e) => setEditUrl(e.target.value)}
-                  className="rounded-lg border border-[var(--border-bright)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text)] outline-none"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text)] outline-none"
                   placeholder="https://example.com"
                   required
                 />
@@ -94,18 +93,22 @@ function MonitorCard({
                   <select
                     value={editInterval}
                     onChange={(e) => setEditInterval(e.target.value)}
-                    className="rounded-lg border border-[var(--border-mid)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text)] outline-none"
+                    className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text)] outline-none"
                   >
                     {UPTIME_INTERVALS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                      <option
+                        key={opt.value}
+                        value={opt.value}
+                        disabled={opt.disabled && opt.value !== monitor.interval}
+                      >
+                        {opt.locked && opt.value !== monitor.interval ? `🔒 ${opt.label}` : opt.label}
                       </option>
                     ))}
                   </select>
                   <button
                     type="submit"
                     disabled={isUpdating}
-                    className="cursor-pointer rounded-lg bg-[var(--cyan)] px-3 py-1 text-xs font-semibold text-[var(--bg-deep)]"
+                    className="cursor-pointer rounded-lg bg-[#064e3b] dark:bg-[#065f46] px-3 py-1 text-xs font-semibold text-white"
                   >
                     {isUpdating ? 'Saving…' : 'Save'}
                   </button>
@@ -122,7 +125,7 @@ function MonitorCard({
               <button
                 type="button"
                 onClick={() => onSelect(monitor)}
-                className="mt-2 block w-full cursor-pointer text-left font-['Outfit',sans-serif] text-base font-bold text-[var(--text)] transition hover:text-[var(--cyan)]"
+                className="mt-2 block w-full cursor-pointer text-left text-base font-bold text-[var(--text)] transition hover:text-[var(--cyan)]"
               >
                 <span className="truncate block" title={monitor.url}>
                   {monitor.url}
@@ -133,18 +136,18 @@ function MonitorCard({
         </div>
 
         {/* Live Telemetry / Last Check Preview */}
-        {monitor.lastCheck ? (
-          <div className="mt-3 flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 px-3 py-2 text-xs">
-            <span className="font-['JetBrains_Mono',monospace] text-[11px] font-semibold text-[var(--cyan)]">
-              {formatMs(monitor.lastCheck.TotalresponseTime || monitor.lastCheck.responseTime)}
+        {last ? (
+          <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs">
+            <span className="font-semibold text-[var(--text)] font-['JetBrains_Mono',monospace]">
+              {formatMs(last.TotalresponseTime ?? last.responseTime)}
             </span>
-            <span className="text-[var(--muted)]">·</span>
-            <span className="truncate text-[var(--muted-2)]">
-              {monitor.lastCheck.httpStatus ? `HTTP ${monitor.lastCheck.httpStatus}` : 'Checked'}
+            <span className="text-[var(--muted-2)]">·</span>
+            <span className="truncate text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">
+              {last.httpStatus ? `HTTP ${last.httpStatus}` : 'Checked'}
             </span>
-            <span className="text-[var(--muted)]">·</span>
-            <span className="font-['JetBrains_Mono',monospace] text-[10px] text-[var(--muted)]">
-              {relativeTime(monitor.lastCheck.timestamp || monitor.lastCheck.receivedAt)}
+            <span className="text-[var(--muted-2)]">·</span>
+            <span className="text-[var(--muted-2)]">
+              {relativeTime(last.timestamp || last.receivedAt)}
             </span>
           </div>
         ) : (
@@ -155,16 +158,16 @@ function MonitorCard({
       </div>
 
       {/* Action Footer */}
-      <div className="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-3">
+      <div className="mt-4 flex items-center justify-between border-t border-[var(--border)]/60 pt-3">
         <button
           type="button"
           onClick={() => onSelect(monitor)}
-          className={`inline-flex cursor-pointer items-center gap-1.5 font-['Outfit',sans-serif] text-xs font-bold transition hover:underline ${
-            isSelected ? 'text-[var(--green)]' : 'text-[var(--cyan)]'
+          className={`inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold transition hover:underline ${
+            isSelected ? 'text-[var(--cyan)]' : 'text-[var(--muted-2)] hover:text-[var(--text)]'
           }`}
-          title="Inspect running monitor and view recent paginated results"
+          title="Inspect running monitor and view recent telemetry"
         >
-          <span>{isSelected ? 'Viewing Results ↓' : 'Inspect & Results'}</span>
+          <span>{isSelected ? 'Viewing Telemetry ↑' : 'Inspect Telemetry'}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6" />
           </svg>
@@ -178,8 +181,8 @@ function MonitorCard({
             disabled={isPausingOrResuming}
             className={`cursor-pointer rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
               isPaused
-                ? 'border-[var(--green)]/40 bg-[var(--green-dim)] text-[var(--green)] hover:bg-[var(--green-dim)]/80'
-                : 'border-[var(--border-mid)] text-[var(--muted-2)] hover:border-[var(--border-bright)] hover:text-[var(--text)]'
+                ? 'border-[var(--green)]/30 bg-[var(--green-dim)] text-[var(--green)]'
+                : 'border-[var(--border)] bg-[var(--surface)] text-[var(--muted-2)] hover:border-[var(--border-bright)] hover:text-[var(--text)]'
             }`}
             title={isPaused ? 'Resume monitoring' : 'Pause monitoring'}
           >
@@ -190,7 +193,7 @@ function MonitorCard({
           <button
             type="button"
             onClick={() => setIsEditing(!isEditing)}
-            className="cursor-pointer rounded-lg border border-[var(--border-mid)] p-1 text-[var(--muted-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--text)]"
+            className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 text-[var(--muted-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--text)]"
             title="Edit monitor"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -204,7 +207,7 @@ function MonitorCard({
             type="button"
             onClick={() => onDelete(id)}
             disabled={isDeleting}
-            className="cursor-pointer rounded-lg border border-[var(--border-mid)] p-1 text-[var(--muted)] transition hover:border-[var(--red)]/40 hover:bg-[var(--red)]/10 hover:text-[var(--red)] disabled:opacity-50"
+            className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 text-[var(--muted-2)] transition hover:border-[var(--red)]/40 hover:bg-[var(--red)]/10 hover:text-[var(--red)] disabled:opacity-50"
             title="Delete monitor"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -226,6 +229,7 @@ function MonitorCard({
  *  - Client-side smooth pagination with custom page sizes (6, 12, 24)
  *  - Filter by status (All, Active, Paused) and search by domain
  *  - Refresh action to re-sync with backend
+ *  - Full dark and light theme compliance
  */
 function UptimeAllMonitorsSection({
   monitors,
@@ -274,7 +278,7 @@ function UptimeAllMonitorsSection({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="font-['Outfit',sans-serif] text-xl font-bold tracking-tight text-[var(--text)]">
-              All Monitors & History
+              All Monitors &amp; History
             </h2>
             <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-xs font-semibold text-[var(--cyan)]">
               {monitors.length} total
@@ -324,12 +328,12 @@ function UptimeAllMonitorsSection({
               setCurrentPage(1);
             }}
             placeholder="Search by URL or hostname…"
-            className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] py-2.5 pl-3.5 pr-4 text-xs text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--border-bright)]"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2.5 pl-3.5 pr-4 text-xs text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--cyan)]"
           />
         </div>
 
         {/* Status Filter */}
-        <div className="flex rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] p-0.5">
+        <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-0.5">
           {['ALL', 'ACTIVE', 'PAUSED'].map((st) => (
             <button
               key={st}
@@ -340,7 +344,7 @@ function UptimeAllMonitorsSection({
               }}
               className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 statusFilter === st
-                  ? 'bg-[var(--surface)] text-[var(--cyan)] shadow-sm'
+                  ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
                   : 'text-[var(--muted-2)] hover:text-[var(--text)]'
               }`}
             >
@@ -351,14 +355,14 @@ function UptimeAllMonitorsSection({
 
         {/* Page Size Select */}
         <div className="flex items-center gap-2">
-          <span className="font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted-2)]">Show:</span>
+          <span className="text-[11px] text-[var(--muted-2)]">Show:</span>
           <select
             value={pageSize}
             onChange={(e) => {
               setPageSize(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-2.5 py-2 text-xs font-medium text-[var(--text)] outline-none"
+            className="cursor-pointer rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 text-xs font-medium text-[var(--text)] outline-none"
           >
             {PAGE_SIZE_OPTIONS.map((sz) => (
               <option key={sz} value={sz}>

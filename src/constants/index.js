@@ -9,6 +9,8 @@ export const ROUTES = Object.freeze({
   HOME: '/home',
   LOGIN: '/login',
   REGISTER: '/register',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password',
   ABOUT: '/about',
   CONTACT: '/contact',
   TOOLS: '/ttfb-test',
@@ -50,6 +52,21 @@ export const ADMIN_ROLES = Object.freeze([
   'ADMIN',
   'SUPERADMIN',
 ]);
+
+/** Roles allowed past the SuperAdminRoute guard. */
+export const SUPER_ADMIN_ROLES = Object.freeze([
+  ROLES.SUPER_ADMIN,
+  'superadmin',
+  'SUPERADMIN',
+  'super_admin',
+]);
+
+/** Role numeric hierarchy */
+export const ROLE_HIERARCHY = Object.freeze({
+  [ROLES.USER]: 1,
+  [ROLES.ADMIN]: 2,
+  [ROLES.SUPER_ADMIN]: 3,
+});
 
 /** localStorage keys (prefixed to avoid collisions). */
 export const STORAGE_KEYS = Object.freeze({

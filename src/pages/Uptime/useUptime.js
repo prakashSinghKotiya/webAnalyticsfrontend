@@ -17,7 +17,12 @@ import {
   connectSocket,
 } from '../../api/socket';
 import { useToast } from '../../context';
-import { DEFAULT_RESULTS_LIMIT, isValidUrl, normalizeUrl } from './uptime.utils';
+import {
+  DEFAULT_RESULTS_LIMIT,
+  isValidUrl,
+  normalizeUrl,
+  getCheckCategory,
+} from './uptime.utils';
 
 /**
  * useUptime — manages the complete Uptime Monitoring lifecycle.
@@ -25,11 +30,12 @@ import { DEFAULT_RESULTS_LIMIT, isValidUrl, normalizeUrl } from './uptime.utils'
  * Responsibilities:
  *  1. Fetches monitors from backend directly (`GET /uptime/monitors`), never stored in localStorage.
  *  2. Handles monitor creation (`POST /uptime/create`) and instantly reflects in live list.
- *  3. Listens to `uptimeCompleted` real-time WebSocket events.
+ *  3. Listens to `uptimeCompleted` and `uptime:result` real-time WebSocket events.
  *  4. Provides status controls: pause, resume, delete, and update.
  *  5. Maintains live telemetry state (`latestResult`) for the real-time result section.
  *  6. Inspects running monitor details (`GET /uptime/monitor/:id`) and paginated results (`GET /uptime/monitor/:id/results`).
- *  7. Scalable state management with race condition protection and zero extra frontend storage.
+ *  7. Auto-selects active monitor on initial load so the dashboard immediately populates.
+ *  8. Scalable state management with race condition protection and zero extra frontend storage.
  */
 export default function useUptime() {
   const toast = useToast();
@@ -82,48 +88,6 @@ export default function useUptime() {
     };
   }, []);
 
-  /** Fetch monitors fresh from backend database (no localStorage) */
-  const fetchMonitors = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      const data = await getMonitors();
-      if (!mountedRef.current) return;
-      const list = Array.isArray(data?.monitors) ? data.monitors : [];
-      setMonitors(list);
-    } catch (err) {
-      if (!mountedRef.current) return;
-      const msg = err?.error || err?.message || 'Failed to load monitors';
-      setError(msg);
-      if (!silent) toast.error(msg);
-    } finally {
-      if (mountedRef.current && !silent) setLoading(false);
-    }
-  }, [toast]);
-
-  // Initial load on mount
-  useEffect(() => {
-    let ignore = false;
-    getMonitors()
-      .then((data) => {
-        if (!ignore && mountedRef.current) {
-          const list = Array.isArray(data?.monitors) ? data.monitors : [];
-          setMonitors(list);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!ignore && mountedRef.current) {
-          const msg = err?.error || err?.message || 'Failed to load monitors';
-          setError(msg);
-          setLoading(false);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
   /** Fetch paginated results for a specific monitor from backend database */
   const fetchMonitorResults = useCallback(
     async (
@@ -142,8 +106,36 @@ export default function useUptime() {
         const data = await getRecentMonitorResults(monitorId, { page, limit, status });
         if (!mountedRef.current || resultsReqIdRef.current !== currentReqId) return;
 
-        const resultsList = Array.isArray(data?.results) ? data.results : [];
+        let resultsList = Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data)
+          ? data
+          : [];
+
+        // Client-side category filtering support for UP / SLOW / DOWN
+        if (status && status !== 'ALL' && resultsList.length > 0) {
+          const filtered = resultsList.filter((item) => {
+            const check = item.result || item;
+            const category = getCheckCategory(check);
+            return category === status;
+          });
+          // If server did not pre-filter, use client filter
+          if (filtered.length !== resultsList.length && data?.results) {
+            resultsList = filtered;
+          }
+        }
+
         setMonitorResults(resultsList);
+
+        if (resultsList.length > 0) {
+          setLatestResult((prev) => {
+            if (!prev) {
+              const newest = resultsList[0]?.result || resultsList[0];
+              return newest;
+            }
+            return prev;
+          });
+        }
 
         if (data?.pagination) {
           setResultsPagination({
@@ -152,6 +144,14 @@ export default function useUptime() {
             total: data.pagination.total ?? resultsList.length,
             totalPages: Math.max(1, data.pagination.totalPages ?? 1),
           });
+        } else {
+          setResultsPagination((prev) => ({
+            ...prev,
+            page,
+            limit,
+            total: resultsList.length,
+            totalPages: Math.max(1, Math.ceil(resultsList.length / limit)),
+          }));
         }
       } catch (err) {
         if (!mountedRef.current || resultsReqIdRef.current !== currentReqId) return;
@@ -175,8 +175,18 @@ export default function useUptime() {
       if (!mountedRef.current) return;
       if (data?.monitor) {
         setSelectedMonitor(data.monitor);
-        if (data.monitor.lastResult) {
-          setLatestResult(data.monitor.lastResult);
+        const monResult = data.monitor.lastResult || data.monitor.lastCheck;
+        if (monResult) {
+          const hostinginfo =
+            data.monitor.hostinginfo ||
+            data.monitor.hostingInfo ||
+            monResult.hostinginfo ||
+            monResult.hostingInfo ||
+            null;
+          setLatestResult({
+            ...monResult,
+            ...(hostinginfo ? { hostinginfo } : {}),
+          });
         }
       }
     } catch (err) {
@@ -184,77 +194,199 @@ export default function useUptime() {
     }
   }, []);
 
-  /** Ensure socket is alive and subscribe to `uptimeCompleted` */
+  /** Handle fresh monitors list and auto-select */
+  const syncMonitorsState = useCallback(
+    (list) => {
+      setMonitors(list);
+      if (list.length > 0) {
+        const currentActive = list.find((m) => (m._id || m.id) === activeMonitorIdRef.current);
+        const target = currentActive || list[0];
+        const targetId = target._id || target.id;
+
+        if (!activeMonitorIdRef.current || !currentActive) {
+          setActiveMonitorId(targetId);
+          setSelectedMonitor(target);
+          if (target.lastResult || target.lastCheck) {
+            const monResult = target.lastResult || target.lastCheck;
+            const hostinginfo =
+              target.hostinginfo ||
+              target.hostingInfo ||
+              monResult.hostinginfo ||
+              monResult.hostingInfo ||
+              null;
+            setLatestResult({
+              ...monResult,
+              ...(hostinginfo ? { hostinginfo } : {}),
+            });
+          }
+          fetchRunningDetails(targetId);
+          fetchMonitorResults(
+            targetId,
+            1,
+            resultsPaginationRef.current.limit,
+            resultsStatusFilterRef.current,
+            { silent: true }
+          );
+        }
+      }
+    },
+    [fetchRunningDetails, fetchMonitorResults]
+  );
+
+  /** Fetch monitors fresh from backend database (no localStorage) */
+  const fetchMonitors = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        const data = await getMonitors();
+        if (!mountedRef.current) return;
+        const list = Array.isArray(data?.monitors) ? data.monitors : [];
+        syncMonitorsState(list);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        const msg = err?.error || err?.message || 'Failed to load monitors';
+        setError(msg);
+        if (!silent) toast.error(msg);
+      } finally {
+        if (mountedRef.current && !silent) setLoading(false);
+      }
+    },
+    [syncMonitorsState, toast]
+  );
+
+  // Initial load on mount
+  useEffect(() => {
+    let ignore = false;
+    getMonitors()
+      .then((data) => {
+        if (!ignore && mountedRef.current) {
+          const list = Array.isArray(data?.monitors) ? data.monitors : [];
+          syncMonitorsState(list);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!ignore && mountedRef.current) {
+          const msg = err?.error || err?.message || 'Failed to load monitors';
+          setError(msg);
+          setLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [syncMonitorsState]);
+
+  /** Ensure socket is alive and subscribe to `uptimeCompleted` & `uptime:result` */
   useEffect(() => {
     if (!isSocketConnected()) {
       connectSocket();
     }
 
-    const unsubscribe = subscribeToEvents({
-      [ON.UPTIME_COMPLETED]: (payload) => {
-        if (!payload || !mountedRef.current) return;
+    const handleIncomingResult = (payload) => {
+      if (!payload || !mountedRef.current) return;
 
-        const checkResult = payload.result || payload;
-        const incomingMonitorId = payload.monitorId || checkResult?.monitorId;
+      const rawCheck = payload.result || payload;
+      const checkResult =
+        rawCheck && typeof rawCheck === 'object' && rawCheck.result && typeof rawCheck.result === 'object'
+          ? rawCheck.result
+          : rawCheck;
+      const incomingMonitorId = payload.monitorId || checkResult?.monitorId;
+      const incomingHostingInfo =
+        payload.hostinginfo ??
+        payload.hostingInfo ??
+        checkResult?.hostinginfo ??
+        checkResult?.hostingInfo ??
+        null;
 
-        setLatestResult({
-          ...checkResult,
-          receivedAt: new Date().toISOString(),
+      const enrichedCheck = {
+        ...checkResult,
+        ...(incomingHostingInfo ? { hostinginfo: incomingHostingInfo } : {}),
+      };
+
+      setLatestResult((prev) => ({
+        ...enrichedCheck,
+        hostinginfo: incomingHostingInfo || prev?.hostinginfo || prev?.hostingInfo || null,
+        receivedAt: new Date().toISOString(),
+      }));
+
+      // If active monitor matches the socket event, sync the running monitor inspection
+      if (
+        incomingMonitorId &&
+        incomingMonitorId === activeMonitorIdRef.current
+      ) {
+        setSelectedMonitor((prev) =>
+          prev
+            ? {
+                ...prev,
+                lastResult: enrichedCheck,
+                ...(incomingHostingInfo ? { hostinginfo: incomingHostingInfo } : {}),
+                lastCheckedAt: new Date().toISOString(),
+              }
+            : prev
+        );
+
+        // Prepend new check to history list
+        setMonitorResults((prev) => {
+          const exists = prev.some(
+            (p) =>
+              (p._id && checkResult?._id && p._id === checkResult._id) ||
+              (p.timestamp && checkResult?.timestamp && p.timestamp === checkResult.timestamp)
+          );
+          if (exists) return prev;
+          return [enrichedCheck, ...prev.slice(0, 19)];
         });
 
-        // If active monitor matches the socket event, sync the running monitor inspection
-        if (
-          incomingMonitorId &&
-          incomingMonitorId === activeMonitorIdRef.current
-        ) {
-          setSelectedMonitor((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  lastResult: checkResult,
-                  lastCheckedAt: new Date().toISOString(),
-                }
-              : prev
+        // If inspecting page 1, refresh from backend as well
+        if (resultsPaginationRef.current.page === 1) {
+          fetchMonitorResults(
+            incomingMonitorId,
+            1,
+            resultsPaginationRef.current.limit,
+            resultsStatusFilterRef.current,
+            { silent: true }
           );
-
-          // If inspecting page 1, smoothly refresh results list
-          if (resultsPaginationRef.current.page === 1) {
-            fetchMonitorResults(
-              incomingMonitorId,
-              1,
-              resultsPaginationRef.current.limit,
-              resultsStatusFilterRef.current,
-              { silent: true }
-            );
-          }
         }
+      }
 
-        // Match monitor URL in the all monitors list for quick live preview
-        if (checkResult?.checkingFor) {
-          setMonitors((prev) =>
-            prev.map((m) => {
-              try {
-                const host = new URL(m.url).hostname;
-                if (
-                  host === checkResult.checkingFor ||
-                  m.url.includes(checkResult.checkingFor) ||
-                  (incomingMonitorId && (m._id || m.id) === incomingMonitorId)
-                ) {
-                  return {
-                    ...m,
-                    lastCheck: checkResult,
-                    lastResult: checkResult,
-                    lastCheckedAt: new Date().toISOString(),
-                  };
-                }
-              } catch {
-                // Ignore parse error
+      // Match monitor in the all monitors list for quick live preview
+      if (incomingMonitorId || checkResult?.checkingFor || payload?.url) {
+        setMonitors((prev) =>
+          prev.map((m) => {
+            const mId = m._id || m.id;
+            const matchesId = incomingMonitorId && String(mId) === String(incomingMonitorId);
+            let matchesHost = false;
+            try {
+              const host = new URL(m.url).hostname;
+              const targetHost =
+                checkResult?.checkingFor ||
+                (payload?.url ? new URL(payload.url).hostname : null);
+              if (targetHost && (host === targetHost || m.url.includes(targetHost))) {
+                matchesHost = true;
               }
-              return m;
-            })
-          );
-        }
-      },
+            } catch {
+              // Ignore parse error
+            }
+
+            if (matchesId || matchesHost) {
+              return {
+                ...m,
+                lastCheck: enrichedCheck,
+                lastResult: enrichedCheck,
+                ...(incomingHostingInfo ? { hostinginfo: incomingHostingInfo } : {}),
+                lastCheckedAt: new Date().toISOString(),
+              };
+            }
+            return m;
+          })
+        );
+      }
+    };
+
+    const unsubscribe = subscribeToEvents({
+      [ON.UPTIME_COMPLETED]: handleIncomingResult,
+      [ON.UPTIME_RESULT]: handleIncomingResult,
     });
 
     return () => {
@@ -264,7 +396,7 @@ export default function useUptime() {
 
   /** Create a new monitor */
   const addMonitor = useCallback(
-    async (rawUrl, interval = '5m') => {
+    async (rawUrl, interval = '15m') => {
       const url = normalizeUrl(rawUrl);
       if (!isValidUrl(url)) {
         toast.error('Please enter a valid URL (e.g. example.com or https://example.com)');
@@ -361,12 +493,24 @@ export default function useUptime() {
       try {
         await apiDeleteMonitor(id);
         if (mountedRef.current) {
-          setMonitors((prev) => prev.filter((m) => (m._id || m.id) !== id));
-          if (activeMonitorId === id) {
-            setActiveMonitorId(null);
-            setSelectedMonitor(null);
-            setMonitorResults([]);
-          }
+          setMonitors((prev) => {
+            const remaining = prev.filter((m) => (m._id || m.id) !== id);
+            if (activeMonitorId === id) {
+              if (remaining.length > 0) {
+                const nextActive = remaining[0];
+                const nextId = nextActive._id || nextActive.id;
+                setActiveMonitorId(nextId);
+                setSelectedMonitor(nextActive);
+                fetchMonitorResults(nextId, 1, resultsPaginationRef.current.limit, 'ALL', { silent: true });
+              } else {
+                setActiveMonitorId(null);
+                setSelectedMonitor(null);
+                setMonitorResults([]);
+                setLatestResult(null);
+              }
+            }
+            return remaining;
+          });
           toast.success('Monitor deleted successfully');
         }
       } catch (err) {
@@ -381,7 +525,7 @@ export default function useUptime() {
         }
       }
     },
-    [activeMonitorId, toast]
+    [activeMonitorId, fetchMonitorResults, toast]
   );
 
   /** Update monitor settings (interval / url) */
@@ -438,7 +582,17 @@ export default function useUptime() {
       if (found) {
         setSelectedMonitor(found);
         if (found.lastCheck || found.lastResult) {
-          setLatestResult(found.lastCheck || found.lastResult);
+          const monResult = found.lastCheck || found.lastResult;
+          const hostinginfo =
+            found.hostinginfo ||
+            found.hostingInfo ||
+            monResult.hostinginfo ||
+            monResult.hostingInfo ||
+            null;
+          setLatestResult({
+            ...monResult,
+            ...(hostinginfo ? { hostinginfo } : {}),
+          });
         }
       }
 
@@ -463,7 +617,7 @@ export default function useUptime() {
     [activeMonitorId, fetchMonitorResults, resultsPagination.limit, resultsStatusFilter]
   );
 
-  /** Change filter for monitor results (ALL, UP, DEGRADED, DOWN) */
+  /** Change filter for monitor results (ALL, UP, SLOW, DOWN) */
   const changeResultsStatusFilter = useCallback(
     (newStatus) => {
       setResultsStatusFilter(newStatus);

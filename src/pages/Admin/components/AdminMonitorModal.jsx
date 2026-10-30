@@ -14,15 +14,16 @@ function AdminMonitorModal({
   loading = false,
 }) {
   const [url, setUrl] = useState('');
-  const [interval, setInterval] = useState('5m');
+  const [interval, setInterval] = useState('15m');
   const [status, setStatus] = useState('active');
   const [userId, setUserId] = useState('');
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!open) {
       setUrl('');
-      setInterval('5m');
+      setInterval('15m');
       setStatus('active');
       setUserId('');
       setError(null);
@@ -31,17 +32,18 @@ function AdminMonitorModal({
 
     if (mode === 'edit' && monitor) {
       setUrl(monitor.url || '');
-      setInterval(monitor.interval || '5m');
+      setInterval(monitor.interval === '10m' ? '15m' : (monitor.interval || '15m'));
       setStatus(monitor.status || 'active');
       setUserId(getUserId(monitor.userId));
       setError(null);
     } else {
       setUrl('');
-      setInterval('5m');
+      setInterval('15m');
       setStatus('active');
       setUserId(users.length > 0 ? getUserId(users[0]) : '');
       setError(null);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, mode, monitor, users]);
 
   if (!open) return null;
@@ -197,7 +199,7 @@ function AdminMonitorModal({
                   type="text"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
-                  placeholder="Enter User ObjectId"
+                  placeholder="Enter User ID (e.g. 1, 42)"
                   className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-3.5 py-2 font-['JetBrains_Mono',monospace] text-xs text-[var(--text)] outline-none focus:border-[var(--cyan)]"
                   required
                 />
@@ -219,25 +221,29 @@ function AdminMonitorModal({
             </label>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {[
-                { val: '1m', label: '1 min', sub: 'High freq' },
-                { val: '5m', label: '5 min', sub: 'Standard' },
-                { val: '10m', label: '10 min', sub: 'Normal' },
-                { val: '30m', label: '30 min', sub: 'Low' },
-                { val: '1h', label: '1 hour', sub: 'Infrequent' },
+                { val: '1m', label: '1 min', sub: 'Coming soon', locked: true },
+                { val: '5m', label: '5 min', sub: 'Coming soon', locked: true },
+                { val: '15m', label: '15 min', sub: 'Default', locked: false },
+                { val: '30m', label: '30 min', sub: 'Normal', locked: false },
+                { val: '1h', label: '1 hour', sub: 'Infrequent', locked: false },
               ].map((item) => {
                 const isSelected = interval === item.val;
                 return (
                   <button
                     key={item.val}
                     type="button"
-                    onClick={() => setInterval(item.val)}
-                    className={`cursor-pointer rounded-xl border p-2 text-center transition ${
-                      isSelected
-                        ? 'border-[var(--cyan)] bg-[var(--cyan-dim)] text-[var(--cyan)] shadow-[0_0_10px_var(--cyan-dim)]'
-                        : 'border-[var(--border-mid)] bg-[var(--surface-2)] text-[var(--text-2)] hover:border-[var(--border-bright)]'
+                    disabled={item.locked}
+                    onClick={() => !item.locked && setInterval(item.val)}
+                    className={`rounded-xl border p-2 text-center transition ${
+                      item.locked
+                        ? 'cursor-not-allowed opacity-50 border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]'
+                        : isSelected
+                        ? 'cursor-pointer border-[var(--cyan)] bg-[var(--cyan-dim)] text-[var(--cyan)] shadow-[0_0_10px_var(--cyan-dim)]'
+                        : 'cursor-pointer border-[var(--border-mid)] bg-[var(--surface-2)] text-[var(--text-2)] hover:border-[var(--border-bright)]'
                     }`}
                   >
-                    <p className="font-['JetBrains_Mono',monospace] text-xs font-bold">
+                    <p className="font-['JetBrains_Mono',monospace] text-xs font-bold flex items-center justify-center gap-1">
+                      {item.locked && <span className="text-[10px]">🔒</span>}
                       {item.label}
                     </p>
                     <p className="text-[10px] text-[var(--muted)]">

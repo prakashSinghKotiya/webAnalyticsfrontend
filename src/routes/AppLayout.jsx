@@ -18,7 +18,7 @@ export default function AppLayout() {
   }
 
   const userRole = (user?.role || '').toLowerCase();
-  const isAdmin = userRole === 'admin' || userRole === 'superadmin' || user?.role === 'Admin' || user?.role === 'SuperAdmin';
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin' || userRole === 'super_admin' || user?.role === 'Admin' || user?.role === 'SuperAdmin';
 
   const handleLogout = async () => {
     await logout();

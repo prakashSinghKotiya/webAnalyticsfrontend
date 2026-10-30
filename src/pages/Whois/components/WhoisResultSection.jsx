@@ -1,20 +1,18 @@
 import { memo, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ROUTES } from '../../../constants';
 import {
-  analyzeWhoisSecurity,
+  buildWhoisSentenceSummary,
   calculateDaysRemaining,
   calculateDomainAge,
   exportWhoisReport,
   extractAbuseInfo,
   extractNameservers,
-  extractNotices,
   extractRegistrarInfo,
   extractStatusList,
-  formatCleanDate,
   formatEppStatus,
+  formatMediumDate,
   generateRawWhoisText,
   parseRdapEvents,
+  relativeTime,
 } from '../whois.utils';
 
 /* ── 1-Click Clipboard Copy Helper ───────────────────────────────────────── */
@@ -34,7 +32,7 @@ function CopyButton({ text, label = 'Copy', className = '' }) {
     <button
       type="button"
       onClick={handleCopy}
-      className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--cyan)] ${className}`}
+      className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--text)] ${className}`}
       title="Copy to clipboard"
     >
       {copied ? (
@@ -57,686 +55,150 @@ function CopyButton({ text, label = 'Copy', className = '' }) {
   );
 }
 
-/* ── Destructured Field Row (Only Renders When Value Is Valid & Available) ─ */
+/* ── Aligned Data Row Matching Design ────────────────────────────────────── */
 
-function WhoisField({ label, value, isMono = true, copyable = true, href = null }) {
+function DataRow({ label, value, isGreen = false, isMono = false, href = null, copyable = false }) {
   if (value == null) return null;
   const displayVal = String(value).trim();
-  if (
-    !displayVal ||
-    displayVal === '—' ||
-    displayVal === '-' ||
-    displayVal === 'null' ||
-    displayVal === 'undefined'
-  ) {
+  if (!displayVal || displayVal === '—' || displayVal === '-' || displayVal === 'null' || displayVal === 'undefined') {
     return null;
   }
 
-  const isUrl = Boolean(href) || /^https?:\/\//i.test(displayVal);
-  const targetUrl = href || displayVal;
-  const isEmail = !isUrl && /^[^@\s]+@[^@\s]+\.[^@\s]+$/i.test(displayVal);
-  const isPhone = !isUrl && !isEmail && /^\+?[\d\s\-().]{7,}$/.test(displayVal);
-
   return (
-    <div className="group flex flex-col py-2.5 border-b border-[var(--border)] last:border-b-0 min-w-0">
-      <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
-        {label}:
-      </span>
-      <div className="mt-1 flex items-start sm:items-center justify-between gap-2 min-w-0">
-        <div className="min-w-0 flex-1">
-          {isUrl ? (
-            <a
-              href={targetUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-[var(--cyan)] hover:underline break-all"
-              title={targetUrl}
-            >
-              <span className="break-all">{displayVal}</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="flex-none">
-                <line x1="7" y1="17" x2="17" y2="7" />
-                <polyline points="7 7 17 7 17 17" />
-              </svg>
-            </a>
-          ) : isEmail ? (
-            <a
-              href={`mailto:${displayVal}`}
-              className="text-xs sm:text-sm font-semibold text-[var(--cyan)] hover:underline break-all font-['JetBrains_Mono',monospace]"
-            >
-              {displayVal}
-            </a>
-          ) : isPhone ? (
-            <a
-              href={`tel:${displayVal.replace(/[^\d+]/g, '')}`}
-              className="text-xs sm:text-sm font-semibold text-[var(--text)] hover:text-[var(--cyan)] transition break-all font-['JetBrains_Mono',monospace]"
-            >
-              {displayVal}
-            </a>
-          ) : (
-            <span
-              className={`text-xs sm:text-sm font-semibold text-[var(--text)] break-all sm:break-words ${
-                isMono ? "font-['JetBrains_Mono',monospace]" : "font-['Outfit',sans-serif]"
-              }`}
-            >
-              {displayVal}
-            </span>
-          )}
-        </div>
-
-        {copyable && (
-          <CopyButton text={displayVal} className="opacity-75 group-hover:opacity-100 flex-none self-start sm:self-center" />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── Section 1: Domain Information Card ─────────────────────────────────── */
-
-function DomainInfoCard({
-  domain,
-  registryDomainId,
-  unicodeDomain,
-  registrationDate,
-  expirationDate,
-  lastChangedDate,
-  domainAge,
-  daysRemaining,
-  dnssecStatus,
-  statuses = [],
-  nameServers = [],
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)]">
-      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)] text-sm">
-            🌐
-          </span>
-          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-            Domain Information
-          </h3>
-        </div>
-        {daysRemaining != null && (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-3 border-b border-[var(--border)]/70 text-sm">
+      <span className="text-[var(--muted-2)] font-normal sm:w-1/3 shrink-0">{label}</span>
+      <div className="flex items-center gap-2 sm:justify-end sm:w-2/3">
+        {href ? (
+          <a
+            href={href.startsWith('http') ? href : `https://${href}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate text-[var(--text)] hover:text-[var(--cyan)] hover:underline font-medium"
+          >
+            {displayVal}
+          </a>
+        ) : (
           <span
-            className={`rounded-full px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[11px] font-semibold ${
-              daysRemaining > 0
-                ? 'bg-[var(--cyan-dim)] text-[var(--cyan)]'
-                : 'bg-[var(--red)]/15 text-[var(--red)]'
+            className={`truncate font-medium ${
+              isGreen
+                ? 'text-[#059669] dark:text-[#34d399]'
+                : isMono
+                  ? 'font-["JetBrains_Mono",monospace] text-[var(--text)]'
+                  : 'text-[var(--text)]'
             }`}
           >
-            {daysRemaining > 0 ? `${daysRemaining}d remaining` : 'Expired'}
+            {displayVal}
           </span>
         )}
-      </div>
-
-      <div className="divide-y divide-[var(--border)]">
-        <WhoisField label="Domain Name" value={domain} />
-        {unicodeDomain && unicodeDomain.toUpperCase() !== domain.toUpperCase() && (
-          <WhoisField label="Unicode Domain" value={unicodeDomain} />
-        )}
-        {registryDomainId && <WhoisField label="Registry Domain ID" value={registryDomainId} />}
-        {registrationDate && <WhoisField label="Registered On" value={formatCleanDate(registrationDate)} />}
-        {expirationDate && <WhoisField label="Expires On" value={formatCleanDate(expirationDate)} />}
-        {lastChangedDate && <WhoisField label="Updated On" value={formatCleanDate(lastChangedDate)} />}
-        {domainAge && <WhoisField label="Domain Age" value={domainAge} isMono={false} />}
-        {dnssecStatus && <WhoisField label="DNSSEC" value={dnssecStatus} isMono={false} />}
-
-        {/* Status List with EPP Status Tags */}
-        <div className="py-2.5 border-b border-[var(--border)]">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
-              Domain Status ({statuses.length}):
-            </span>
-            {statuses.length > 0 && (
-              <CopyButton text={statuses.join('\n')} label="Copy All" />
-            )}
-          </div>
-          <div className="mt-2.5 space-y-2">
-            {statuses.length > 0 ? (
-              statuses.map((st, idx) => {
-                const info = formatEppStatus(st);
-                let badgeColor = 'var(--cyan)';
-                if (info.level === 'safe') badgeColor = 'var(--green)';
-                if (info.level === 'warning') badgeColor = 'var(--orange)';
-                if (info.level === 'danger') badgeColor = 'var(--red)';
-
-                return (
-                  <div
-                    key={idx}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className="h-2 w-2 flex-none rounded-full"
-                        style={{ backgroundColor: badgeColor }}
-                      />
-                      <span className="font-['JetBrains_Mono',monospace] font-semibold text-[var(--text)] break-all">
-                        {st}
-                      </span>
-                    </div>
-                    {info.label && (
-                      <span
-                        className="self-start sm:self-auto rounded px-2 py-0.5 text-[10px] font-bold tracking-tight uppercase"
-                        style={{
-                          backgroundColor: `${badgeColor}18`,
-                          color: badgeColor,
-                          border: `1px solid ${badgeColor}35`,
-                        }}
-                      >
-                        {info.label}
-                      </span>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="flex items-center gap-2 text-xs font-['JetBrains_Mono',monospace] text-[var(--green)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--green)]" />
-                <span>Active</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Authoritative Name Servers List */}
-        <div className="py-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
-              Name Servers ({nameServers.length}):
-            </span>
-            {nameServers.length > 0 && (
-              <CopyButton text={nameServers.join('\n')} label="Copy All" />
-            )}
-          </div>
-          <div className="mt-2.5 space-y-1.5">
-            {nameServers.length > 0 ? (
-              nameServers.map((ns, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-['JetBrains_Mono',monospace]"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="h-1.5 w-1.5 flex-none rounded-full bg-[var(--cyan)]" />
-                    <span className="truncate break-all font-semibold text-[var(--text)]">{ns}</span>
-                  </div>
-                  <CopyButton text={ns} className="flex-none" />
-                </div>
-              ))
-            ) : (
-              <span className="text-xs text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">
-                No nameservers found
-              </span>
-            )}
-          </div>
-        </div>
+        {copyable && <CopyButton text={displayVal} />}
       </div>
     </div>
   );
 }
 
-/* ── Section 2: Registrar Information Card ───────────────────────────────── */
+/* ── Section Title ───────────────────────────────────────────────────────── */
 
-function RegistrarInfoCard({ registrar }) {
-  const r = registrar || {};
-  const hasAnyValue = Boolean(
-    r.name || r.ianaId || r.url || r.whoisServer || r.email || r.phone || r.handle
-  );
-
-  if (!hasAnyValue) {
-    return null;
-  }
-
+function SectionHeading({ title }) {
   return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)]">
-      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)] text-sm">
-            🏢
-          </span>
-          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-            Registrar Information
-          </h3>
-        </div>
-        {r.ianaId && (
-          <span className="rounded-full bg-[var(--surface-3)] px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[10px] font-semibold text-[var(--cyan)]">
-            IANA ID: {r.ianaId}
-          </span>
-        )}
-      </div>
-
-      <div className="divide-y divide-[var(--border)]">
-        {r.name && <WhoisField label="Registrar Name" value={r.name} isMono={false} />}
-        {r.ianaId && <WhoisField label="IANA Registrar ID" value={r.ianaId} />}
-        {r.url && <WhoisField label="Registrar Website" value={r.url} />}
-        {r.whoisServer && <WhoisField label="RDAP / WHOIS Server" value={r.whoisServer} />}
-        {r.email && <WhoisField label="Registrar Email" value={r.email} />}
-        {r.phone && <WhoisField label="Registrar Phone" value={r.phone} />}
-        {r.handle && r.handle !== r.ianaId && <WhoisField label="Registrar Handle" value={r.handle} />}
-      </div>
-    </div>
+    <h3 className="mt-8 mb-2 font-['Outfit',sans-serif] text-sm font-semibold tracking-tight text-[var(--text)]">
+      {title}
+    </h3>
   );
 }
 
-/* ── Section 3: Abuse & Security Information Card ────────────────────────── */
+/* ── Main WhoisResultSection Component ───────────────────────────────────── */
 
-function AbuseInfoCard({ abuse }) {
-  const ab = abuse || {};
-  const hasData = Boolean(ab.email || ab.phone || ab.name || ab.organization || ab.contactUrl || ab.handle);
+function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun = null, isDemo = false }) {
+  const [showRaw, setShowRaw] = useState(false);
 
-  if (!hasData) {
-    return null;
-  }
+  // Parse RDAP payload and extract all intelligence
+  const data = useMemo(() => {
+    if (!result) return null;
+    const raw = result.raw || result.result || result;
+    const domainName = (result.domain || raw.domain || raw.domainName || raw.ldhName || '').toLowerCase().trim();
+    const events = parseRdapEvents(result.events || raw.events, raw);
+    const registrar = extractRegistrarInfo(result);
+    const abuse = extractAbuseInfo(result);
+    const nameservers = extractNameservers(result);
+    const statusList = extractStatusList(result);
+    const daysRemaining = calculateDaysRemaining(events.expirationDate);
+    const domainAge = calculateDomainAge(events.registrationDate);
 
-  return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)]">
-      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--orange)]/15 text-[var(--orange)] text-sm">
-            🚨
-          </span>
-          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-            Abuse & Security Contact
-          </h3>
-        </div>
-        <span className="rounded-full bg-[var(--orange)]/15 px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[10px] font-bold uppercase tracking-wider text-[var(--orange)]">
-          Abuse Hotline
-        </span>
-      </div>
+    const secureDNS = result.secureDNS || raw.secureDNS;
+    const isDnssecSigned = Boolean(secureDNS?.delegationSigned || result.isDnssec || raw.dnssec);
 
-      <p className="mb-3 text-[11px] leading-relaxed text-[var(--muted-2)]">
-        Designated point of contact for reporting network abuse, phishing, copyright violations, or malicious domain activity.
-      </p>
+    const sentence = buildWhoisSentenceSummary({
+      domainAge,
+      registrarName: registrar?.name,
+      daysRemaining,
+      expirationDate: events.expirationDate,
+      statuses: statusList,
+      isDnssecSigned,
+    });
 
-      <div className="divide-y divide-[var(--border)]">
-        {ab.email && <WhoisField label="Abuse Contact Email" value={ab.email} />}
-        {ab.phone && <WhoisField label="Abuse Contact Phone" value={ab.phone} />}
-        {ab.organization && <WhoisField label="Abuse Organization" value={ab.organization} isMono={false} />}
-        {ab.name && <WhoisField label="Contact Name" value={ab.name} isMono={false} />}
-        {ab.contactUrl && <WhoisField label="Abuse Web Form" value={ab.contactUrl} />}
-        {ab.handle && <WhoisField label="Abuse Entity Handle" value={ab.handle} />}
-      </div>
-    </div>
-  );
-}
+    const rawText = generateRawWhoisText(result);
 
-/* ── Section 4: Authoritative ICANN Notices & Verification Links ─────────── */
+    return {
+      domainName,
+      events,
+      registrar,
+      abuse,
+      nameservers,
+      statusList,
+      daysRemaining,
+      domainAge,
+      isDnssecSigned,
+      sentence,
+      rawText,
+      createdAt: result.createdAt || result.updatedAt || raw.createdAt || null,
+    };
+  }, [result]);
 
-function NoticesCard({ notices = [] }) {
-  if (!notices || notices.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)] lg:col-span-2">
-      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)] text-sm">
-            📋
-          </span>
-          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-            Authoritative ICANN Notices & Registry Links
-          </h3>
-        </div>
-        <span className="rounded-full bg-[var(--surface-3)] px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[10px] font-semibold text-[var(--muted-2)]">
-          {notices.length} Notices
-        </span>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {notices.map((n, idx) => (
-          <div
-            key={idx}
-            className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4"
-          >
-            <div>
-              <h4 className="font-['Outfit',sans-serif] text-xs font-bold text-[var(--text)]">
-                {n.title}
-              </h4>
-              {n.description && (
-                <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-2)]">
-                  {n.description}
-                </p>
-              )}
-            </div>
-
-            {n.links && n.links.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-[var(--border)]/60">
-                {n.links.map((link, lIdx) => (
-                  <a
-                    key={lIdx}
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--cyan)] hover:underline break-all"
-                  >
-                    <span>View Reference</span>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <line x1="7" y1="17" x2="17" y2="7" />
-                      <polyline points="7 7 17 7 17 17" />
-                    </svg>
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Section 5: Security & Health Diagnostics Card ───────────────────────── */
-
-function DomainSecurityCard({ events, nameservers, secureDNS }) {
-  const diagnostics = useMemo(() => {
-    return analyzeWhoisSecurity({ events, nameservers, secureDNS });
-  }, [events, nameservers, secureDNS]);
-
-  if (!diagnostics || !diagnostics.length) return null;
-
-  return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)] transition hover:border-[var(--border-bright)] lg:col-span-2">
-      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--green-dim)] text-[var(--green)] text-sm">
-            🛡️
-          </span>
-          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-            Domain Security & Infrastructure Health
-          </h3>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {diagnostics.map((diag, idx) => {
-          let badgeColor = 'var(--cyan)';
-          if (diag.status === 'pass') badgeColor = 'var(--green)';
-          if (diag.status === 'warn') badgeColor = 'var(--orange)';
-          if (diag.status === 'fail') badgeColor = 'var(--red)';
-
-          return (
-            <div
-              key={idx}
-              className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="font-['Outfit',sans-serif] text-xs font-bold text-[var(--text)]">
-                    {diag.title}
-                  </h4>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                    style={{
-                      color: badgeColor,
-                      backgroundColor: `${badgeColor}15`,
-                    }}
-                  >
-                    {diag.badge}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs leading-relaxed text-[var(--muted-2)]">
-                  {diag.desc}
-                </p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ── Section 6: Raw WHOIS Record (Dropdown Accordion) ────────────────────── */
-
-function RawWhoisDropdown({ rawText, rawData, defaultOpen = false }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [activeTab, setActiveTab] = useState('text'); // 'text' | 'json'
-
-  const lineCount = useMemo(() => {
-    return rawText ? rawText.split('\n').length : 0;
-  }, [rawText]);
-
-  const jsonString = useMemo(() => {
-    return rawData ? JSON.stringify(rawData, null, 2) : '';
-  }, [rawData]);
-
-  const activeContent = activeTab === 'text' ? rawText : jsonString;
-
-  return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden transition-all duration-200">
-      {/* Accordion Trigger Header */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setIsOpen(!isOpen)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsOpen(!isOpen);
-          }
-        }}
-        aria-expanded={isOpen}
-        className="flex cursor-pointer flex-wrap items-center justify-between gap-3 p-5 sm:p-6 transition select-none hover:bg-[var(--surface-2)]"
-      >
+  // Loading State
+  if (isLookingUp) {
+    return (
+      <section className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--cyan-dim)] text-[var(--cyan)] font-mono text-sm font-bold">
-            &gt;_
-          </span>
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--cyan)] border-t-transparent" />
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-['Outfit',sans-serif] text-base sm:text-lg font-bold text-[var(--text)]">
-                Raw WHOIS record
-              </h3>
-              <span className="rounded-full bg-[var(--surface-3)] px-2.5 py-0.5 font-['JetBrains_Mono',monospace] text-[10px] font-semibold text-[var(--cyan)]">
-                {lineCount} lines
-              </span>
-            </div>
-            <p className="mt-0.5 text-xs text-[var(--muted-2)]">
-              {isOpen ? 'Click to close raw record view' : 'Click to inspect authoritative raw text & RDAP JSON responses'}
+            <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
+              Querying Authoritative RDAP &amp; WHOIS Servers…
+            </h3>
+            <p className="text-xs text-[var(--muted-2)]">
+              Parsing registry events, cryptographic DNSSEC records, and accredited registrar data.
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-2.5">
-          <CopyButton text={activeContent} label="Copy Record" />
-          <div
-            className={`flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-3)] text-[var(--text-2)] transition-transform duration-200 ${
-              isOpen ? 'rotate-180 text-[var(--cyan)] border-[var(--border-bright)]' : ''
-            }`}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      {/* Accordion Body */}
-      {isOpen && (
-        <div className="border-t border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-6">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] p-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setActiveTab('text')}
-                className={`cursor-pointer rounded-md px-3 py-1 font-semibold transition ${
-                  activeTab === 'text'
-                    ? 'bg-[var(--cyan-dim)] text-[var(--cyan)] shadow-sm'
-                    : 'text-[var(--muted-2)] hover:text-[var(--text)]'
-                }`}
-              >
-                WHOIS Record (Text)
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('json')}
-                className={`cursor-pointer rounded-md px-3 py-1 font-semibold transition ${
-                  activeTab === 'json'
-                    ? 'bg-[var(--cyan-dim)] text-[var(--cyan)] shadow-sm'
-                    : 'text-[var(--muted-2)] hover:text-[var(--text)]'
-                }`}
-              >
-                Raw RDAP (JSON)
-              </button>
-            </div>
-
-            <span className="font-['JetBrains_Mono',monospace] text-[10px] text-[var(--muted-2)]">
-              Authoritative Registry Query Response
-            </span>
-          </div>
-
-          <div className="relative rounded-xl border border-[var(--border)] bg-[#12141a] p-4 text-xs font-['JetBrains_Mono',monospace] leading-relaxed shadow-inner">
-            <pre className="max-h-[500px] overflow-x-auto overflow-y-auto whitespace-pre text-[var(--text-2)] select-text">
-              {activeContent}
-            </pre>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Section 7: Actionable Next Steps Hub ────────────────────────────────── */
-
-function WhoisActionHub({ domain, isDemo = false }) {
-  const cleanDomain = encodeURIComponent(domain || '');
-
-  const actions = [
-    {
-      title: 'Audit DNS Records',
-      desc: 'Verify A, MX, TXT, SPF, DKIM, and mail exchange records.',
-      route: isDemo ? `${ROUTES.TOOLS_DNS}?url=${cleanDomain}` : `${ROUTES.DNS}?domain=${cleanDomain}`,
-      icon: '🔍',
-      badge: 'DNS',
-    },
-    {
-      title: 'Test Global TTFB',
-      desc: 'Benchmark latency & server time to first byte worldwide.',
-      route: isDemo ? `${ROUTES.TOOLS_TTFB}?url=https://${cleanDomain}` : `${ROUTES.TTFB}?url=https://${cleanDomain}`,
-      icon: '⚡',
-      badge: 'Latency',
-    },
-    {
-      title: 'Trace URL Redirects',
-      desc: 'Inspect HTTPS protocols, www hops, and 301/302 cascades.',
-      route: isDemo ? `${ROUTES.TOOLS_REDIRECTS}?url=https://${cleanDomain}` : `${ROUTES.REDIRECTS}?url=https://${cleanDomain}`,
-      icon: '🔀',
-      badge: 'Redirects',
-    },
-    {
-      title: '24/7 Uptime Monitor',
-      desc: 'Set up real-time monitoring and instant downtime alerts.',
-      route: isDemo ? ROUTES.LOGIN : ROUTES.UPTIME,
-      icon: '📡',
-      badge: 'Uptime',
-    },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-5 sm:p-6 shadow-[var(--shadow-card)]">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-            Related Tools for {domain}
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--muted-2)]">
-            Quickly audit DNS propagation, server latency, and URL redirects
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {actions.map((act, idx) => (
-          <Link
-            key={idx}
-            to={act.route}
-            className="group flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 transition duration-200 hover:border-[var(--cyan-mid)] hover:shadow-md motion-safe:hover:-translate-y-0.5"
-          >
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-lg">{act.icon}</span>
-                <span className="rounded-full bg-[var(--cyan-dim)] px-2 py-0.5 font-['JetBrains_Mono',monospace] text-[9px] font-bold uppercase text-[var(--cyan)]">
-                  {act.badge}
-                </span>
-              </div>
-              <h4 className="mt-2.5 font-['Outfit',sans-serif] text-sm font-bold text-[var(--text)] group-hover:text-[var(--cyan)]">
-                {act.title}
-              </h4>
-              <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted-2)]">{act.desc}</p>
-            </div>
-            <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-[var(--cyan)]">
-              <span>Run Check</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="transition-transform group-hover:translate-x-1">
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Main WhoisResultSection ─────────────────────────────────────────────── */
-
-function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun = null, isDemo = false }) {
-  // Active lookup loading state
-  if (isLookingUp) {
-    return (
-      <section className="fade-up rounded-2xl border border-[var(--border-bright)] bg-[var(--surface)] p-8 shadow-[var(--hero-shadow)] sm:p-12">
-        <div className="flex flex-col items-center justify-center text-center">
-          <div className="relative mb-5 flex h-20 w-20 items-center justify-center">
-            <div className="absolute h-full w-full animate-ping rounded-full bg-[var(--cyan)]/20" />
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-[var(--cyan)] to-blue-500 shadow-lg shadow-[var(--cyan-dim)]">
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#000"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="animate-spin"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-            </div>
-          </div>
-          <h3 className="font-['Outfit',sans-serif] text-xl font-bold text-[var(--text)]">
-            Querying ICANN WHOIS / RDAP Registry…
-          </h3>
-          <p className="mt-2 max-w-sm text-xs text-[var(--muted-2)]">
-            Fetching registrar accreditation, abuse contacts, lifecycle dates, and authoritative nameservers.
-          </p>
-          <div className="mt-5 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[var(--bar-track)]">
-            <div className="h-full w-full rounded-full bg-gradient-to-r from-[var(--cyan)] to-blue-500 animate-[marquee_2s_linear_infinite]" />
+        <div className="mt-5 space-y-3">
+          <div className="h-8 w-2/5 animate-pulse rounded-lg bg-[var(--surface-2)]" />
+          <div className="h-4 w-4/5 animate-pulse rounded-md bg-[var(--surface-2)]" />
+          <div className="h-4 w-3/5 animate-pulse rounded-md bg-[var(--surface-2)]" />
+          <div className="mt-6 divide-y divide-[var(--border)]">
+            <div className="h-10 animate-pulse bg-[var(--surface-2)]/40" />
+            <div className="h-10 animate-pulse bg-[var(--surface-2)]/40" />
+            <div className="h-10 animate-pulse bg-[var(--surface-2)]/40" />
           </div>
         </div>
       </section>
     );
   }
 
-  // Error state
+  // Error State
   if (error) {
     return (
-      <section role="alert" className="fade-up rounded-2xl border border-[var(--red)]/30 bg-[var(--red)]/10 p-6 text-sm">
+      <section className="rounded-3xl border border-[var(--red)]/30 bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]">
         <div className="flex items-start gap-3">
-          <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-[var(--red)] text-black font-bold">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--red)]/30 bg-[var(--red)]/10 text-sm font-bold text-[var(--red)]">
             !
           </span>
           <div className="flex-1">
-            <h3 className="font-['Outfit',sans-serif] font-bold text-[var(--text)]">WHOIS / RDAP Lookup Failed</h3>
-            <p className="mt-1 text-xs text-[var(--muted-2)] leading-relaxed">{error}</p>
+            <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">WHOIS Query Failed</h3>
+            <p className="mt-1 text-sm text-[var(--muted-2)]">{error}</p>
             {onReRun && (
               <button
                 type="button"
                 onClick={onReRun}
-                className="mt-3 cursor-pointer rounded-lg bg-[var(--surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface-3)]"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:border-[var(--border-bright)] hover:text-[var(--cyan)]"
               >
                 Retry Lookup
               </button>
@@ -747,175 +209,245 @@ function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun
     );
   }
 
-  // Empty state
-  if (!result) {
+  // Idle / Empty State (only when not in demo mode with no result)
+  if (!data) {
     return (
-      <section className="fade-up rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow-card)] sm:p-12">
-        <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--cyan-dim)] text-[var(--cyan)]">
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+      <section className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-10 sm:p-12 text-center shadow-[var(--shadow-card)]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--cyan-dim)] text-[var(--cyan)]">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
             <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
           </svg>
-        </span>
-        <h3 className="font-['Outfit',sans-serif] text-lg font-bold text-[var(--text)]">
-          No WHOIS Records Queried
+        </div>
+        <h3 className="mt-4 font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
+          No domain inspected yet
         </h3>
-        <p className="mx-auto mt-1.5 max-w-md text-xs text-[var(--muted-2)]">
-          Enter a domain name above to inspect official ICANN RDAP registration dates, registrar accreditation, abuse hotline, and raw WHOIS record.
+        <p className="mt-1 text-xs sm:text-sm text-[var(--muted-2)] max-w-sm mx-auto">
+          Enter a domain name above to inspect registration dates, accredited registrar, and DNSSEC security.
         </p>
       </section>
     );
   }
 
-  const rawData = result.raw || result.result || result;
-  const domain = (result.domain || rawData.domain || rawData.domainName || rawData.ldhName || result.url || '').toLowerCase();
-  const unicodeDomain = result.unicodeDomain || rawData.unicodeDomain || rawData.unicodeName || null;
-  const events = parseRdapEvents(result.events || rawData.events, rawData);
-  const registrar = extractRegistrarInfo(result);
-  const abuse = extractAbuseInfo(result);
-  const notices = extractNotices(result);
-  const statuses = extractStatusList(result);
-  const nameServers = extractNameservers(result);
-  const registryDomainId = rawData.handle || rawData.registryDomainId || rawData.domainId || null;
-  const secureDNS = result.secureDNS || rawData.secureDNS;
-  const dnssecStatus = secureDNS?.delegationSigned ? 'Signed / Active' : rawData.dnssec ? String(rawData.dnssec) : 'Unsigned';
+  const {
+    domainName,
+    events,
+    registrar,
+    abuse,
+    nameservers,
+    statusList,
+    domainAge,
+    isDnssecSigned,
+    sentence,
+    rawText,
+    createdAt,
+  } = data;
 
-  const rawWhoisText = generateRawWhoisText(result);
+  const relTime = relativeTime(createdAt);
+  const metaText = `Checked via official RDAP · ${relTime || 'just now'}`;
 
-  const daysRemaining = calculateDaysRemaining(events.expirationDate);
-  const domainAge = calculateDomainAge(events.registrationDate);
-
-  let expiryBadgeColor = 'var(--green)';
-  let expiryBadgeText = 'Active & Valid';
-  if (daysRemaining != null) {
-    if (daysRemaining < 0) {
-      expiryBadgeColor = 'var(--red)';
-      expiryBadgeText = 'Expired';
-    } else if (daysRemaining <= 30) {
-      expiryBadgeColor = 'var(--red)';
-      expiryBadgeText = `Expires in ${daysRemaining}d`;
-    } else if (daysRemaining <= 90) {
-      expiryBadgeColor = 'var(--orange)';
-      expiryBadgeText = `Expires in ${daysRemaining}d`;
-    } else {
-      expiryBadgeColor = 'var(--green)';
-      expiryBadgeText = `${daysRemaining} Days Left`;
-    }
-  }
+  // Formatted registrar website
+  const regWebsite = registrar?.url
+    ? registrar.url.replace(/^https?:\/\//i, '').replace(/\/.*$/, '')
+    : null;
 
   return (
-    <div className="flex flex-col gap-6 fade-up">
-      {/* ── Top Bar: Domain Headline, Expiry Badge, Quick Action Buttons ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[var(--border-mid)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--shadow-card)]">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="font-['Outfit',sans-serif] text-xl sm:text-2xl font-extrabold text-[var(--text)] break-all">
-              {domain}
-            </h2>
-            <span
-              className="rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider flex-none"
-              style={{
-                backgroundColor: `${expiryBadgeColor}18`,
-                color: expiryBadgeColor,
-                border: `1px solid ${expiryBadgeColor}40`,
-              }}
-            >
-              {expiryBadgeText}
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs text-[var(--muted-2)]">
-            Registered: {formatCleanDate(events.registrationDate)} {domainAge ? `(${domainAge} old)` : ''} • Checked via Official RDAP Protocol
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <CopyButton text={rawWhoisText} label="Copy WHOIS" className="flex-1 sm:flex-initial justify-center" />
-          <button
-            type="button"
-            onClick={() => exportWhoisReport(rawData)}
-            className="flex-1 sm:flex-initial inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition hover:border-[var(--border-bright)] hover:text-[var(--cyan)]"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span>Export</span>
-          </button>
+    <section className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-10 shadow-[var(--shadow-card)]">
+      {/* ── Top Meta Bar & Action Buttons ──────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--muted-2)]">
+        <span>{metaText}</span>
+        <div className="flex items-center gap-2">
           {onReRun && (
             <button
               type="button"
               onClick={onReRun}
-              className="flex-1 sm:flex-initial inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[var(--cyan-dim)] px-3 py-1.5 text-xs font-semibold text-[var(--cyan)] transition hover:bg-[var(--cyan-mid)]"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--text)] hover:border-[var(--border-bright)] hover:text-[var(--cyan)] transition"
+              title="Refresh WHOIS record"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
-              <span>Re-query</span>
+              <span>Re-run</span>
+            </button>
+          )}
+          {!isDemo && (
+            <button
+              type="button"
+              onClick={() => exportWhoisReport(result)}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--text)] hover:border-[var(--border-bright)] hover:text-[var(--cyan)] transition"
+              title="Export WHOIS JSON report"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>Export JSON</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Main Destructured Grid: Domain, Registrar, Abuse Contact ──────── */}
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
-        {/* Card 1: Domain Information */}
-        <DomainInfoCard
-          domain={domain}
-          registryDomainId={registryDomainId}
-          unicodeDomain={unicodeDomain}
-          registrationDate={events.registrationDate}
-          expirationDate={events.expirationDate}
-          lastChangedDate={events.lastChangedDate}
-          domainAge={domainAge}
-          daysRemaining={daysRemaining}
-          dnssecStatus={dnssecStatus}
-          statuses={statuses}
-          nameServers={nameServers}
-        />
+      {/* ── Main Domain Title ──────────────────────────────────────────────── */}
+      <h2 className="mt-3 font-['Outfit',sans-serif] text-2xl sm:text-4xl font-bold tracking-tight text-[var(--text)] break-all">
+        {domainName}
+      </h2>
 
-        {/* Card 2: Registrar Information */}
-        <RegistrarInfoCard registrar={registrar} />
+      {/* ── Dynamic Sentence Summary Matching Image 2 ───────────────────────── */}
+      <p className="mt-2 text-sm leading-relaxed text-[var(--muted-2)]">
+        {sentence.agePart} with {sentence.registrarName}
+        {sentence.renewalDays != null && sentence.renewalDate ? (
+          <>
+            {' '}Renews in{' '}
+            <span className="font-semibold text-[#059669] dark:text-[#34d399]">
+              {sentence.renewalDays} days
+            </span>{' '}
+            ({sentence.renewalDate}).
+          </>
+        ) : null}{' '}
+        {sentence.securitySummary}
+      </p>
 
-        {/* Card 3: Abuse & Security Contact (Full width if only card in row, else fits grid) */}
-        {abuse && (
-          <div className={registrar ? 'lg:col-span-2' : 'lg:col-span-1'}>
-            <AbuseInfoCard abuse={abuse} />
-          </div>
-        )}
-
-        {/* Card 4: Domain Security Diagnostics */}
-        <DomainSecurityCard
-          events={result.events || rawData.events}
-          nameservers={nameServers}
-          secureDNS={secureDNS}
-        />
-
-        {/* Card 5: Authoritative ICANN Notices & Links */}
-        {notices.length > 0 && <NoticesCard notices={notices} />}
+      {/* ── Domain Section ─────────────────────────────────────────────────── */}
+      <div className="mt-4">
+        <SectionHeading title="Domain" />
+        <div className="divide-y-0">
+          <DataRow
+            label="Registered"
+            value={formatMediumDate(events.registrationDate)}
+          />
+          <DataRow
+            label="Expires"
+            value={formatMediumDate(events.expirationDate)}
+          />
+          <DataRow
+            label="Last updated"
+            value={formatMediumDate(events.lastChangedDate)}
+          />
+          <DataRow
+            label="Age"
+            value={domainAge || calculateDomainAge(events.registrationDate)}
+          />
+          <DataRow
+            label="DNSSEC"
+            value={isDnssecSigned ? 'Signed' : 'Unsigned'}
+            isGreen={isDnssecSigned}
+          />
+        </div>
       </div>
 
-      {/* ── Section 6: Raw WHOIS Record (Collapsible Dropdown Accordion) ──── */}
-      <RawWhoisDropdown
-        rawText={rawWhoisText}
-        rawData={rawData}
-        defaultOpen={false}
-      />
+      {/* ── Registrar Section ──────────────────────────────────────────────── */}
+      {(registrar?.name || registrar?.ianaId || regWebsite) && (
+        <div className="mt-2">
+          <SectionHeading title="Registrar" />
+          <div className="divide-y-0">
+            <DataRow
+              label="Name"
+              value={registrar?.name}
+              copyable={Boolean(registrar?.name)}
+            />
+            <DataRow
+              label="IANA ID"
+              value={registrar?.ianaId}
+              isMono={true}
+            />
+            <DataRow
+              label="Website"
+              value={regWebsite || registrar?.url}
+              href={registrar?.url || (regWebsite ? `https://${regWebsite}` : null)}
+            />
+          </div>
+        </div>
+      )}
 
-      {/* ── Section 7: Actionable Tools Hub ──────────────────────────────── */}
-      <WhoisActionHub domain={domain} isDemo={isDemo} />
-    </div>
+      {/* ── Name Servers Section ───────────────────────────────────────────── */}
+      {nameservers.length > 0 && (
+        <div className="mt-2">
+          <SectionHeading title="Name Servers" />
+          <div className="divide-y-0">
+            {nameservers.map((ns, idx) => (
+              <DataRow
+                key={idx}
+                label={idx === 0 ? 'Primary' : `Secondary ${idx}`}
+                value={ns}
+                isMono={true}
+                copyable={true}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Domain Status (EPP Flags) Section ──────────────────────────────── */}
+      {statusList.length > 0 && (
+        <div className="mt-2">
+          <SectionHeading title="Domain Status" />
+          <div className="divide-y-0">
+            {statusList.map((st, idx) => {
+              const info = formatEppStatus(st);
+              return (
+                <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-3 border-b border-[var(--border)]/70 text-sm">
+                  <span className="text-[var(--muted-2)] font-normal">{info.label}</span>
+                  <span className="font-['JetBrains_Mono',monospace] text-xs text-[var(--muted)] truncate">
+                    {info.raw}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Abuse Contact Section (If Available) ───────────────────────────── */}
+      {(abuse?.email || abuse?.phone) && (
+        <div className="mt-2">
+          <SectionHeading title="Abuse Contact" />
+          <div className="divide-y-0">
+            <DataRow
+              label="Email"
+              value={abuse.email}
+              href={abuse.email ? `mailto:${abuse.email}` : null}
+              copyable={Boolean(abuse.email)}
+            />
+            <DataRow
+              label="Phone"
+              value={abuse.phone}
+              href={abuse.phone ? `tel:${abuse.phone}` : null}
+              copyable={Boolean(abuse.phone)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Collapsible Raw WHOIS / RDAP Output ─────────────────────────────── */}
+      {rawText && (
+        <div className="mt-8 border-t border-[var(--border)] pt-5">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setShowRaw((prev) => !prev)}
+              className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--text)] hover:text-[var(--cyan)] transition"
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] text-xs">
+                {showRaw ? '−' : '+'}
+              </span>
+              <span>Raw WHOIS / RDAP output</span>
+            </button>
+            {showRaw && <CopyButton text={rawText} label="Copy Raw Record" />}
+          </div>
+
+          {showRaw && (
+            <div className="mt-4 max-h-96 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+              <pre className="font-['JetBrains_Mono',monospace] text-[11px] leading-relaxed text-[var(--muted-2)] whitespace-pre-wrap break-all select-all">
+                {rawText}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

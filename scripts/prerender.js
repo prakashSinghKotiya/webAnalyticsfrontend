@@ -67,8 +67,11 @@ async function prerender() {
     // Inject our rich head metadata right after <meta name="viewport" ... /> or before </head>
     pageHtml = pageHtml.replace('</head>', `  ${headInjections}\n  </head>`);
 
-    // Inject prerendered body markup
-    pageHtml = pageHtml.replace('<div id="root"></div>', `<div id="root">${appHtml}</div>`);
+    // Inject prerendered body markup with path stamp to guide client hydration
+    pageHtml = pageHtml.replace(
+      '<div id="root"></div>',
+      `<div id="root" data-prerendered-path="${route.path}">${appHtml}</div>`,
+    );
 
     // Determine target file location
     let outFilePath;
@@ -97,7 +100,10 @@ async function prerender() {
     '<meta name="robots" content="noindex, nofollow" />',
   ].join('\n    ');
   notFoundPage = notFoundPage.replace('</head>', `  ${notFoundHead}\n  </head>`);
-  notFoundPage = notFoundPage.replace('<div id="root"></div>', `<div id="root">${notFoundHtml}</div>`);
+  notFoundPage = notFoundPage.replace(
+    '<div id="root"></div>',
+    `<div id="root" data-prerendered-path="/404">${notFoundHtml}</div>`,
+  );
   fs.writeFileSync(path.resolve('dist/404.html'), notFoundPage, 'utf-8');
   console.log('[prerender]    Generated dist/404.html');
 

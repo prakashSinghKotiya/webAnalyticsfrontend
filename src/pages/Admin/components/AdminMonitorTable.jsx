@@ -2,7 +2,6 @@ import { memo } from 'react';
 import {
   getMonitorStatusBadgeConfig,
   getMonitorHealthBadgeConfig,
-  formatIntervalLabel,
   formatLatency,
   getRelativeTime,
   formatDateTime,
@@ -187,7 +186,7 @@ function AdminMonitorTable({
                   {/* Interval Chip */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="font-['JetBrains_Mono',monospace] rounded-md border border-[var(--border-mid)] bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-2)]">
-                      {mon.interval || '5m'}
+                      {mon.interval === '10m' ? '15m' : (mon.interval || '15m')}
                     </span>
                   </td>
 
@@ -383,7 +382,7 @@ function AdminMonitorTable({
                   </span>
                 )}
                 <span className="font-['JetBrains_Mono',monospace] text-[10px] text-[var(--muted)] border border-[var(--border)] rounded px-1.5 py-0.5">
-                  {mon.interval || '5m'}
+                  {mon.interval === '10m' ? '15m' : (mon.interval || '15m')}
                 </span>
                 <span className="text-[10px] text-[var(--muted)] ml-auto">
                   {getRelativeTime(mon.lastCheckedAt)}

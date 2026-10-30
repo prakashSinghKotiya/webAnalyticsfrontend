@@ -56,7 +56,7 @@ function CopyButton({ text, label = 'Copy', className = '' }) {
 
 /* ── MX Record Table View (Expanded Dropdown) ────────────────────────────── */
 
-function MxRecordView({ records = [], hostname = '', extraIps = {}, isDemo = false }) {
+function MxRecordView({ records = [], extraIps = {}, isDemo = false }) {
   if (!records.length) {
     return <EmptyRecordNotice type="MX" />;
   }
@@ -714,7 +714,6 @@ function DnsResultSection({
   error,
   onReRun,
   selectedType = 'ALL',
-  onSelectType,
   isDemo = false,
 }) {
   // Map of which record type accordion dropdowns are currently open
@@ -740,12 +739,14 @@ function DnsResultSection({
         initialMap[firstFound] = true;
       }
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync open accordions on scan complete
     setOpenMap(initialMap);
   }, [result, parsedRecords]);
 
   // React to selectedType changes from the top selector buttons
   useEffect(() => {
     if (selectedType && selectedType !== 'ALL') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync filter on prop change
       setFilterType('ALL');
       setOpenMap((prev) => ({
         ...prev,

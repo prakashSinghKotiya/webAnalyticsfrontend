@@ -77,6 +77,31 @@ export function removeAuthToken() {
 /* Guest ID Helpers                                                   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Validates whether a candidate guest ID conforms strictly to the backend schema:
+ * 32-character hexadecimal string (/^[a-f0-9]{32}$/i).
+ */
+export function isValidGuestId(id) {
+  return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
+}
+
+/**
+ * Generates a cryptographically strong 32-character hexadecimal guest ID
+ * aligned with backend crypto.randomBytes(16).toString("hex").
+ */
+export function generateGuestHexId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  let hex = '';
+  for (let i = 0; i < 32; i++) {
+    hex += Math.floor(Math.random() * 16).toString(16);
+  }
+  return hex;
+}
+
 export function getGuestId() {
   return getStoredItem(STORAGE_KEYS.GUEST_ID);
 }
@@ -85,10 +110,14 @@ export function setGuestId(guestId) {
   setStoredItem(STORAGE_KEYS.GUEST_ID, guestId);
 }
 
+/**
+ * Returns the persisted guest ID if valid, or creates and persists a new 32-char hex ID.
+ * Self-heals any legacy or non-hex string stored previously in localStorage.
+ */
 export function getOrCreateGuestId() {
   let gid = getGuestId();
-  if (!gid) {
-    gid = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  if (!isValidGuestId(gid)) {
+    gid = generateGuestHexId();
     setGuestId(gid);
   }
   return gid;

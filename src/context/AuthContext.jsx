@@ -6,6 +6,8 @@ import {
   logoutUser as apiLogout,
   registerUser as apiRegister,
   sendOtp as apiSendOtp,
+  forgotPassword as apiForgotPassword,
+  sendForgotPasswordOtp as apiSendForgotPasswordOtp,
 } from '../api';
 import {
   connectSocket,
@@ -114,6 +116,17 @@ export function AuthProvider({ children }) {
     [],
   );
 
+  const forgotPassword = useCallback(
+    async ({ email, otp, password, newPassword }) =>
+      apiForgotPassword({ email, otp, password, newPassword }),
+    [],
+  );
+
+  const sendForgotPasswordOtp = useCallback(
+    async (email) => apiSendForgotPasswordOtp(email),
+    [],
+  );
+
   const login = useCallback(
     async (credentials) => {
       const guestId = getGuestId();
@@ -193,8 +206,29 @@ export function AuthProvider({ children }) {
   }, []);
 
   const actions = useMemo(
-    () => ({ login, logout, register, sendOtp, updateUser, checkAuth, googleLogin }),
-    [login, logout, register, sendOtp, updateUser, checkAuth, googleLogin],
+    () => ({
+      login,
+      logout,
+      register,
+      sendOtp,
+      forgotPassword,
+      resetPassword: forgotPassword,
+      sendForgotPasswordOtp,
+      updateUser,
+      checkAuth,
+      googleLogin,
+    }),
+    [
+      login,
+      logout,
+      register,
+      sendOtp,
+      forgotPassword,
+      sendForgotPasswordOtp,
+      updateUser,
+      checkAuth,
+      googleLogin,
+    ],
   );
 
   const state = useMemo(

@@ -10,6 +10,7 @@ import { getLandingUrl } from '../utils/subdomainNav';
 // Auth pages
 import Login from '../pages/Access/Login';
 import Register from '../pages/Access/Register';
+import ForgotPassword from '../pages/Access/ForgotPassword';
 
 // Lazy-loaded application feature pages
 const Home = lazy(() => import('../pages/Home/Home'));
@@ -72,6 +73,22 @@ export const appRouter = createBrowserRouter([
         element: (
           <PublicRoute>
             <Register />
+          </PublicRoute>
+        ),
+      },
+      {
+        path: 'forgot-password',
+        element: (
+          <PublicRoute>
+            <ForgotPassword />
+          </PublicRoute>
+        ),
+      },
+      {
+        path: 'reset-password',
+        element: (
+          <PublicRoute>
+            <ForgotPassword />
           </PublicRoute>
         ),
       },

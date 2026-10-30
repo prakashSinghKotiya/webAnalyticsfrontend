@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import {
   getUserId,
+  formatUserId,
   formatDate,
   getRoleBadgeConfig,
   getPlanBadgeConfig,
   getUserInitials,
   copyToClipboard,
+  canPromoteToAdmin,
+  canDemoteToUser,
+  canDeleteUser,
+  canForceLogoutUser,
+  getDeleteRestrictionReason,
+  getForceLogoutRestrictionReason,
 } from '../admin.utils';
 
 export default function AdminUserTable({
@@ -18,6 +25,8 @@ export default function AdminUserTable({
   onInspect,
   onPromptForceLogout,
   onPromptDeleteUser,
+  onPromptPromoteUser,
+  onPromptDemoteUser,
   actionInProgress,
   onResetFilters,
 }) {
@@ -159,11 +168,18 @@ export default function AdminUserTable({
           <tbody className="divide-y divide-[var(--border)] text-sm">
             {users.map((user) => {
               const uId = getUserId(user);
-              const isSelf = currentUserId === uId;
+              const isSelf = Boolean(currentUserId && String(currentUserId) === String(uId));
               const roleBadge = getRoleBadgeConfig(user.role);
-              const planBadge = getPlanBadgeConfig(user.plan);
+              const planBadge = getPlanBadgeConfig(user.plan || user.plans);
               const initials = getUserInitials(user.name);
               const isActionBusy = actionInProgress[uId];
+              const canPromote = canPromoteToAdmin(currentUser, user);
+              const canDemote = canDemoteToUser(currentUser, user);
+              const canDelete = canDeleteUser(currentUser, user);
+              const deleteReason = getDeleteRestrictionReason(currentUser, user);
+              const canLogout = canForceLogoutUser(currentUser, user);
+              const logoutReason = getForceLogoutRestrictionReason(currentUser, user);
+              const isTargetSuper = (user.role || '').toLowerCase() === 'superadmin';
 
               return (
                 <tr
@@ -188,7 +204,7 @@ export default function AdminUserTable({
                           )}
                         </div>
                         <p className="font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted)] truncate max-w-[150px]">
-                          {uId ? `ID: ${uId.slice(-6)}` : 'No ID'}
+                          {formatUserId(uId)}
                         </p>
                       </div>
                     </div>
@@ -225,6 +241,11 @@ export default function AdminUserTable({
                     <span
                       className={`font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-medium ${roleBadge.className}`}
                     >
+                      {roleBadge.isSuperAdmin && (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" className="text-purple-400">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      )}
                       <span className={`h-1.5 w-1.5 rounded-full ${roleBadge.indicator}`} />
                       {roleBadge.label}
                     </span>
@@ -248,7 +269,7 @@ export default function AdminUserTable({
 
                   {/* Actions */}
                   <td className="px-5 py-3.5 text-right">
-                    <div className="inline-flex items-center gap-1.5">
+                    <div className="inline-flex items-center gap-1.5 flex-wrap justify-end">
                       {/* Inspect user */}
                       <button
                         type="button"
@@ -262,13 +283,55 @@ export default function AdminUserTable({
                         </svg>
                       </button>
 
+                      {/* SuperAdmin Role Action: Promote to Admin */}
+                      {canPromote && (
+                        <button
+                          type="button"
+                          onClick={() => onPromptPromoteUser && onPromptPromoteUser(user)}
+                          disabled={Boolean(isActionBusy)}
+                          className="cursor-pointer rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                          title="Promote user to Admin"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <polyline points="18 15 12 9 6 15" />
+                          </svg>
+                          <span>{isActionBusy === 'promote' ? 'Promoting…' : 'Promote'}</span>
+                        </button>
+                      )}
+
+                      {/* SuperAdmin Role Action: Demote to User */}
+                      {canDemote && (
+                        <button
+                          type="button"
+                          onClick={() => onPromptDemoteUser && onPromptDemoteUser(user)}
+                          disabled={Boolean(isActionBusy)}
+                          className="cursor-pointer rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                          title="Demote Admin to User (revokes sessions)"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                          <span>{isActionBusy === 'demote' ? 'Demoting…' : 'Demote'}</span>
+                        </button>
+                      )}
+
+                      {/* SuperAdmin Immutable Flag */}
+                      {isTargetSuper && !isSelf && (
+                        <span
+                          className="font-['JetBrains_Mono',monospace] rounded-lg border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-[10px] font-semibold text-purple-300 select-none"
+                          title="SuperAdmin account is protected and cannot be modified via API."
+                        >
+                          Protected
+                        </span>
+                      )}
+
                       {/* Force logout */}
                       <button
                         type="button"
                         onClick={() => onPromptForceLogout(user)}
-                        disabled={isSelf || isActionBusy === 'logout'}
+                        disabled={!canLogout || isActionBusy === 'logout'}
                         className="cursor-pointer rounded-lg border border-orange-500/30 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-400 transition hover:bg-orange-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={isSelf ? 'Cannot force logout your own account' : 'Force logout user session'}
+                        title={logoutReason || (isSelf ? 'Cannot force logout your own account' : 'Force logout user session')}
                       >
                         {isActionBusy === 'logout' ? 'Logging out…' : 'Logout'}
                       </button>
@@ -277,9 +340,9 @@ export default function AdminUserTable({
                       <button
                         type="button"
                         onClick={() => onPromptDeleteUser(user)}
-                        disabled={isSelf || isActionBusy === 'delete'}
+                        disabled={!canDelete || isActionBusy === 'delete'}
                         className="cursor-pointer rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={isSelf ? 'Cannot delete your own account' : 'Delete user account'}
+                        title={deleteReason || (isSelf ? 'Cannot delete your own account' : 'Delete user account')}
                       >
                         {isActionBusy === 'delete' ? 'Deleting…' : 'Delete'}
                       </button>
@@ -296,11 +359,17 @@ export default function AdminUserTable({
       <div className="divide-y divide-[var(--border)] lg:hidden">
         {users.map((user) => {
           const uId = getUserId(user);
-          const isSelf = currentUserId === uId;
+          const isSelf = Boolean(currentUserId && String(currentUserId) === String(uId));
           const roleBadge = getRoleBadgeConfig(user.role);
-          const planBadge = getPlanBadgeConfig(user.plan);
+          const planBadge = getPlanBadgeConfig(user.plan || user.plans);
           const initials = getUserInitials(user.name);
           const isActionBusy = actionInProgress[uId];
+          const canPromote = canPromoteToAdmin(currentUser, user);
+          const canDemote = canDemoteToUser(currentUser, user);
+          const canDelete = canDeleteUser(currentUser, user);
+          const deleteReason = getDeleteRestrictionReason(currentUser, user);
+          const canLogout = canForceLogoutUser(currentUser, user);
+          const logoutReason = getForceLogoutRestrictionReason(currentUser, user);
 
           return (
             <div key={uId || user.email} className="p-4 space-y-3">
@@ -321,6 +390,9 @@ export default function AdminUserTable({
                         </span>
                       )}
                     </div>
+                    <p className="font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted)]">
+                      {formatUserId(uId)}
+                    </p>
                     <div className="flex items-center gap-1.5 text-xs text-[var(--muted-2)]">
                       <span className="truncate max-w-[190px]">{user.email || '—'}</span>
                       {user.email && (
@@ -364,6 +436,11 @@ export default function AdminUserTable({
                   <span
                     className={`font-['JetBrains_Mono',monospace] inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-medium ${roleBadge.className}`}
                   >
+                    {roleBadge.isSuperAdmin && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="text-purple-400">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                    )}
                     <span className={`h-1.5 w-1.5 rounded-full ${roleBadge.indicator}`} />
                     {roleBadge.label}
                   </span>
@@ -379,24 +456,59 @@ export default function AdminUserTable({
               </div>
 
               {/* Card Actions */}
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => onPromptForceLogout(user)}
-                  disabled={isSelf || isActionBusy === 'logout'}
-                  className="flex-1 cursor-pointer rounded-xl border border-orange-500/30 bg-orange-500/10 py-1.5 text-xs font-semibold text-orange-400 transition hover:bg-orange-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  {isActionBusy === 'logout' ? 'Logging out…' : 'Force Logout'}
-                </button>
+              <div className="flex flex-col gap-2 pt-1">
+                {(canPromote || canDemote) && (
+                  <div className="flex items-center gap-2">
+                    {canPromote && (
+                      <button
+                        type="button"
+                        onClick={() => onPromptPromoteUser && onPromptPromoteUser(user)}
+                        disabled={Boolean(isActionBusy)}
+                        className="flex-1 cursor-pointer rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-1.5 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="18 15 12 9 6 15" />
+                        </svg>
+                        <span>{isActionBusy === 'promote' ? 'Promoting…' : 'Promote to Admin'}</span>
+                      </button>
+                    )}
+                    {canDemote && (
+                      <button
+                        type="button"
+                        onClick={() => onPromptDemoteUser && onPromptDemoteUser(user)}
+                        disabled={Boolean(isActionBusy)}
+                        className="flex-1 cursor-pointer rounded-xl border border-amber-500/40 bg-amber-500/10 py-1.5 text-xs font-semibold text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        <span>{isActionBusy === 'demote' ? 'Demoting…' : 'Demote to User'}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => onPromptDeleteUser(user)}
-                  disabled={isSelf || isActionBusy === 'delete'}
-                  className="flex-1 cursor-pointer rounded-xl border border-red-500/30 bg-red-500/10 py-1.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  {isActionBusy === 'delete' ? 'Deleting…' : 'Delete Account'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onPromptForceLogout(user)}
+                    disabled={!canLogout || isActionBusy === 'logout'}
+                    className="flex-1 cursor-pointer rounded-xl border border-orange-500/30 bg-orange-500/10 py-1.5 text-xs font-semibold text-orange-400 transition hover:bg-orange-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title={logoutReason}
+                  >
+                    {isActionBusy === 'logout' ? 'Logging out…' : 'Force Logout'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onPromptDeleteUser(user)}
+                    disabled={!canDelete || isActionBusy === 'delete'}
+                    className="flex-1 cursor-pointer rounded-xl border border-red-500/30 bg-red-500/10 py-1.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title={deleteReason}
+                  >
+                    {isActionBusy === 'delete' ? 'Deleting…' : 'Delete Account'}
+                  </button>
+                </div>
               </div>
             </div>
           );

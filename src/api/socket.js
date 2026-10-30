@@ -1,16 +1,40 @@
 import { io } from 'socket.io-client'
-import { getAuthToken, getGuestId } from '../utils/tokenStorage'
+import { getAuthToken, getGuestId, getOrCreateGuestId } from '../utils/tokenStorage'
 
 const IS_DEV = Boolean(import.meta.env.DEV)
 const IS_BROWSER = typeof window !== 'undefined'
 
 const log = IS_DEV ? (...args) => console.debug('[socket]', ...args) : () => {}
 
+export const PROD_SOCKET_URL = "https://api.monitormyhost.com";
+export const DEV_SOCKET_URL = "http://localhost:5000";
+
 function resolveSocketUrl() {
-  return "https://api.monitormyhost.com";
+  // 1. Vite dev server mode (npm run dev)
+  if (import.meta.env.DEV) {
+    return DEV_SOCKET_URL;
+  }
+
+  // 2. Local browser runtime detection (localhost, 127.0.0.1, local preview)
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "[::1]" ||
+      host === "::1" ||
+      host.endsWith(".localhost")
+    ) {
+      return DEV_SOCKET_URL;
+    }
+  }
+
+  // 3. Hardcoded production Socket URL for cPanel dist deployment
+  return PROD_SOCKET_URL;
 }
 
-export const SOCKET_URL = resolveSocketUrl()
+export const SOCKET_URL = resolveSocketUrl();
 
 /* ------------------------------------------------------------------ */
 /* Event names - aligned with backend BullMQ worker & queue emissions */
@@ -94,7 +118,7 @@ export function subscribeToConnectionState(callback) {
  */
 function getSocketAuthPayload() {
   const token = getAuthToken()
-  const guestId = getGuestId()
+  const guestId = token ? getGuestId() : getOrCreateGuestId()
   return {
     token: token || undefined,
     sessionId: token || undefined,
@@ -161,7 +185,9 @@ function createSocket() {
     autoConnect: false,
     auth,
     query,
-    transports: ['websocket', 'polling'], // Ensures fast WebSocket connection on iOS
+    // Polling-first provides 100% reliable Engine.IO handshake across reverse proxies & firewalls,
+    // then smoothly auto-upgrades to WebSocket without abrupt disconnection errors.
+    transports: ['polling', 'websocket'],
     tryAllTransports: true,
     withCredentials: true,
     reconnection: true,

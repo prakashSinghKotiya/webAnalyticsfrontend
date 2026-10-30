@@ -6,7 +6,7 @@ import { UPTIME_INTERVALS } from '../../../api/uptime';
  *
  * Designed with modern UX:
  *  - URL input with automatic protocol prefixing
- *  - Interval selector (1m, 5m, 10m, 30m, 1h)
+ *  - Interval selector (15m default, 30m, 1h; 1m and 5m locked)
  *  - Quick domain presets for instant testing
  *  - Optimized: typing inside does not cause parent or list re-renders
  */
@@ -15,7 +15,7 @@ function UptimeInputSection({ isCreating, onSubmit }) {
   const intervalId = useId();
 
   const [url, setUrl] = useState('');
-  const [interval, setInterval] = useState('5m');
+  const [interval, setInterval] = useState('15m');
   const [validationError, setValidationError] = useState('');
 
   const handleSubmit = useCallback(
@@ -141,8 +141,8 @@ function UptimeInputSection({ isCreating, onSubmit }) {
               className="w-full cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] py-3 px-3.5 text-sm text-[var(--text)] outline-none transition focus:border-[var(--border-bright)] focus:ring-2 focus:ring-[var(--cyan-mid)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {UPTIME_INTERVALS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                  {opt.locked ? `🔒 ${opt.label}` : opt.label}
                 </option>
               ))}
             </select>

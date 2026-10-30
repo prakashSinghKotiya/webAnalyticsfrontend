@@ -1,10 +1,13 @@
 import { useSocket } from '../../../context';
+import { BASE_URL } from '../../../api';
 
 export default function AdminSystemHealth({ stats, onRefresh, refreshing }) {
   const { isConnected, isReconnecting, socket } = useSocket();
 
   const services = [
-    { name: 'User Authentication & RBAC', status: 'Operational', type: 'Core API' },
+    { name: 'SuperAdmin & RBAC Authorization Engine', status: 'Operational', type: 'Security Middleware' },
+    { name: 'Role Change Audit Log Telemetry', status: 'Operational', type: 'PostgreSQL Audit' },
+    { name: 'User Authentication & Session Management', status: 'Operational', type: 'Core API' },
     { name: 'Admin Control Plane API', status: 'Operational', type: 'REST Endpoint' },
     { name: 'Real-time WebSocket Gateway', status: isConnected ? 'Operational' : isReconnecting ? 'Reconnecting' : 'Disconnected', type: 'Socket.IO' },
     { name: 'TTFB Multi-Region Probes', status: 'Operational', type: 'Worker Pool' },
@@ -46,8 +49,8 @@ export default function AdminSystemHealth({ stats, onRefresh, refreshing }) {
           <h4 className="font-['Outfit',sans-serif] mt-2 text-lg font-bold text-[var(--text)]">
             {import.meta.env.MODE?.toUpperCase() || 'PRODUCTION'}
           </h4>
-          <p className="mt-1 font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted-2)] truncate">
-            API: {"https://api.monitormyhost.com"}
+          <p className="mt-1 font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted-2)] truncate" title={BASE_URL}>
+            API: {BASE_URL}
           </p>
         </div>
 
@@ -59,7 +62,7 @@ export default function AdminSystemHealth({ stats, onRefresh, refreshing }) {
             {stats.total} User Records
           </h4>
           <p className="mt-1 text-xs text-[var(--muted-2)]">
-            {stats.admins} Administrator accounts
+            {(stats.superAdmins || 0) + (stats.admins || 0)} Staff ({stats.superAdmins || 0} SuperAdmin, {stats.admins || 0} Admin)
           </p>
         </div>
       </div>
