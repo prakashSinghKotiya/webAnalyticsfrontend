@@ -92,7 +92,7 @@ export default function AdminUserTable({
           <button
             type="button"
             onClick={onResetFilters}
-            className="mt-4 cursor-pointer rounded-xl border border-[var(--cyan)]/40 bg-[var(--cyan-dim)] px-4 py-2 text-xs font-semibold text-[var(--cyan)] transition hover:bg-[var(--cyan)] hover:text-black"
+            className="mt-4 cursor-pointer rounded-xl bg-[var(--cyan)] px-4 py-2 text-xs font-bold text-white dark:text-slate-950 shadow-sm transition hover:opacity-90"
           >
             Reset Filters
           </button>
@@ -289,7 +289,7 @@ export default function AdminUserTable({
                           type="button"
                           onClick={() => onPromptPromoteUser && onPromptPromoteUser(user)}
                           disabled={Boolean(isActionBusy)}
-                          className="cursor-pointer rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                          className="cursor-pointer rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20"
                           title="Promote user to Admin"
                         >
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -305,7 +305,7 @@ export default function AdminUserTable({
                           type="button"
                           onClick={() => onPromptDemoteUser && onPromptDemoteUser(user)}
                           disabled={Boolean(isActionBusy)}
-                          className="cursor-pointer rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                          className="cursor-pointer rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20"
                           title="Demote Admin to User (revokes sessions)"
                         >
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -318,7 +318,7 @@ export default function AdminUserTable({
                       {/* SuperAdmin Immutable Flag */}
                       {isTargetSuper && !isSelf && (
                         <span
-                          className="font-['JetBrains_Mono',monospace] rounded-lg border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-[10px] font-semibold text-purple-300 select-none"
+                          className="font-['JetBrains_Mono',monospace] rounded-lg border border-purple-300 bg-purple-100 px-2 py-1 text-[10px] font-semibold text-purple-900 select-none dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300"
                           title="SuperAdmin account is protected and cannot be modified via API."
                         >
                           Protected
@@ -330,7 +330,7 @@ export default function AdminUserTable({
                         type="button"
                         onClick={() => onPromptForceLogout(user)}
                         disabled={!canLogout || isActionBusy === 'logout'}
-                        className="cursor-pointer rounded-lg border border-orange-500/30 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-400 transition hover:bg-orange-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="cursor-pointer rounded-lg border border-orange-300 bg-orange-50 px-2 py-1 text-xs font-medium text-orange-800 transition hover:bg-orange-100 disabled:opacity-30 disabled:cursor-not-allowed dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400 dark:hover:bg-orange-500/20"
                         title={logoutReason || (isSelf ? 'Cannot force logout your own account' : 'Force logout user session')}
                       >
                         {isActionBusy === 'logout' ? 'Logging out…' : 'Logout'}
@@ -341,7 +341,7 @@ export default function AdminUserTable({
                         type="button"
                         onClick={() => onPromptDeleteUser(user)}
                         disabled={!canDelete || isActionBusy === 'delete'}
-                        className="cursor-pointer rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="cursor-pointer rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-30 disabled:cursor-not-allowed dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
                         title={deleteReason || (isSelf ? 'Cannot delete your own account' : 'Delete user account')}
                       >
                         {isActionBusy === 'delete' ? 'Deleting…' : 'Delete'}
@@ -464,7 +464,7 @@ export default function AdminUserTable({
                         type="button"
                         onClick={() => onPromptPromoteUser && onPromptPromoteUser(user)}
                         disabled={Boolean(isActionBusy)}
-                        className="flex-1 cursor-pointer rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-1.5 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
+                        className="flex-1 cursor-pointer rounded-xl border border-emerald-300 bg-emerald-50 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="18 15 12 9 6 15" />
@@ -477,7 +477,7 @@ export default function AdminUserTable({
                         type="button"
                         onClick={() => onPromptDemoteUser && onPromptDemoteUser(user)}
                         disabled={Boolean(isActionBusy)}
-                        className="flex-1 cursor-pointer rounded-xl border border-amber-500/40 bg-amber-500/10 py-1.5 text-xs font-semibold text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
+                        className="flex-1 cursor-pointer rounded-xl border border-amber-300 bg-amber-50 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="6 9 12 15 18 9" />
@@ -493,7 +493,7 @@ export default function AdminUserTable({
                     type="button"
                     onClick={() => onPromptForceLogout(user)}
                     disabled={!canLogout || isActionBusy === 'logout'}
-                    className="flex-1 cursor-pointer rounded-xl border border-orange-500/30 bg-orange-500/10 py-1.5 text-xs font-semibold text-orange-400 transition hover:bg-orange-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="flex-1 cursor-pointer rounded-xl border border-orange-300 bg-orange-50 py-1.5 text-xs font-semibold text-orange-800 transition hover:bg-orange-100 disabled:opacity-30 disabled:cursor-not-allowed dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400 dark:hover:bg-orange-500/20"
                     title={logoutReason}
                   >
                     {isActionBusy === 'logout' ? 'Logging out…' : 'Force Logout'}
@@ -503,7 +503,7 @@ export default function AdminUserTable({
                     type="button"
                     onClick={() => onPromptDeleteUser(user)}
                     disabled={!canDelete || isActionBusy === 'delete'}
-                    className="flex-1 cursor-pointer rounded-xl border border-red-500/30 bg-red-500/10 py-1.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="flex-1 cursor-pointer rounded-xl border border-red-300 bg-red-50 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-30 disabled:cursor-not-allowed dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
                     title={deleteReason}
                   >
                     {isActionBusy === 'delete' ? 'Deleting…' : 'Delete Account'}

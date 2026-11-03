@@ -10,10 +10,10 @@ function AdminIncidentsBanner({ incidents, onInspectMonitor, onFilterDown }) {
   if (!incidents || incidents.length === 0) return null;
 
   return (
-    <div className="mb-6 overflow-hidden rounded-2xl border border-red-500/30 bg-red-500/[0.06] p-4 text-xs">
+    <div className="mb-6 overflow-hidden rounded-2xl border border-red-300 bg-red-50/70 dark:border-red-500/30 dark:bg-red-500/[0.06] p-4 text-xs">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-500/20 text-red-400">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-pulse">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               <line x1="12" y1="9" x2="12" y2="13" />
@@ -23,14 +23,14 @@ function AdminIncidentsBanner({ incidents, onInspectMonitor, onFilterDown }) {
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-red-300">
+              <span className="font-bold text-red-900 dark:text-red-300">
                 Active System Incidents:
               </span>
-              <span className="font-['JetBrains_Mono',monospace] rounded-md bg-red-500/20 px-2 py-0.5 text-[11px] font-bold text-red-300 border border-red-500/30">
+              <span className="font-['JetBrains_Mono',monospace] rounded-md bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800 border border-red-300 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30">
                 {incidents.length} {incidents.length === 1 ? 'Host Down' : 'Hosts Down'}
               </span>
             </div>
-            <p className="mt-0.5 text-[11px] text-red-400/80">
+            <p className="mt-0.5 text-[11px] text-red-800/80 dark:text-red-400/80 font-medium">
               One or more monitored endpoints failed availability probes.
             </p>
           </div>
@@ -41,7 +41,7 @@ function AdminIncidentsBanner({ incidents, onInspectMonitor, onFilterDown }) {
             <button
               type="button"
               onClick={onFilterDown}
-              className="cursor-pointer rounded-xl border border-red-500/40 bg-red-500/20 px-3 py-1.5 font-medium text-red-200 transition hover:bg-red-500/30"
+              className="cursor-pointer rounded-xl bg-red-600 px-3 py-1.5 font-semibold text-white shadow-sm transition hover:bg-red-700 dark:border dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-200 dark:hover:bg-red-500/30"
             >
               Filter Down Monitors
             </button>
@@ -70,25 +70,25 @@ function AdminIncidentsBanner({ incidents, onInspectMonitor, onFilterDown }) {
 
       {/* Expanded list of failing monitors */}
       {isExpanded && (
-        <div className="mt-4 border-t border-red-500/20 pt-3 space-y-2">
+        <div className="mt-4 border-t border-red-300 dark:border-red-500/20 pt-3 space-y-2">
           {incidents.slice(0, 5).map((inc) => {
             const err = inc.lastResult?.error || inc.lastResult?.reason || 'Probe unreachable';
             return (
               <div
                 key={inc._id || inc.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-black/20 p-2.5 border border-red-500/20 hover:border-red-500/40 transition"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-[var(--surface-2)] p-2.5 border border-red-300/80 dark:bg-black/20 dark:border-red-500/20 hover:border-red-400 transition"
               >
                 <div className="flex items-center gap-2 overflow-hidden">
-                  <span className="h-2 w-2 rounded-full bg-red-500 shrink-0 animate-ping" />
-                  <span className="font-['JetBrains_Mono',monospace] truncate font-semibold text-white">
+                  <span className="h-2 w-2 rounded-full bg-red-600 dark:bg-red-500 shrink-0 animate-ping" />
+                  <span className="font-['JetBrains_Mono',monospace] truncate font-semibold text-[var(--text)]">
                     {inc.url}
                   </span>
-                  <span className="rounded bg-red-950/80 px-1.5 py-0.5 text-[10px] text-red-300 shrink-0">
+                  <span className="rounded bg-red-100 border border-red-200 dark:border-transparent dark:bg-red-950/80 px-1.5 py-0.5 text-[10px] text-red-800 dark:text-red-300 shrink-0 font-medium">
                     {err}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] text-red-300/70 shrink-0">
+                <div className="flex items-center gap-2 text-[11px] text-red-800/80 dark:text-red-300/70 shrink-0">
                   <span>{getRelativeTime(inc.lastCheckedAt)}</span>
                   {inc.userId && (
                     <span className="text-[var(--muted-2)]">
@@ -99,7 +99,7 @@ function AdminIncidentsBanner({ incidents, onInspectMonitor, onFilterDown }) {
                     <button
                       type="button"
                       onClick={() => onInspectMonitor(inc)}
-                      className="cursor-pointer underline hover:text-white ml-1 font-semibold"
+                      className="cursor-pointer underline hover:text-[var(--text)] ml-1 font-semibold"
                     >
                       Inspect
                     </button>

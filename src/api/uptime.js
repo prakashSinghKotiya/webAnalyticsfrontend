@@ -1,10 +1,10 @@
 import { axiosWithCreds } from "./axiosInstance";
 
 export const UPTIME_INTERVALS = Object.freeze([
-  { value: '1m', label: '1 minute (Coming soon)', disabled: true, locked: true },
-  { value: '5m', label: '5 minutes (Coming soon)', disabled: true, locked: true },
-  { value: '15m', label: '15 minutes (Default)', disabled: false, locked: false },
-  { value: '30m', label: '30 minutes', disabled: false, locked: false },
+  { value: '1m', label: '1 minute (commingSoon)', disabled: false, locked: false },
+  { value: '5m', label: '5 minutes (commingSoon)', disabled: false, locked: false },
+  { value: '15m', label: '15 minutes ', disabled: false, locked: false },
+  { value: '30m', label: '30 minutes (Default)', disabled: false, locked: false },
   { value: '1h', label: '1 hour', disabled: false, locked: false },
 ]);
 

@@ -10,6 +10,9 @@ function AdminMonitorFilters({
   onStatusFilterChange,
   intervalFilter,
   onIntervalFilterChange,
+  runnerFilter,
+  onRunnerFilterChange,
+  runners = [],
   limit,
   onLimitChange,
   totalMonitors,
@@ -90,6 +93,21 @@ function AdminMonitorFilters({
             <option value="1h">1 Hour Frequency</option>
           </select>
 
+          {/* Runner Filter */}
+          <select
+            value={runnerFilter || 'all'}
+            onChange={(e) => onRunnerFilterChange?.(e.target.value)}
+            className="cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--text-2)] outline-none transition focus:border-[var(--cyan)]"
+          >
+            <option value="all">All Runners</option>
+            <option value="default">⭐ System Default (Unassigned)</option>
+            {runners?.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name} ({r.type.toUpperCase()}) {r.isDefault ? '⭐' : ''}
+              </option>
+            ))}
+          </select>
+
           {/* Limit selector */}
           <select
             value={limit}
@@ -124,7 +142,7 @@ function AdminMonitorFilters({
           <button
             type="button"
             onClick={onOpenCreateModal}
-            className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--cyan)]/40 bg-[var(--cyan-dim)] px-3.5 py-1.5 text-xs font-semibold text-[var(--cyan)] shadow-[0_0_12px_var(--cyan-dim)] transition hover:brightness-110 active:scale-95"
+            className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--cyan)]/40 bg-[var(--cyan-dim)] px-3.5 py-1.5 text-xs font-bold text-[var(--cyan)] transition hover:bg-[var(--cyan)] hover:text-white dark:hover:text-black active:scale-95 shadow-sm"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -180,6 +198,20 @@ function AdminMonitorFilters({
 
             <button
               type="button"
+              onClick={() => onOpenBulkAction('assignRunner')}
+              className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--cyan)]/40 bg-[var(--cyan-dim)] px-2.5 py-1 font-semibold text-[var(--cyan)] hover:bg-[var(--cyan)]/20 transition"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                <line x1="6" y1="6" x2="6.01" y2="6" />
+                <line x1="6" y1="18" x2="6.01" y2="18" />
+              </svg>
+              Assign Runner
+            </button>
+
+            <button
+              type="button"
               onClick={() => onOpenBulkAction('interval')}
               className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-2.5 py-1 font-medium text-[var(--text-2)] hover:bg-[var(--surface-3)] transition"
             >
@@ -193,7 +225,7 @@ function AdminMonitorFilters({
             <button
               type="button"
               onClick={() => onOpenBulkAction('delete')}
-              className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-2.5 py-1 font-medium text-red-400 hover:bg-red-500/20 transition"
+              className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-red-300 bg-red-50 px-2.5 py-1 font-semibold text-red-700 hover:bg-red-100 transition dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 6h18" />

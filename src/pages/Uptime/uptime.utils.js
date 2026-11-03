@@ -112,6 +112,46 @@ export function formatCheckedInterval(interval) {
 }
 
 /**
+ * Parses runner execution string from check result, detecting automatic fallback.
+ * e.g., "AWS Lambda Mumbai->local-fallback" or "Secondary VPS Runner" or "Main Server"
+ */
+export function parseRunnerInfo(runnerStr) {
+  if (!runnerStr || typeof runnerStr !== 'string') {
+    return {
+      name: 'Main Server',
+      displayName: 'Main Server',
+      type: 'local',
+      isFallback: false,
+      fallbackOriginal: null,
+      badgeText: 'Local Runner',
+    };
+  }
+
+  const isFallback = runnerStr.includes('->local-fallback');
+  const fallbackOriginal = isFallback ? runnerStr.replace('->local-fallback', '').trim() : null;
+  const displayName = isFallback ? `${fallbackOriginal} (Local Fallback)` : runnerStr.trim();
+
+  let type = 'local';
+  const lower = runnerStr.toLowerCase();
+  if (lower.includes('lambda')) {
+    type = 'lambda';
+  } else if (lower.includes('http') || lower.includes('vps') || lower.includes('remote')) {
+    type = 'http';
+  }
+
+  const badgeText = isFallback ? 'Local Fallback' : runnerStr;
+
+  return {
+    name: runnerStr,
+    displayName,
+    type,
+    isFallback,
+    fallbackOriginal,
+    badgeText,
+  };
+}
+
+/**
  * Determines whether a check is UP, SLOW, or DOWN.
  */
 export function getCheckCategory(check) {

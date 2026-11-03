@@ -5,14 +5,16 @@ import { useState, memo } from 'react';
  */
 function AdminMonitorBulkModal({
   open,
-  type, // 'pause' | 'resume' | 'interval' | 'delete' | 'clearResults' | 'deleteSingle'
+  type, // 'pause' | 'resume' | 'interval' | 'delete' | 'clearResults' | 'deleteSingle' | 'assignRunner'
   selectedIds = [],
   targetMonitor = null,
+  runners = [],
   onClose,
   onConfirm,
   loading = false,
 }) {
   const [selectedInterval, setSelectedInterval] = useState('15m');
+  const [selectedRunnerId, setSelectedRunnerId] = useState('');
   const [olderThanDays, setOlderThanDays] = useState('all'); // 'all' | '7' | '30'
 
   if (!open) return null;
@@ -21,6 +23,8 @@ function AdminMonitorBulkModal({
 
   const getTitle = () => {
     switch (type) {
+      case 'assignRunner':
+        return `Assign Runner for ${count} Monitor${count > 1 ? 's' : ''}`;
       case 'pause':
         return `Pause ${count} Monitor${count > 1 ? 's' : ''}?`;
       case 'resume':
@@ -40,7 +44,9 @@ function AdminMonitorBulkModal({
   const isDestructive = type === 'delete' || type === 'deleteSingle' || type === 'clearResults';
 
   const handleConfirm = () => {
-    if (type === 'interval') {
+    if (type === 'assignRunner') {
+      onConfirm({ runnerId: selectedRunnerId === '' ? null : Number(selectedRunnerId) });
+    } else if (type === 'interval') {
       onConfirm({ interval: selectedInterval });
     } else if (type === 'clearResults') {
       onConfirm({
@@ -62,7 +68,7 @@ function AdminMonitorBulkModal({
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
               isDestructive
-                ? 'bg-red-500/20 text-red-400'
+                ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
                 : 'bg-[var(--cyan-dim)] text-[var(--cyan)]'
             }`}
           >
@@ -94,6 +100,31 @@ function AdminMonitorBulkModal({
 
         {/* Dynamic Body content */}
         <div className="mt-4 space-y-3 text-xs">
+          {type === 'assignRunner' && (
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-2)] mb-1">
+                Choose Target Runner
+              </label>
+              <select
+                value={selectedRunnerId}
+                onChange={(e) => setSelectedRunnerId(e.target.value)}
+                className="w-full cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] p-2.5 text-xs text-[var(--text)] outline-none focus:border-[var(--cyan)]"
+              >
+                <option value="">⭐ System Default (Unassigned - Local Server)</option>
+                {runners
+                  .filter((r) => r.isActive)
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.type.toUpperCase()}) {r.isDefault ? '⭐ Default' : ''}
+                    </option>
+                  ))}
+              </select>
+              <p className="mt-1.5 text-[11px] text-[var(--muted-2)]">
+                The {count} selected monitor{count > 1 ? 's' : ''} will be routed through this execution engine on their next check cycle.
+              </p>
+            </div>
+          )}
+
           {type === 'interval' && (
             <div>
               <label className="block text-xs font-semibold text-[var(--text-2)] mb-1">
@@ -104,10 +135,10 @@ function AdminMonitorBulkModal({
                 onChange={(e) => setSelectedInterval(e.target.value)}
                 className="w-full cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] p-2.5 text-xs text-[var(--text)] outline-none focus:border-[var(--cyan)]"
               >
-                <option value="1m" disabled>🔒 1 minute (Coming soon)</option>
-                <option value="5m" disabled>🔒 5 minutes (Coming soon)</option>
-                <option value="15m">15 minutes (Default)</option>
-                <option value="30m">30 minutes</option>
+                <option value="1m">1 minute (Fastest)</option>
+                <option value="5m">5 minutes (Frequent)</option>
+                <option value="15m">15 minutes </option>
+                <option value="30m">30 minutes(Default)</option>
                 <option value="1h">1 hour</option>
               </select>
             </div>
@@ -131,18 +162,18 @@ function AdminMonitorBulkModal({
           )}
 
           {type === 'deleteSingle' && targetMonitor && (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/[0.04] p-3 text-[11px] text-red-300">
+            <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-[11px] text-red-900 dark:border-red-500/20 dark:bg-red-500/[0.04] dark:text-red-300">
               <span className="font-semibold font-['JetBrains_Mono',monospace]">
                 {targetMonitor.url}
               </span>
-              <p className="mt-1 text-[10px] text-red-400/80">
-                The monitor and all associated telemetry results will be permanently removed.
+              <p className="mt-1 text-[10px] text-red-800/80 dark:text-red-400/80">
+                The monitor and all associated check results will be permanently removed.
               </p>
             </div>
           )}
 
           {type === 'delete' && (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/[0.04] p-3 text-[11px] text-red-300">
+            <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-[11px] text-red-900 dark:border-red-500/20 dark:bg-red-500/[0.04] dark:text-red-300 font-medium">
               Are you sure you want to permanently delete {count} selected monitor{count > 1 ? 's' : ''} and all their historical check records?
             </div>
           )}
@@ -162,10 +193,10 @@ function AdminMonitorBulkModal({
             type="button"
             onClick={handleConfirm}
             disabled={loading}
-            className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-semibold transition active:scale-95 disabled:opacity-50 ${
+            className={`cursor-pointer rounded-xl px-4 py-2 text-xs font-bold transition active:scale-95 disabled:opacity-50 shadow-sm ${
               isDestructive
-                ? 'border border-red-500/40 bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                : 'border border-[var(--cyan)]/40 bg-[var(--cyan-dim)] text-[var(--cyan)] shadow-[0_0_12px_var(--cyan-dim)] hover:brightness-110'
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-[var(--cyan)] text-white dark:text-slate-950 hover:opacity-90'
             }`}
           >
             {loading ? 'Processing...' : 'Confirm Action'}

@@ -154,8 +154,8 @@ function UserMenu({ user, onLogout, isAdmin }) {
                 {user?.plan || 'free'}
               </span>
               {isSuper ? (
-                <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.2)]">
-                  <span className="h-1 w-1 rounded-full bg-purple-400 animate-pulse" />
+                <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1 rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-purple-900 dark:border-purple-500/40 dark:bg-purple-500/15 dark:text-purple-300">
+                  <span className="h-1 w-1 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse" />
                   SuperAdmin
                 </span>
               ) : isAdmin ? (
@@ -179,10 +179,10 @@ function UserMenu({ user, onLogout, isAdmin }) {
                 `flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition no-underline mb-1 ${
                   isActive
                     ? isSuper
-                      ? 'bg-purple-500/20 text-purple-300 font-semibold'
+                      ? 'bg-purple-100 text-purple-900 border border-purple-300 font-semibold dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30'
                       : 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
                     : isSuper
-                    ? 'text-[var(--text-2)] hover:bg-purple-500/10 hover:text-purple-300'
+                    ? 'text-[var(--text-2)] hover:bg-purple-50 hover:text-purple-900 dark:hover:bg-purple-500/10 dark:hover:text-purple-300'
                     : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
                 }`
               }
@@ -261,10 +261,10 @@ export default function Navbar({ user, onLogout, isAdmin, onMenuOpen }) {
                 `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium no-underline transition ${
                   isActive
                     ? isSuper
-                      ? 'bg-purple-500/20 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
-                      : 'bg-[var(--cyan-dim)] text-[var(--cyan)]'
+                      ? 'bg-purple-100 text-purple-900 border border-purple-300 font-semibold dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/40'
+                      : 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
                     : isSuper
-                    ? 'text-purple-400/90 hover:bg-purple-500/10 hover:text-purple-300'
+                    ? 'text-purple-800 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:text-purple-950 dark:hover:text-purple-300'
                     : 'text-[var(--muted-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
                 }`
               }

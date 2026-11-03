@@ -107,6 +107,7 @@ export const getAdminMonitors = async ({
   limit = 10,
   status,
   interval,
+  runnerId,
   userId,
   search,
   sortBy = "createdAt",
@@ -115,6 +116,7 @@ export const getAdminMonitors = async ({
   const params = { page, limit, sortBy, order };
   if (status && status !== "all") params.status = status;
   if (interval && interval !== "all") params.interval = interval;
+  if (runnerId !== undefined && runnerId !== "" && runnerId !== "all") params.runnerId = runnerId;
   if (userId) params.userId = userId;
   if (search && search.trim()) params.search = search.trim();
 
@@ -129,8 +131,8 @@ export const getAdminMonitorIncidents = async () => {
 };
 
 // 4. Detailed monitor inspection with recent check results & owner metadata
-export const getAdminMonitorDetails = async (id) => {
-  const { data } = await axiosWithCreds.get(`/admin/monitors/${encodeURIComponent(id)}`);
+export const getAdminMonitorDetails = async (id, params = {}) => {
+  const { data } = await axiosWithCreds.get(`/admin/monitors/${encodeURIComponent(id)}`, { params });
   return data;
 };
 
@@ -230,4 +232,86 @@ export const getAdminExportMonitors = async () => {
   const { data } = await axiosWithCreds.get("/admin/monitors/export");
   return data;
 };
+
+// ==========================================
+// UPTIME RUNNER ENGINE MANAGEMENT API
+// ==========================================
+
+// 17. Fetch all registered uptime runners
+export const getAdminRunners = async () => {
+  const { data } = await axiosWithCreds.get("/admin/runners");
+  return data;
+};
+
+// 18. Register a new uptime runner (local, lambda, or http)
+export const adminCreateRunner = async ({ name, type, config }) => {
+  const { data } = await axiosWithCreds.post("/admin/runners", {
+    name,
+    type,
+    config,
+  });
+  return data;
+};
+
+// 19. Switch the globally active / default runner (sets isDefault: true atomically)
+export const adminSetDefaultRunner = async (id) => {
+  const { data } = await axiosWithCreds.put(`/admin/runners/${encodeURIComponent(id)}/default`);
+  return data;
+};
+
+// Deprecated alias for adminSetDefaultRunner
+export const adminActivateRunner = async (id) => {
+  const { data } = await axiosWithCreds.put(`/admin/runners/${encodeURIComponent(id)}/activate`);
+  return data;
+};
+
+// 20. Toggle runner active state (enable / disable, cannot disable default)
+export const adminToggleRunner = async (id) => {
+  const { data } = await axiosWithCreds.put(`/admin/runners/${encodeURIComponent(id)}/toggle`);
+  return data;
+};
+
+// 21. Probe test runner connectivity and latency
+export const adminTestRunner = async (id, testUrl) => {
+  const body = testUrl ? { testUrl } : {};
+  const { data } = await axiosWithCreds.post(
+    `/admin/runners/${encodeURIComponent(id)}/test`,
+    body
+  );
+  return data;
+};
+
+// 22. Delete an inactive runner (reassigns monitors to NULL)
+export const adminDeleteRunner = async (id) => {
+  const { data } = await axiosWithCreds.delete(`/admin/runners/${encodeURIComponent(id)}`);
+  return data;
+};
+
+// 23. Move batch of monitors from one runner (or 'default') to another runner
+export const adminMoveRunnerMonitors = async (sourceId, { toRunnerId, interval, limit, userId } = {}) => {
+  const { data } = await axiosWithCreds.post(
+    `/admin/runners/${encodeURIComponent(sourceId)}/move-monitors`,
+    { toRunnerId, interval, limit, userId }
+  );
+  return data;
+};
+
+// 24. Assign a single monitor to a runner (or null for system default)
+export const adminAssignMonitorRunner = async (monitorId, runnerId) => {
+  const { data } = await axiosWithCreds.patch(
+    `/admin/monitors/${encodeURIComponent(monitorId)}/runner`,
+    { runnerId }
+  );
+  return data;
+};
+
+// 25. Bulk assign monitors to a runner (or null for system default)
+export const adminBulkAssignMonitorRunner = async ({ monitorIds, runnerId }) => {
+  const { data } = await axiosWithCreds.post("/admin/monitors/bulk-runner", {
+    monitorIds,
+    runnerId,
+  });
+  return data;
+};
+
 

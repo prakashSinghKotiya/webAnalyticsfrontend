@@ -12,7 +12,8 @@ export default function AdminSystemHealth({ stats, onRefresh, refreshing }) {
     { name: 'Real-time WebSocket Gateway', status: isConnected ? 'Operational' : isReconnecting ? 'Reconnecting' : 'Disconnected', type: 'Socket.IO' },
     { name: 'TTFB Multi-Region Probes', status: 'Operational', type: 'Worker Pool' },
     { name: 'FullSite Report Quality Engine', status: 'Operational', type: 'Headless Chrome' },
-    { name: '24/7 Uptime Poller (BullMQ)', status: 'Operational', type: 'Redis Queue' },
+    { name: '24/7 Batched Uptime Scheduler (pg-boss)', status: 'Operational', type: 'PostgreSQL SKIP LOCKED' },
+    { name: 'Multi-Runner Execution Engine (Local/Lambda/HTTP)', status: 'Operational', type: 'Stateless Probe Fleet' },
     { name: 'DNS & Record Resolver', status: 'Operational', type: 'Network Stack' },
     { name: 'WHOIS & Registrar Service', status: 'Operational', type: 'Network Stack' },
   ];

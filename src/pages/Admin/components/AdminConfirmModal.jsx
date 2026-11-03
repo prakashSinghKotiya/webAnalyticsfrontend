@@ -31,28 +31,28 @@ export default function AdminConfirmModal({
   let title = 'Confirm Action';
   let description = '';
   let confirmButtonText = 'Confirm';
-  let confirmButtonClass = 'border-[var(--cyan)]/40 bg-[var(--cyan)] text-black hover:bg-[var(--cyan)]/90';
+  let confirmButtonClass = 'border-[var(--cyan)] bg-[var(--cyan)] text-white dark:text-slate-950 hover:opacity-90 font-bold';
 
   if (isLogout) {
     title = 'Force Terminate User Session?';
     description = `This will invalidate active tokens and disconnect any active WebSockets for "${user.name || user.email}". The user will be logged out immediately and required to sign in again.`;
     confirmButtonText = 'Force Logout Session';
-    confirmButtonClass = 'border-orange-500/40 bg-orange-500 text-black hover:bg-orange-400 font-bold';
+    confirmButtonClass = 'bg-orange-600 text-white hover:bg-orange-700 dark:bg-orange-500 dark:text-black dark:hover:bg-orange-400 font-bold shadow-sm';
   } else if (isDelete) {
     title = 'Delete User Account?';
     description = `Are you sure you want to soft-delete the account for "${user.name || user.email}"? Their active session will be revoked and they will no longer be able to access the dashboard.`;
     confirmButtonText = 'Delete Account';
-    confirmButtonClass = 'border-red-500/40 bg-red-500 text-white hover:bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.25)] font-bold';
+    confirmButtonClass = 'bg-red-600 text-white hover:bg-red-700 font-bold shadow-sm';
   } else if (isPromote) {
     title = 'Promote User to Admin?';
     description = `This will promote "${user.name || user.email}" from User to Admin. They will be granted access to the Admin Dashboard to manage monitors, view system metrics, and inspect user accounts.`;
     confirmButtonText = 'Promote to Admin';
-    confirmButtonClass = 'border-emerald-500/40 bg-emerald-500 text-black hover:bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.25)] font-bold';
+    confirmButtonClass = 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-black dark:hover:bg-emerald-400 font-bold shadow-sm';
   } else if (isDemote) {
     title = 'Demote Admin to Regular User?';
     description = `WARNING: This will demote "${user.name || user.email}" from Admin to regular User. All active sessions in the database will be immediately deleted, and real-time WebSocket connections will be forcefully severed to prevent lingering privileges.`;
     confirmButtonText = 'Demote to User & Revoke Sessions';
-    confirmButtonClass = 'border-amber-500/40 bg-amber-500 text-black hover:bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.25)] font-bold';
+    confirmButtonClass = 'bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500 dark:text-black dark:hover:bg-amber-400 font-bold shadow-sm';
   }
 
   const handleConfirm = () => {
@@ -70,7 +70,7 @@ export default function AdminConfirmModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in"
     >
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-[var(--border-bright)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card-hover)] animate-in zoom-in-95"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl animate-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Icon & Title */}
@@ -78,12 +78,12 @@ export default function AdminConfirmModal({
           <div
             className={`flex h-11 w-11 flex-none items-center justify-center rounded-2xl border ${
               isPromote
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                ? 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
                 : isDemote
-                ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
                 : isLogout
-                ? 'border-orange-500/30 bg-orange-500/10 text-orange-400'
-                : 'border-red-500/30 bg-red-500/10 text-red-400'
+                ? 'border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400'
+                : 'border-red-300 bg-red-100 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400'
             }`}
           >
             {isPromote ? (

@@ -20,12 +20,12 @@ export default function AdminHeader({
             {isSuper ? 'SuperAdmin Control Plane' : 'Admin Dashboard'}
           </h1>
           {isSuper ? (
-            <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-400 shadow-[0_0_14px_rgba(168,85,247,0.25)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+            <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full border border-purple-300 bg-purple-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-900 dark:border-purple-500/40 dark:bg-purple-500/15 dark:text-purple-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse" />
               SuperAdmin • Root Authority
             </span>
           ) : (
-            <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full border border-[var(--cyan)]/35 bg-[var(--cyan-dim)] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cyan)] shadow-[0_0_12px_var(--cyan-dim)]">
+            <span className="font-['JetBrains_Mono',monospace] inline-flex items-center gap-1.5 rounded-full border border-[var(--cyan)]/35 bg-[var(--cyan-dim)] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cyan)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--cyan)] animate-pulse" />
               Privileged
             </span>
@@ -33,8 +33,8 @@ export default function AdminHeader({
         </div>
         <p className="mt-1 text-sm text-[var(--muted-2)]">
           {isSuper
-            ? 'Full system telemetry, monitor orchestration, and exclusive user role administration (Promote & Demote).'
-            : 'Manage platform accounts, monitor user sessions, and inspect system telemetry.'}
+            ? 'Monitor orchestration, execution fleet runners, and exclusive user role administration (Promote & Demote).'
+            : 'Manage platform accounts, monitor user sessions, and inspect uptime monitors.'}
         </p>
       </div>
 
@@ -59,7 +59,7 @@ export default function AdminHeader({
           type="button"
           onClick={onExportCsv}
           disabled={totalUsers === 0}
-          className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition hover:border-[var(--border-bright)] hover:bg-[var(--surface-2)] hover:text-[var(--text)] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--border-bright)] hover:bg-[var(--surface-2)] disabled:opacity-50 disabled:cursor-not-allowed"
           title="Export displayed users to CSV"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -75,7 +75,7 @@ export default function AdminHeader({
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition hover:border-[var(--cyan)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)] disabled:opacity-50"
+          className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--cyan)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)] disabled:opacity-50"
           title="Refresh user accounts list"
         >
           <svg

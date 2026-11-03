@@ -71,8 +71,8 @@ function AdminMonitorStats({ stats, onSelectStatusFilter }) {
       title: 'Scheduler State',
       value: `${active} Active`,
       subtitle: `${paused} paused monitors`,
-      color: '#38bdf8',
-      bgColor: 'rgba(56,189,248,0.12)',
+      color: '#0284c7',
+      bgColor: 'rgba(2,132,199,0.12)',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="5 3 19 12 5 21 5 3" />
@@ -123,9 +123,9 @@ function AdminMonitorStats({ stats, onSelectStatusFilter }) {
                 </span>
                 {c.badge && (
                   <span
-                    className={`font-['JetBrains_Mono',monospace] text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
+                    className={`font-['JetBrains_Mono',monospace] text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                       c.isCritical
-                        ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse'
+                        ? 'bg-red-100 text-red-800 border border-red-300 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30 animate-pulse'
                         : 'bg-[var(--surface-3)] text-[var(--muted-2)] border border-[var(--border-mid)]'
                     }`}
                   >
@@ -142,11 +142,11 @@ function AdminMonitorStats({ stats, onSelectStatusFilter }) {
         })}
       </div>
 
-      {/* Interval Telemetry Distribution Bar */}
+      {/* Interval Monitoring Distribution Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/60 px-4 py-3 text-xs">
         <div className="flex items-center gap-2 text-[var(--muted-2)]">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--cyan)]" />
-          <span className="font-medium text-[var(--text)]">Telemetry Frequencies:</span>
+          <span className="font-semibold text-[var(--text)]">Monitoring Frequencies:</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

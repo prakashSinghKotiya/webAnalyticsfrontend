@@ -15,6 +15,8 @@ function AdminMonitorTable({
   monitors = [],
   loading = false,
   selectedIds = [],
+  runners = [],
+  defaultRunner = null,
   onToggleSelect,
   onToggleSelectAll,
   onInspect,
@@ -23,6 +25,7 @@ function AdminMonitorTable({
   onTogglePause,
   onClearResults,
   onDelete,
+  onAssignRunner,
   actionInProgress = {},
   onResetFilters,
 }) {
@@ -96,6 +99,7 @@ function AdminMonitorTable({
               <th className="px-4 py-3">Interval</th>
               <th className="px-4 py-3">State</th>
               <th className="px-4 py-3">Health & Latency</th>
+              <th className="px-4 py-3">Runner Engine</th>
               <th className="px-4 py-3">Last Checked</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
@@ -209,6 +213,51 @@ function AdminMonitorTable({
                         <span className="font-['JetBrains_Mono',monospace] text-[11px] text-[var(--muted-2)]">
                           {formatLatency(rt)}
                         </span>
+                      )}
+                      {mon.lastResult?.runner && (
+                        <span
+                          className={`hidden xl:inline-flex items-center gap-1 rounded px-1.5 py-0.2 font-['JetBrains_Mono',monospace] text-[9px] ${
+                            mon.lastResult.runner.includes('->local-fallback')
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30 font-semibold'
+                              : 'bg-[var(--surface-3)] text-[var(--muted-2)]'
+                          }`}
+                          title={`Runner: ${mon.lastResult.runner}`}
+                        >
+                          {mon.lastResult.runner.includes('->local-fallback') ? '⚡ fallback' : mon.lastResult.runner}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Runner Engine */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="space-y-1">
+                      {mon.runner ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-300 bg-purple-100 px-2.5 py-0.5 text-[10px] font-semibold text-purple-900 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300">
+                          <span className="h-1.5 w-1.5 rounded-full bg-purple-600 dark:bg-purple-400" />
+                          {mon.runner.name}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+                          ⭐ System Default
+                        </span>
+                      )}
+                      {onAssignRunner && (
+                        <select
+                          value={mon.runnerId ?? ''}
+                          onChange={(e) => onAssignRunner(id, e.target.value === '' ? null : Number(e.target.value))}
+                          disabled={Boolean(busyAction)}
+                          className="block w-full max-w-[130px] cursor-pointer rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--text-2)] outline-none hover:border-[var(--cyan)]"
+                          title="Change execution runner"
+                        >
+                          <option value="">System Default</option>
+                          {runners.filter((r) => r.isActive).map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name} ({r.type.toUpperCase()}) {r.isDefault ? '⭐' : ''}
+                            </option>
+                          ))}
+                        </select>
                       )}
                     </div>
                   </td>
@@ -389,6 +438,36 @@ function AdminMonitorTable({
                 </span>
               </div>
 
+              {/* Mobile Runner Engine line */}
+              <div className="mt-2.5 flex items-center justify-between border-t border-[var(--border)]/60 pt-2 text-[11px]">
+                <span className="text-[var(--muted-2)]">Runner Engine:</span>
+                <div className="flex items-center gap-2">
+                  {mon.runner ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-900 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300">
+                      {mon.runner.name}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
+                      ⭐ Default
+                    </span>
+                  )}
+                  {onAssignRunner && (
+                    <select
+                      value={mon.runnerId ?? ''}
+                      onChange={(e) => onAssignRunner(id, e.target.value === '' ? null : Number(e.target.value))}
+                      className="cursor-pointer rounded-md border border-[var(--border-mid)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--text-2)]"
+                    >
+                      <option value="">Default</option>
+                      {runners.filter((r) => r.isActive).map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+
               {/* Action buttons bar for mobile */}
               <div className="mt-3 flex items-center justify-end gap-1.5 border-t border-[var(--border)] pt-2.5">
                 <button
@@ -422,7 +501,7 @@ function AdminMonitorTable({
                 <button
                   type="button"
                   onClick={() => onDelete(mon)}
-                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-400"
+                  className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
                 >
                   Delete
                 </button>

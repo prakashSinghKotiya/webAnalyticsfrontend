@@ -224,7 +224,7 @@ export default function AdminUserDetailsModal({
                       onPromptPromoteUser && onPromptPromoteUser(user);
                     }}
                     disabled={isActionBusy}
-                    className="cursor-pointer rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/25 transition disabled:opacity-40"
+                    className="cursor-pointer rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition disabled:opacity-40 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-400 dark:hover:bg-emerald-500/25"
                   >
                     Promote to Admin
                   </button>
@@ -243,7 +243,7 @@ export default function AdminUserDetailsModal({
                       onPromptDemoteUser && onPromptDemoteUser(user);
                     }}
                     disabled={isActionBusy}
-                    className="cursor-pointer rounded-xl border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/25 transition disabled:opacity-40"
+                    className="cursor-pointer rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition disabled:opacity-40 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-400 dark:hover:bg-amber-500/25"
                   >
                     Demote to User
                   </button>
@@ -251,7 +251,7 @@ export default function AdminUserDetailsModal({
               )}
 
               {isTargetSuper && (
-                <p className="text-xs text-purple-300">
+                <p className="text-xs text-purple-900 dark:text-purple-300 font-medium">
                   This user is a Root SuperAdmin. SuperAdmins cannot be demoted or deleted via API. Use server CLI provisioning for adjustments.
                 </p>
               )}
@@ -271,7 +271,7 @@ export default function AdminUserDetailsModal({
                   onPromptForceLogout(user);
                 }}
                 disabled={!canLogout || isActionBusy}
-                className="flex-1 cursor-pointer rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-xs font-semibold text-orange-400 transition hover:bg-orange-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex-1 cursor-pointer rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 text-xs font-semibold text-orange-800 transition hover:bg-orange-100 disabled:opacity-30 disabled:cursor-not-allowed dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400 dark:hover:bg-orange-500/20"
                 title={logoutReason}
               >
                 Force Terminate Session
@@ -284,7 +284,7 @@ export default function AdminUserDetailsModal({
                   onPromptDeleteUser(user);
                 }}
                 disabled={!canDelete || isActionBusy}
-                className="flex-1 cursor-pointer rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex-1 cursor-pointer rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-30 disabled:cursor-not-allowed dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
                 title={deleteReason}
               >
                 Delete User Account

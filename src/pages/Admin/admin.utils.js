@@ -148,31 +148,31 @@ export function getActionBadgeConfig(action) {
     case 'PROMOTE_TO_ADMIN':
       return {
         label: 'Promoted To Admin',
-        className: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+        className: 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30',
         icon: '↑',
       };
     case 'DEMOTE_TO_USER':
       return {
         label: 'Demoted To User',
-        className: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+        className: 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30',
         icon: '↓',
       };
     case 'CLI_PROVISION':
       return {
         label: 'CLI Provision',
-        className: 'bg-purple-500/15 text-purple-400 border border-purple-500/30',
+        className: 'bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-500/15 dark:text-purple-400 dark:border-purple-500/30',
         icon: '★',
       };
     case 'DELETE_USER':
       return {
         label: 'User Deleted',
-        className: 'bg-red-500/15 text-red-400 border border-red-500/30',
+        className: 'bg-red-100 text-red-800 border border-red-300 dark:bg-red-500/15 dark:text-red-400 dark:border-red-500/30',
         icon: '✕',
       };
     case 'FORCE_LOGOUT':
       return {
         label: 'Force Logout',
-        className: 'bg-orange-500/15 text-orange-400 border border-orange-500/30',
+        className: 'bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-500/15 dark:text-orange-400 dark:border-orange-500/30',
         icon: '⏻',
       };
     default:
@@ -258,15 +258,15 @@ export function getRoleBadgeConfig(role) {
     case 'super_admin':
       return {
         label: 'SuperAdmin',
-        className: 'bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.15)]',
-        indicator: 'bg-purple-400 animate-pulse',
+        className: 'bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30',
+        indicator: 'bg-purple-600 dark:bg-purple-400 animate-pulse',
         isPrivileged: true,
         isSuperAdmin: true,
       };
     case 'admin':
       return {
         label: 'Admin',
-        className: 'bg-[var(--cyan-dim)] text-[var(--cyan)] border border-[var(--cyan)]/35 shadow-[0_0_10px_var(--cyan-dim)]',
+        className: 'bg-[var(--cyan-dim)] text-[var(--cyan)] border border-[var(--cyan)]/35',
         indicator: 'bg-[var(--cyan)]',
         isPrivileged: true,
         isSuperAdmin: false,
@@ -415,7 +415,7 @@ export function getMonitorStatusBadgeConfig(status) {
   }
   return {
     label: 'Active',
-    className: 'bg-[var(--cyan-dim)] text-[var(--cyan)] border border-[var(--cyan)]/30 shadow-[0_0_8px_var(--cyan-dim)]',
+    className: 'bg-[var(--cyan-dim)] text-[var(--cyan)] border border-[var(--cyan)]/30',
     dotColor: 'bg-[var(--cyan)]',
     isPaused: false,
   };
@@ -439,7 +439,7 @@ export function getMonitorHealthBadgeConfig(lastResult) {
   if (status === 'UP') {
     return {
       label: 'Operational',
-      badgeClass: 'bg-[var(--green-dim)] text-[var(--green)] border border-[var(--green)]/35 shadow-[0_0_8px_var(--green-dim)]',
+      badgeClass: 'bg-[var(--green-dim)] text-[var(--green)] border border-[var(--green)]/35',
       dotClass: 'bg-[var(--green)]',
       status: 'UP',
     };
@@ -448,7 +448,7 @@ export function getMonitorHealthBadgeConfig(lastResult) {
   if (status === 'DOWN') {
     return {
       label: 'Down',
-      badgeClass: 'bg-[var(--red-dim)] text-[var(--red)] border border-[var(--red)]/40 shadow-[0_0_10px_var(--red-dim)]',
+      badgeClass: 'bg-red-100 text-red-800 border border-red-300 dark:bg-[var(--red-dim)] dark:text-[var(--red)] dark:border-[var(--red)]/40',
       dotClass: 'bg-[var(--red)] animate-pulse',
       status: 'DOWN',
     };

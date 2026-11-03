@@ -38,6 +38,16 @@ export {
   adminBulkDeleteMonitors,
   adminClearMonitorResults,
   getAdminExportMonitors,
+  getAdminRunners,
+  adminCreateRunner,
+  adminSetDefaultRunner,
+  adminActivateRunner,
+  adminToggleRunner,
+  adminTestRunner,
+  adminDeleteRunner,
+  adminMoveRunnerMonitors,
+  adminAssignMonitorRunner,
+  adminBulkAssignMonitorRunner,
 } from './admin';
 
 // Demo API (Guest session, unified polling, infrastructure health)

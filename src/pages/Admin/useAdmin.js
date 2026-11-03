@@ -23,6 +23,16 @@ import {
   adminBulkDeleteMonitors as apiAdminBulkDeleteMonitors,
   adminClearMonitorResults as apiAdminClearMonitorResults,
   getAdminExportMonitors,
+  getAdminRunners as apiGetAdminRunners,
+  adminCreateRunner as apiAdminCreateRunner,
+  adminSetDefaultRunner as apiAdminSetDefaultRunner,
+  adminActivateRunner as apiAdminActivateRunner,
+  adminToggleRunner as apiAdminToggleRunner,
+  adminTestRunner as apiAdminTestRunner,
+  adminDeleteRunner as apiAdminDeleteRunner,
+  adminMoveRunnerMonitors as apiAdminMoveRunnerMonitors,
+  adminAssignMonitorRunner as apiAdminAssignMonitorRunner,
+  adminBulkAssignMonitorRunner as apiAdminBulkAssignMonitorRunner,
   subscribeToEvents,
 } from '../../api';
 import { useToast } from '../../context';
@@ -170,6 +180,7 @@ export default function useAdmin(currentUser) {
   const [monitorSearchQuery, setMonitorSearchQuery] = useState('');
   const [monitorStatusFilter, setMonitorStatusFilter] = useState('all');
   const [monitorIntervalFilter, setMonitorIntervalFilter] = useState('all');
+  const [monitorRunnerFilter, setMonitorRunnerFilter] = useState('all');
 
   const [selectedMonitorIds, setSelectedMonitorIds] = useState([]);
   const [monitorActionInProgress, setMonitorActionInProgress] = useState({});
@@ -178,6 +189,16 @@ export default function useAdmin(currentUser) {
   const [monitorModal, setMonitorModal] = useState({ open: false, mode: 'create', monitor: null });
   const [monitorInspectModal, setMonitorInspectModal] = useState({ open: false, monitor: null });
   const [monitorBulkModal, setMonitorBulkModal] = useState({ open: false, type: null, targetMonitor: null });
+
+  // ==========================================
+  // RUNNER ENGINE STATE
+  // ==========================================
+  const [runners, setRunners] = useState([]);
+  const [defaultMonitorCount, setDefaultMonitorCount] = useState(0);
+  const [runnersLoading, setRunnersLoading] = useState(false);
+  const [runnersRefreshing, setRunnersRefreshing] = useState(false);
+  const [runnersError, setRunnersError] = useState(null);
+  const [runnerActionInProgress, setRunnerActionInProgress] = useState({});
 
   // ==========================================
   // SESSION AUDIT LOGS
@@ -341,7 +362,8 @@ export default function useAdmin(currentUser) {
       currentLimit = monitorLimit,
       currentStatus = monitorStatusFilter,
       currentInterval = monitorIntervalFilter,
-      currentSearch = monitorSearchQuery
+      currentSearch = monitorSearchQuery,
+      currentRunner = monitorRunnerFilter
     ) => {
       try {
         setMonitorError(null);
@@ -350,6 +372,7 @@ export default function useAdmin(currentUser) {
           limit: currentLimit,
           status: currentStatus,
           interval: currentInterval,
+          runnerId: currentRunner,
           search: currentSearch,
         });
         if (!mountedRef.current) return;
@@ -369,7 +392,7 @@ export default function useAdmin(currentUser) {
         }
       }
     },
-    [monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery]
+    [monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery, monitorRunnerFilter]
   );
 
   useEffect(() => {
@@ -387,6 +410,39 @@ export default function useAdmin(currentUser) {
     fetchMonitorStatsData,
     fetchIncidentsData,
   ]);
+
+  const fetchRunners = useCallback(
+    async ({ silent = false } = {}) => {
+      try {
+        if (!silent) setRunnersLoading(true);
+        setRunnersError(null);
+        const res = await apiGetAdminRunners();
+        if (!mountedRef.current) return;
+        if (res?.success && Array.isArray(res.runners)) {
+          setRunners(res.runners);
+          if (res.defaultMonitorCount !== undefined) {
+            setDefaultMonitorCount(res.defaultMonitorCount);
+          }
+        }
+      } catch (err) {
+        if (!mountedRef.current) return;
+        const msg = err?.message || err?.error || 'Failed to fetch execution runners';
+        setRunnersError(msg);
+        if (!silent) toast.error(msg);
+      } finally {
+        if (mountedRef.current) {
+          setRunnersLoading(false);
+          setRunnersRefreshing(false);
+        }
+      }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch
+    fetchRunners({ silent: true });
+  }, [fetchRunners]);
 
   // ==========================================
   // SOCKET.IO REAL-TIME TELEMETRY LISTENER
@@ -923,22 +979,25 @@ export default function useAdmin(currentUser) {
       monitorStatusFilter,
       monitorIntervalFilter,
       monitorSearchQuery,
+      monitorRunnerFilter,
+      fetchRunners,
       appendAuditLog,
       toast,
     ]
   );
 
   const handleUpdateMonitorSubmit = useCallback(
-    async ({ id, url, interval, status }) => {
+    async ({ id, url, interval, status, runnerId }) => {
       try {
-        const res = await apiAdminUpdateMonitor(id, { url, interval, status });
+        const res = await apiAdminUpdateMonitor(id, { url, interval, status, runnerId });
         toast.success('Monitor configuration saved.');
         appendAuditLog('UPDATE_MONITOR', `Admin updated monitor ${id} (${url}, ${interval}, ${status})`);
 
-        setMonitors((prev) =>
-          prev.map((m) => ((m._id || m.id) === id ? { ...m, url, interval, status } : m))
-        );
-        fetchMonitorStatsData();
+        await Promise.all([
+          fetchMonitorsData(),
+          fetchMonitorStatsData(),
+          fetchRunners({ silent: true }),
+        ]);
         return res;
       } catch (err) {
         const msg = err?.message || err?.error || 'Failed to update monitor';
@@ -947,7 +1006,7 @@ export default function useAdmin(currentUser) {
         throw err;
       }
     },
-    [appendAuditLog, fetchMonitorStatsData, toast]
+    [appendAuditLog, fetchMonitorsData, fetchMonitorStatsData, fetchRunners, toast]
   );
 
   const handleDeleteMonitorSubmit = useCallback(
@@ -1020,6 +1079,14 @@ export default function useAdmin(currentUser) {
           });
           toast.success(`Updated frequency to ${payload.interval} for ${selectedMonitorIds.length} monitors.`);
           appendAuditLog('BULK_UPDATE_INTERVAL', `Changed interval to ${payload.interval} for ${selectedMonitorIds.length} monitors`);
+        } else if (type === 'assignRunner') {
+          const res = await apiAdminBulkAssignMonitorRunner({
+            monitorIds: selectedMonitorIds,
+            runnerId: payload.runnerId !== undefined ? payload.runnerId : null,
+          });
+          toast.success(res?.message || `Assigned ${res?.updatedCount || selectedMonitorIds.length} monitors to runner.`);
+          appendAuditLog('BULK_ASSIGN_RUNNER', `Assigned ${selectedMonitorIds.length} monitors to runner`);
+          setSelectedMonitorIds([]);
         } else if (type === 'delete') {
           await apiAdminBulkDeleteMonitors({ monitorIds: selectedMonitorIds });
           toast.success(`Deleted ${selectedMonitorIds.length} monitors and their history.`);
@@ -1028,9 +1095,10 @@ export default function useAdmin(currentUser) {
         }
 
         await Promise.all([
-          fetchMonitorsData(monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery),
+          fetchMonitorsData(monitorPage, monitorLimit, monitorStatusFilter, monitorIntervalFilter, monitorSearchQuery, monitorRunnerFilter),
           fetchMonitorStatsData(),
           fetchIncidentsData(),
+          fetchRunners({ silent: true }),
         ]);
       } catch (err) {
         const msg = err?.message || err?.error || 'Bulk operation failed';
@@ -1048,6 +1116,8 @@ export default function useAdmin(currentUser) {
       monitorStatusFilter,
       monitorIntervalFilter,
       monitorSearchQuery,
+      monitorRunnerFilter,
+      fetchRunners,
       appendAuditLog,
       toast,
     ]
@@ -1093,6 +1163,245 @@ export default function useAdmin(currentUser) {
   const clearMonitorSelection = useCallback(() => {
     setSelectedMonitorIds([]);
   }, []);
+
+  // ==========================================
+  // RUNNER ENGINE ACTIONS
+  // ==========================================
+  const handleSetDefaultRunner = useCallback(
+    async (runnerId) => {
+      if (!runnerId) return;
+      setRunnerActionInProgress((prev) => ({ ...prev, [runnerId]: 'setDefault' }));
+      try {
+        const res = await apiAdminSetDefaultRunner(runnerId);
+        toast.success(res?.message || 'Default runner updated successfully');
+        appendAuditLog('SET_DEFAULT_RUNNER', `Admin set runner #${runnerId} as default engine`);
+        await Promise.all([
+          fetchRunners({ silent: true }),
+          fetchMonitorsData(),
+        ]);
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to set default runner';
+        toast.error(msg);
+        appendAuditLog('SET_DEFAULT_RUNNER_FAILED', `Failed to set runner #${runnerId} as default: ${msg}`, 'error');
+        throw err;
+      } finally {
+        setRunnerActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[runnerId];
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, fetchRunners, fetchMonitorsData, toast]
+  );
+
+  const handleToggleRunner = useCallback(
+    async (runnerId) => {
+      if (!runnerId) return;
+      setRunnerActionInProgress((prev) => ({ ...prev, [runnerId]: 'toggle' }));
+      try {
+        const res = await apiAdminToggleRunner(runnerId);
+        toast.success(res?.message || `Runner ${res?.runner?.isActive ? 'enabled' : 'disabled'} successfully`);
+        appendAuditLog('TOGGLE_RUNNER', `Admin toggled runner #${runnerId} state to ${res?.runner?.isActive ? 'active' : 'disabled'}`);
+        await fetchRunners({ silent: true });
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to toggle runner';
+        toast.error(msg);
+        appendAuditLog('TOGGLE_RUNNER_FAILED', `Failed to toggle runner #${runnerId}: ${msg}`, 'error');
+        throw err;
+      } finally {
+        setRunnerActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[runnerId];
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, fetchRunners, toast]
+  );
+
+  const handleMoveRunnerMonitors = useCallback(
+    async (sourceId, payload) => {
+      setRunnerActionInProgress((prev) => ({ ...prev, move: true }));
+      try {
+        const res = await apiAdminMoveRunnerMonitors(sourceId, payload);
+        toast.success(`Successfully moved ${res?.movedCount ?? 0} monitor(s) to target runner`);
+        appendAuditLog('MOVE_MONITORS', `Moved ${res?.movedCount ?? 0} monitors from ${res?.from?.name || sourceId} to ${res?.to?.name || payload?.toRunnerId || 'Default'}`);
+        await Promise.all([
+          fetchRunners({ silent: true }),
+          fetchMonitorsData(),
+        ]);
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to move monitors';
+        toast.error(msg);
+        appendAuditLog('MOVE_MONITORS_FAILED', `Failed to move monitors: ${msg}`, 'error');
+        throw err;
+      } finally {
+        setRunnerActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next.move;
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, fetchRunners, fetchMonitorsData, toast]
+  );
+
+  const handleAssignMonitorRunner = useCallback(
+    async (monitorId, runnerId) => {
+      setMonitorActionInProgress((prev) => ({ ...prev, [monitorId]: 'assignRunner' }));
+      try {
+        const res = await apiAdminAssignMonitorRunner(monitorId, runnerId);
+        toast.success(res?.message || 'Monitor runner routing updated');
+        appendAuditLog('ASSIGN_RUNNER', `Assigned monitor #${monitorId} to runner: ${res?.monitor?.runner?.name || 'System Default'}`);
+        await Promise.all([
+          fetchMonitorsData(),
+          fetchRunners({ silent: true }),
+        ]);
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to assign runner';
+        toast.error(msg);
+        appendAuditLog('ASSIGN_RUNNER_FAILED', `Failed to assign runner for monitor #${monitorId}: ${msg}`, 'error');
+        throw err;
+      } finally {
+        setMonitorActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[monitorId];
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, fetchMonitorsData, fetchRunners, toast]
+  );
+
+  const handleBulkAssignMonitorRunner = useCallback(
+    async (monitorIds, runnerId) => {
+      if (!monitorIds || monitorIds.length === 0) return;
+      setMonitorActionInProgress((prev) => ({ ...prev, bulkAssign: true }));
+      try {
+        const res = await apiAdminBulkAssignMonitorRunner({ monitorIds, runnerId });
+        toast.success(res?.message || `Assigned ${res?.assignedCount || monitorIds.length} monitors to runner`);
+        appendAuditLog('BULK_ASSIGN_RUNNER', `Bulk assigned ${monitorIds.length} monitors to runner: ${res?.runner?.name || 'System Default'}`);
+        clearMonitorSelection();
+        await Promise.all([
+          fetchMonitorsData(),
+          fetchRunners({ silent: true }),
+        ]);
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to bulk assign runner';
+        toast.error(msg);
+        appendAuditLog('BULK_ASSIGN_RUNNER_FAILED', `Failed to bulk assign runner: ${msg}`, 'error');
+        throw err;
+      } finally {
+        setMonitorActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next.bulkAssign;
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, clearMonitorSelection, fetchMonitorsData, fetchRunners, toast]
+  );
+
+  const handleActivateRunner = useCallback(
+    async (runnerId) => {
+      return handleSetDefaultRunner(runnerId);
+    },
+    [handleSetDefaultRunner]
+  );
+
+  const handleTestRunner = useCallback(
+    async (runnerId, testUrl) => {
+      if (!runnerId) return;
+      setRunnerActionInProgress((prev) => ({ ...prev, [`test_${runnerId}`]: true }));
+      try {
+        const res = await apiAdminTestRunner(runnerId, testUrl);
+        if (res?.ok) {
+          toast.success(`Probe succeeded via ${res.runner || 'runner'} in ${res.ms || 0}ms`);
+        } else {
+          toast.warning(`Probe completed: ${res.status || 'DOWN'} (${res.error || 'Check failed'})`);
+        }
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Runner test failed';
+        toast.error(msg);
+        throw err;
+      } finally {
+        setRunnerActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[`test_${runnerId}`];
+          return next;
+        });
+      }
+    },
+    [toast]
+  );
+
+  const handleCreateRunner = useCallback(
+    async ({ name, type, config }) => {
+      setRunnerActionInProgress((prev) => ({ ...prev, create: true }));
+      try {
+        const res = await apiAdminCreateRunner({ name, type, config });
+        toast.success(res?.message || 'Runner created successfully');
+        appendAuditLog('CREATE_RUNNER', `Registered runner '${name}' (${type})`);
+        fetchRunners({ silent: true });
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to create runner';
+        toast.error(msg);
+        appendAuditLog('CREATE_RUNNER_FAILED', `Failed to register '${name}': ${msg}`, 'error');
+        throw err;
+      } finally {
+        setRunnerActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next.create;
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, fetchRunners, toast]
+  );
+
+  const handleDeleteRunner = useCallback(
+    async (runnerId) => {
+      if (!runnerId) return;
+      setRunnerActionInProgress((prev) => ({ ...prev, [runnerId]: 'delete' }));
+      try {
+        const res = await apiAdminDeleteRunner(runnerId);
+        toast.success(res?.message || 'Runner deleted successfully');
+        appendAuditLog('DELETE_RUNNER', `Removed runner ID #${runnerId}`);
+        setRunners((prev) => prev.filter((r) => r.id !== runnerId));
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to delete runner';
+        toast.error(msg);
+        appendAuditLog('DELETE_RUNNER_FAILED', `Failed to delete runner #${runnerId}: ${msg}`, 'error');
+        throw err;
+      } finally {
+        setRunnerActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[runnerId];
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, toast]
+  );
+
+  const activeRunner = useMemo(
+    () => runners.find((r) => r.isDefault) || runners.find((r) => r.isActive) || runners[0] || null,
+    [runners]
+  );
+
+  const defaultRunner = useMemo(
+    () => runners.find((r) => r.isDefault) || runners.find((r) => r.type === 'local') || runners[0] || null,
+    [runners]
+  );
 
   return {
     // User Accounts State & Actions
@@ -1168,6 +1477,8 @@ export default function useAdmin(currentUser) {
     setMonitorStatusFilter,
     monitorIntervalFilter,
     setMonitorIntervalFilter,
+    monitorRunnerFilter,
+    setMonitorRunnerFilter,
     selectedMonitorIds,
     monitorActionInProgress,
 
@@ -1190,5 +1501,25 @@ export default function useAdmin(currentUser) {
     handleToggleSelectMonitor,
     handleToggleSelectAllMonitors,
     clearMonitorSelection,
+
+    // Execution Runners Engine
+    runners,
+    activeRunner,
+    defaultRunner,
+    defaultMonitorCount,
+    runnersLoading,
+    runnersRefreshing,
+    runnersError,
+    runnerActionInProgress,
+    fetchRunners,
+    handleActivateRunner,
+    handleSetDefaultRunner,
+    handleToggleRunner,
+    handleMoveRunnerMonitors,
+    handleAssignMonitorRunner,
+    handleBulkAssignMonitorRunner,
+    handleTestRunner,
+    handleCreateRunner,
+    handleDeleteRunner,
   };
 }

@@ -9,6 +9,7 @@ function AdminMonitorModal({
   mode = 'create', // 'create' | 'edit'
   monitor = null,
   users = [],
+  runners = [],
   onClose,
   onSubmit,
   loading = false,
@@ -17,6 +18,7 @@ function AdminMonitorModal({
   const [interval, setInterval] = useState('15m');
   const [status, setStatus] = useState('active');
   const [userId, setUserId] = useState('');
+  const [runnerId, setRunnerId] = useState('');
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -26,6 +28,7 @@ function AdminMonitorModal({
       setInterval('15m');
       setStatus('active');
       setUserId('');
+      setRunnerId('');
       setError(null);
       return;
     }
@@ -35,12 +38,14 @@ function AdminMonitorModal({
       setInterval(monitor.interval === '10m' ? '15m' : (monitor.interval || '15m'));
       setStatus(monitor.status || 'active');
       setUserId(getUserId(monitor.userId));
+      setRunnerId(monitor.runnerId != null ? String(monitor.runnerId) : '');
       setError(null);
     } else {
       setUrl('');
       setInterval('15m');
       setStatus('active');
       setUserId(users.length > 0 ? getUserId(users[0]) : '');
+      setRunnerId('');
       setError(null);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -76,11 +81,13 @@ function AdminMonitorModal({
     }
 
     try {
+      const targetRunnerId = runnerId === '' ? null : Number(runnerId);
       if (mode === 'create') {
         await onSubmit({
           url: cleanUrl,
           interval,
           userId,
+          runnerId: targetRunnerId,
         });
       } else {
         await onSubmit({
@@ -88,6 +95,7 @@ function AdminMonitorModal({
           url: cleanUrl,
           interval,
           status,
+          runnerId: targetRunnerId,
         });
       }
       onClose();
@@ -148,7 +156,7 @@ function AdminMonitorModal({
 
         {/* Error Alert */}
         {error && (
-          <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
+          <div className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-xs font-medium text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
             {error}
           </div>
         )}
@@ -221,8 +229,8 @@ function AdminMonitorModal({
             </label>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {[
-                { val: '1m', label: '1 min', sub: 'Coming soon', locked: true },
-                { val: '5m', label: '5 min', sub: 'Coming soon', locked: true },
+                { val: '1m', label: '1 min', sub: 'Fastest', locked: false },
+                { val: '5m', label: '5 min', sub: 'Frequent', locked: false },
                 { val: '15m', label: '15 min', sub: 'Default', locked: false },
                 { val: '30m', label: '30 min', sub: 'Normal', locked: false },
                 { val: '1h', label: '1 hour', sub: 'Infrequent', locked: false },
@@ -253,6 +261,30 @@ function AdminMonitorModal({
                 );
               })}
             </div>
+          </div>
+
+          {/* Runner Engine Routing */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-2)] mb-1">
+              Assigned Runner Engine
+            </label>
+            <select
+              value={runnerId}
+              onChange={(e) => setRunnerId(e.target.value)}
+              className="w-full cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-3.5 py-2 text-xs text-[var(--text)] outline-none transition focus:border-[var(--cyan)]"
+            >
+              <option value="">
+                System Default {runners.find((r) => r.isDefault)?.name ? `(${runners.find((r) => r.isDefault)?.name})` : '(Local)'}
+              </option>
+              {runners.map((r) => (
+                <option key={r.id} value={r.id} disabled={!r.isActive && String(r.id) !== runnerId}>
+                  {r.name} ({r.type}){r.isDefault ? ' ⭐ Default' : ''}{!r.isActive ? ' — [Disabled]' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              Specify which execution engine processes this monitor. &quot;System Default&quot; routes checks dynamically to the default runner.
+            </p>
           </div>
 
           {/* Status State (when editing) */}
@@ -301,7 +333,7 @@ function AdminMonitorModal({
             <button
               type="submit"
               disabled={loading}
-              className="cursor-pointer rounded-xl border border-[var(--cyan)]/40 bg-[var(--cyan-dim)] px-4 py-2 text-xs font-semibold text-[var(--cyan)] shadow-[0_0_12px_var(--cyan-dim)] transition hover:brightness-110 active:scale-95 disabled:opacity-50"
+              className="cursor-pointer rounded-xl bg-[var(--cyan)] px-4 py-2 text-xs font-bold text-white dark:text-slate-950 shadow-sm transition hover:opacity-90 active:scale-95 disabled:opacity-50"
             >
               {loading
                 ? 'Processing...'

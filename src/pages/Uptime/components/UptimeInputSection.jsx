@@ -15,7 +15,7 @@ function UptimeInputSection({ isCreating, onSubmit }) {
   const intervalId = useId();
 
   const [url, setUrl] = useState('');
-  const [interval, setInterval] = useState('15m');
+  const [interval, setInterval] = useState('30m');
   const [validationError, setValidationError] = useState('');
 
   const handleSubmit = useCallback(
@@ -69,7 +69,7 @@ function UptimeInputSection({ isCreating, onSubmit }) {
 
         <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-bright)] bg-[var(--cyan-dim)] px-3 py-1 font-['JetBrains_Mono',monospace] text-[11px] text-[var(--cyan)]">
           <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-[var(--green)]" />
-          <span>Real-time Cron Scheduler</span>
+          <span>Global Monitoring Network</span>
         </div>
       </header>
 
