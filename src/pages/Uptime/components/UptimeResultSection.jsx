@@ -3,6 +3,7 @@ import {
   buildResponseSummary,
   calculateLatencyBreakdown,
   formatCheckedTimestamp,
+  formatCreationDate,
   formatMs,
   formatReason,
   getHostname,
@@ -113,14 +114,22 @@ function UptimeResultSection({ result: rawResult, activeMonitor }) {
           >
             {targetHost}
           </h2>
-          <p className="mt-1 text-xs text-[var(--muted-2)] sm:text-sm">
-            Hosted by{' '}
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-[var(--muted-2)] sm:text-sm">
+            <span>Hosted by</span>
             <strong className="font-semibold text-[var(--text)]" title={rawHostedBy || provider}>
               {provider}
             </strong>
             {fullLocation ? (
               <span className="text-[var(--muted-2)]" title={fullLocation}>
-                {' '}· {fullLocation}
+                · {fullLocation}
+              </span>
+            ) : null}
+            {(activeMonitor?.createdAt || activeMonitor?.created_at) ? (
+              <span className="text-[var(--muted-2)]">
+                · Created on{' '}
+                <strong className="font-medium text-[var(--text)]">
+                  {formatCreationDate(activeMonitor.createdAt || activeMonitor.created_at)}
+                </strong>
               </span>
             ) : null}
           </p>

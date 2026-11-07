@@ -2,12 +2,14 @@ import { memo, useMemo, useState } from 'react';
 import {
   DEFAULT_PAGE_SIZE,
   PAGE_SIZE_OPTIONS,
+  formatCreationDate,
   formatInterval,
   formatMs,
   getStatusMeta,
   relativeTime,
 } from '../uptime.utils';
 import { UPTIME_INTERVALS } from '../../../api/uptime';
+import UptimePagination from './UptimePagination';
 
 const CARD =
   'rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-10 shadow-[var(--shadow-card)]';
@@ -151,9 +153,39 @@ function MonitorCard({
             </span>
           </div>
         ) : (
-          <p className="mt-3 text-xs text-[var(--muted-2)]">
-            Added {relativeTime(monitor.createdAt)}
-          </p>
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)]/50 px-3 py-2 text-xs text-[var(--muted-2)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--orange)] animate-pulse" />
+            <span>Awaiting first probe check…</span>
+          </div>
+        )}
+
+        {/* Creation Date */}
+        {(monitor.createdAt || monitor.created_at) && (
+          <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-[var(--muted-2)]">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="flex-none text-[var(--muted)]"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <span className="truncate">
+              Created on{' '}
+              <strong className="font-medium text-[var(--text)]">
+                {formatCreationDate(monitor.createdAt || monitor.created_at)}
+              </strong>
+            </span>
+          </div>
         )}
       </div>
 
@@ -414,45 +446,18 @@ function UptimeAllMonitorsSection({
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border)] pt-5">
-              <span className="font-['JetBrains_Mono',monospace] text-xs text-[var(--muted-2)]">
-                Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, totalItems)} of {totalItems} monitors
-              </span>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={safePage === 1}
-                  className="cursor-pointer rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--border-bright)] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Previous
-                </button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setCurrentPage(page)}
-                    className={`h-8 w-8 cursor-pointer rounded-lg text-xs font-bold transition ${
-                      page === safePage
-                        ? 'bg-[var(--cyan)] text-[var(--bg-deep)] shadow-md'
-                        : 'border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted-2)] hover:text-[var(--text)]'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={safePage === totalPages}
-                  className="cursor-pointer rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] transition hover:border-[var(--border-bright)] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
+            <div className="mt-8 border-t border-[var(--border)] pt-5">
+              <UptimePagination
+                page={safePage}
+                totalPages={totalPages}
+                onPageChange={(p) => setCurrentPage(p)}
+                label={
+                  <span>
+                    Showing <strong className="text-[var(--text)]">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, totalItems)}</strong> of{' '}
+                    <strong className="text-[var(--text)]">{totalItems}</strong> monitors
+                  </span>
+                }
+              />
             </div>
           )}
         </>

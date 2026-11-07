@@ -406,13 +406,19 @@ export default function useUptime() {
       setCreating(true);
       try {
         const response = await apiCreateMonitor(url, interval);
-        const newMon = response?.monitor || {
-          _id: response?.id || Date.now().toString(),
-          url,
-          interval,
-          status: 'active',
-          createdAt: new Date().toISOString(),
-        };
+        const rawMon = response?.monitor;
+        const newMon = rawMon
+          ? {
+              ...rawMon,
+              createdAt: rawMon.createdAt || rawMon.created_at || new Date().toISOString(),
+            }
+          : {
+              _id: response?.id || Date.now().toString(),
+              url,
+              interval,
+              status: 'active',
+              createdAt: new Date().toISOString(),
+            };
 
         if (mountedRef.current) {
           setMonitors((prev) => [newMon, ...prev]);
@@ -606,15 +612,16 @@ export default function useUptime() {
   /** Navigate results pages */
   const changeResultsPage = useCallback(
     (newPage) => {
-      if (!activeMonitorId) return;
+      if (!activeMonitorId || newPage === resultsPaginationRef.current.page) return;
+      if (newPage < 1 || (resultsPaginationRef.current.totalPages && newPage > resultsPaginationRef.current.totalPages)) return;
       fetchMonitorResults(
         activeMonitorId,
         newPage,
-        resultsPagination.limit,
-        resultsStatusFilter
+        resultsPaginationRef.current.limit,
+        resultsStatusFilterRef.current
       );
     },
-    [activeMonitorId, fetchMonitorResults, resultsPagination.limit, resultsStatusFilter]
+    [activeMonitorId, fetchMonitorResults]
   );
 
   /** Change filter for monitor results (ALL, UP, SLOW, DOWN) */

@@ -1,10 +1,12 @@
 import { memo, useMemo } from 'react';
 import {
   formatCheckedInterval,
+  formatCreationDate,
   formatMs,
   getCheckCategory,
   relativeTime,
 } from '../uptime.utils';
+import UptimePagination from './UptimePagination';
 
 /**
  * Single Check History Row matching the exact design in Image 2:
@@ -119,8 +121,21 @@ function UptimeMonitorResultsSection({
           <h2 className="font-['Outfit',sans-serif] text-xl font-bold tracking-tight text-[var(--text)] sm:text-2xl">
             Check history
           </h2>
-          <p className="mt-1 text-xs text-[var(--muted-2)] sm:text-sm">
-            {targetHost} · {intervalText}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-[var(--muted-2)] sm:text-sm">
+            <span>{targetHost}</span>
+            <span>·</span>
+            <span>{intervalText}</span>
+            {(monitor?.createdAt || monitor?.created_at) && (
+              <>
+                <span>·</span>
+                <span>
+                  Created on{' '}
+                  <strong className="font-medium text-[var(--text)]">
+                    {formatCreationDate(monitor.createdAt || monitor.created_at)}
+                  </strong>
+                </span>
+              </>
+            )}
           </p>
         </div>
 
@@ -206,29 +221,13 @@ function UptimeMonitorResultsSection({
 
       {/* ── Pagination Footer ───────────────────────────────────────────── */}
       {totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-between border-t border-[var(--border)]/60 pt-4 text-xs text-[var(--muted-2)]">
-          <span>
-            Page <strong className="text-[var(--text)]">{page}</strong> of{' '}
-            <strong className="text-[var(--text)]">{totalPages}</strong>
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={page <= 1 || loading}
-              onClick={() => onPageChange(page - 1)}
-              className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 font-medium text-[var(--text)] transition hover:border-[var(--border-bright)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages || loading}
-              onClick={() => onPageChange(page + 1)}
-              className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 font-medium text-[var(--text)] transition hover:border-[var(--border-bright)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
+        <div className="mt-6 border-t border-[var(--border)]/60 pt-4">
+          <UptimePagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            loading={loading}
+          />
         </div>
       )}
     </section>

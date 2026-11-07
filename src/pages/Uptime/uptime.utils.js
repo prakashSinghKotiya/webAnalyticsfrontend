@@ -311,6 +311,54 @@ export function formatCheckedTimestamp(iso) {
 }
 
 /**
+ * Formats monitor creation date into a clean, human-readable string:
+ * e.g. "7 Nov 2026, 10:30 PM"
+ */
+export function formatCreationDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+
+  const day = d.getDate();
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+  const month = months[d.getMonth()];
+  const year = d.getFullYear();
+  const timePart = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  return `${day} ${month} ${year}, ${timePart}`;
+}
+
+/**
+ * Generates an array of page numbers and ellipses for modern numbered pagination:
+ * e.g. [1, 2, 3, 4, 5, '...', 20] or [1, '...', 4, 5, 6, '...', 20]
+ */
+export function getPaginationRange(currentPage, totalPages) {
+  const total = Math.max(1, Number(totalPages) || 1);
+  const current = Math.max(1, Math.min(Number(currentPage) || 1, total));
+
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, '...', total];
+  }
+
+  if (current >= total - 3) {
+    return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+  }
+
+  return [1, '...', current - 1, current, current + 1, '...', total];
+}
+
+/**
  * Constructs user-friendly summary sentence as seen in Image 1:
  * "Responded in 1.36 s (slow) and redirects to another address, which is normal."
  */
