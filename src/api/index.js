@@ -156,3 +156,19 @@ export {
   DEV_API_URL,
   getApiBaseUrl,
 } from './axiosInstance';
+
+// Hosting Review API
+export {
+  getPublicReviews,
+  getPublicReviewBySlug,
+  getAdminProviders,
+  previewAdminProviderStats,
+  getAllReviewsAdmin,
+  getReviewByIdAdmin,
+  createReviewAdmin,
+  updateReviewAdmin,
+  refreshReviewStatsAdmin,
+  setReviewPublishedAdmin,
+  deleteReviewAdmin,
+} from './hostingReviewApi';
+

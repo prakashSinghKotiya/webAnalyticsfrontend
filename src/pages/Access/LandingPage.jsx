@@ -176,6 +176,14 @@ const MOBILE_DEMO_SERVICES = [
     tone: "cyan",
     desc: "Registrar intel, nameservers, & expiration dates",
   },
+  {
+    name: "Hosting Reviews",
+    path: "/hosting-reviews",
+    icon: "chart",
+    badge: "Real Uptime",
+    tone: "green",
+    desc: "Independent reviews with real speed & uptime data",
+  },
 ]
 
 function Navbar() {
@@ -294,7 +302,12 @@ function Navbar() {
                 {item}
               </a>
             ))}
-           
+            <Link
+              to="/hosting-reviews"
+              className="text-sm font-semibold text-[var(--muted-2)] transition hover:text-[var(--cyan)]"
+            >
+              Hosting Reviews
+            </Link>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
             <ThemeToggle />
@@ -353,7 +366,7 @@ function Navbar() {
           backgroundColor: "var(--surface, #181b22)",
           color: "var(--text, #f0f0f0)",
         }}
-        className={`fixed inset-y-0 right-0 z-[100] flex h-screen w-full max-w-[340px] flex-col border-l border-[var(--border-mid)] bg-[var(--surface)] text-[var(--text)] shadow-2xl transition-all duration-300 ease-out lg:hidden ${
+        className={`fixed inset-y-0 right-0 z-[100] flex h-[100dvh] w-full max-w-[340px] flex-col border-l border-[var(--border-mid)] bg-[var(--surface)] text-[var(--text)] shadow-2xl transition-all duration-300 ease-out lg:hidden ${
           open ? "translate-x-0 pointer-events-auto opacity-100 visible" : "hidden pointer-events-none"
         }`}
       >
@@ -463,7 +476,20 @@ function Navbar() {
             <p className="mb-1.5 px-1 font-['JetBrains_Mono',monospace] text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
               Explore Platform
             </p>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
+              <Link
+                to="/hosting-reviews"
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-between rounded-lg bg-[var(--cyan-dim)]/40 border border-[var(--cyan-mid)]/40 px-3 py-2 text-xs font-semibold text-[var(--cyan)] transition hover:bg-[var(--cyan-dim)]"
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="chart" size={14} />
+                  <span>Hosting Reviews</span>
+                </div>
+                <span className="font-['JetBrains_Mono',monospace] rounded-full bg-[var(--cyan)] px-1.5 py-0.5 text-[9px] font-bold text-black uppercase">
+                  Real Uptime
+                </span>
+              </Link>
               {[ "Features", "Tools", "Pricing"].map((item) => (
                 <a
                   key={item}

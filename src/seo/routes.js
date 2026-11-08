@@ -497,7 +497,159 @@ export const PUBLIC_ROUTES = [
       },
     ],
   },
+  {
+    path: '/hosting-reviews',
+    canonical: `${CANONICAL_HOST}/hosting-reviews`,
+    title: 'Web Hosting Reviews with Real Uptime & Speed Data | MonitorMyHost',
+    ogTitle: 'Web Hosting Reviews with Real Uptime & Speed Data | MonitorMyHost',
+    twitterTitle: 'Web Hosting Reviews with Real Uptime & Speed Data | MonitorMyHost',
+    description: 'Independent web hosting reviews backed by 24/7 real uptime monitoring, speed tests, and edge latency benchmarks from global probe nodes.',
+    keywords: 'hosting reviews, web hosting reviews, best web hosting uptime, real hosting uptime data, hosting uptime monitoring, web hosting speed test',
+    h1: 'Web Hosting Reviews: Real Uptime & Speed Data',
+    summary: 'Benchmark data collected from 24/7 synthetic probes worldwide. Unbiased uptime percentages, response times, and expert evaluations.',
+    sitemap: {
+      changefreq: 'daily',
+      priority: 0.9,
+    },
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        name: 'Web Hosting Reviews & Performance Benchmarks',
+        description: 'Independent web hosting reviews backed by continuous real uptime monitoring and speed testing telemetry.',
+        url: `${CANONICAL_HOST}/hosting-reviews`,
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: CANONICAL_HOST,
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Hosting Reviews',
+            item: `${CANONICAL_HOST}/hosting-reviews`,
+          },
+        ],
+      },
+    ],
+  },
 ];
+
+/**
+ * Builds rich, dynamic SEO metadata and Schema.org JSON-LD for a single hosting review detail page.
+ * @param {Object} review - The full HostingReview object from GET /review/:slug
+ * @param {string} slug - Route slug
+ */
+export function buildReviewDetailMetadata(review, slug) {
+  const currentYear = new Date().getFullYear();
+  const provider = review?.providerName || 'Hosting Provider';
+  const checks = review?.stats?.checks?.total ? Intl.NumberFormat('en-US').format(review.stats.checks.total) : '100+';
+  const uptime = review?.stats?.uptime?.percentage != null ? `${review.stats.uptime.percentage}%` : '99.9%';
+  const avg = review?.stats?.responseTime?.avg != null ? Math.round(review.stats.responseTime.avg) : '350';
+
+  // Strict length limits: Title <= 60 chars, Description <= 155 chars
+  const title = `${provider} Review ${currentYear}: Real Uptime & Speed Test | MonitorMyHost`.slice(0, 60);
+  const description = `${provider} averaged ${uptime} uptime and ${avg}ms response across ${checks} checks. Read our expert review, pros, cons and pricing.`.slice(0, 155);
+  const canonical = `${CANONICAL_HOST}/hosting-reviews/${slug}`;
+  const logo = review?.extra?.logoUrl || `${CANONICAL_HOST}/og-image.png`;
+
+  const structuredData = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Review',
+      itemReviewed: {
+        '@type': 'Service',
+        name: `${provider} Hosting`,
+        description: review?.extra?.bestFor ? `Web hosting optimized for ${review.extra.bestFor}` : `${provider} web hosting services`,
+        ...(review?.extra?.affiliateUrl ? { url: review.extra.affiliateUrl } : {}),
+      },
+      reviewRating: {
+        '@type': 'Rating',
+        ratingValue: String(review?.rating ?? 4.8),
+        bestRating: '5',
+        worstRating: '1',
+      },
+      author: review?.extra?.expert?.name
+        ? {
+            '@type': 'Person',
+            name: review.extra.expert.name,
+            jobTitle: review.extra.expert.title || 'Web Performance Analyst',
+          }
+        : {
+            '@type': 'Organization',
+            name: 'MonitorMyHost',
+            url: CANONICAL_HOST,
+          },
+      datePublished: review?.publishedAt ? new Date(review.publishedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      dateModified: review?.statsUpdatedAt ? new Date(review.statsUpdatedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      publisher: {
+        '@type': 'Organization',
+        name: 'MonitorMyHost',
+        url: CANONICAL_HOST,
+        logo: `${CANONICAL_HOST}/favicon.svg`,
+      },
+      headline: review?.title || `${provider} Review & Real Performance Data`,
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: CANONICAL_HOST,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Hosting Reviews',
+          item: `${CANONICAL_HOST}/hosting-reviews`,
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: provider,
+          item: canonical,
+        },
+      ],
+    },
+  ];
+
+  if (Array.isArray(review?.extra?.faqs) && review.extra.faqs.length > 0) {
+    structuredData.push({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: review.extra.faqs.map((faq) => ({
+        '@type': 'Question',
+        name: faq.question,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: faq.answer,
+        },
+      })),
+    });
+  }
+
+  return {
+    title,
+    ogTitle: title,
+    twitterTitle: title,
+    description,
+    keywords: `${provider.toLowerCase()} review, ${provider.toLowerCase()} uptime, ${provider.toLowerCase()} speed test, ${provider.toLowerCase()} performance, web hosting reviews`,
+    canonical,
+    ogType: 'article',
+    ogImage: logo,
+    structuredData,
+  };
+}
+
 
 /**
  * Match a pathname to its canonical route definition
@@ -516,20 +668,43 @@ export function getRouteMetadata(pathname = '/') {
   };
   const targetPath = legacyAliases[cleanPath] || cleanPath;
   const matched = PUBLIC_ROUTES.find((r) => r.path === targetPath);
-  return matched || null;
+  if (matched) return matched;
+
+  if (targetPath.startsWith('/hosting-reviews/')) {
+    const slug = targetPath.replace('/hosting-reviews/', '');
+    const providerName = slug.replace(/-review$/, '').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    const currentYear = new Date().getFullYear();
+    const title = `${providerName} Review ${currentYear}: Real Uptime & Speed Test | MonitorMyHost`.slice(0, 60);
+    const description = `Real uptime & speed test results for ${providerName}. 24/7 synthetic monitoring data, performance scores, expert review and pricing.`.slice(0, 155);
+    const canonical = `${CANONICAL_HOST}${targetPath}`;
+    return {
+      path: targetPath,
+      canonical,
+      title,
+      ogTitle: title,
+      twitterTitle: title,
+      description,
+      keywords: `${providerName.toLowerCase()} review, ${providerName.toLowerCase()} uptime, web hosting reviews`,
+      ogType: 'article',
+      ogImage: `${CANONICAL_HOST}/og-image.png`,
+    };
+  }
+
+  return null;
 }
 
 /**
- * Generate XML sitemap containing canonical public URLs
+ * Generate XML sitemap containing canonical public URLs plus any dynamic review URLs
  */
-export function generateSitemapXml() {
+export function generateSitemapXml(extraRoutes = []) {
   const today = new Date().toISOString().split('T')[0];
-  const urlsXml = PUBLIC_ROUTES.map(
+  const allRoutes = [...PUBLIC_ROUTES, ...extraRoutes];
+  const urlsXml = allRoutes.map(
     (route) => `  <url>
     <loc>${route.canonical}</loc>
     <lastmod>${today}</lastmod>
-    <changefreq>${route.sitemap.changefreq}</changefreq>
-    <priority>${route.sitemap.priority.toFixed(1)}</priority>
+    <changefreq>${route.sitemap?.changefreq || route.changefreq || 'weekly'}</changefreq>
+    <priority>${(route.sitemap?.priority || route.priority || 0.8).toFixed(1)}</priority>
   </url>`,
   ).join('\n');
 

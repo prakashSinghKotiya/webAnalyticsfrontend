@@ -9,6 +9,8 @@ import DemoLighthousePage from '../pages/Demo/DemoLighthousePage';
 import DemoDnsPage from '../pages/Demo/DemoDnsPage';
 import DemoRedirectsPage from '../pages/Demo/DemoRedirectsPage';
 import DemoWhoisPage from '../pages/Demo/DemoWhoisPage';
+import HostingReviewsListPage from '../pages/HostingReviews/HostingReviewsListPage';
+import HostingReviewDetailPage from '../pages/HostingReviews/HostingReviewDetailPage';
 import NotFound from '../pages/Errors/NotFound';
 
 const routes = [
@@ -22,6 +24,8 @@ const routes = [
       { path: 'contact', element: <ContactPage /> },
       { path: 'contact-me', element: <Navigate to="/contact" replace /> },
       { path: 'contact-us', element: <Navigate to="/contact" replace /> },
+      { path: 'hosting-reviews', element: <HostingReviewsListPage /> },
+      { path: 'hosting-reviews/:slug', element: <HostingReviewDetailPage /> },
       { path: 'tools', element: <Navigate to="/ttfb-test" replace /> },
       { path: 'ttfb-test', element: <DemoTTFBPage /> },
       { path: 'fullsite-report', element: <DemoLighthousePage /> },

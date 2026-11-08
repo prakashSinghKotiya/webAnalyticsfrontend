@@ -101,7 +101,8 @@ export function getActiveSubdomain() {
       path.startsWith('/fullsite-report') ||
       path.startsWith('/dns-checker') ||
       path.startsWith('/redirection-checker') ||
-      path.startsWith('/whois-lookup')
+      path.startsWith('/whois-lookup') ||
+      path.startsWith('/hosting-reviews')
     ) {
       return 'landing';
     }

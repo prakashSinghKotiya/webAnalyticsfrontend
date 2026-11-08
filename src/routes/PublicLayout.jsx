@@ -93,14 +93,14 @@ function SEOHead() {
     updateMeta('property', 'og:description', metadata.description);
     if (metadata.canonical) updateMeta('property', 'og:url', metadata.canonical);
     updateMeta('property', 'og:site_name', 'MonitorMyHost');
-    updateMeta('property', 'og:type', 'website');
-    updateMeta('property', 'og:image', 'https://monitormyhost.com/og-image.png');
+    updateMeta('property', 'og:type', metadata.ogType || 'website');
+    updateMeta('property', 'og:image', metadata.ogImage || 'https://monitormyhost.com/og-image.png');
 
     // Twitter Card
     updateMeta('name', 'twitter:card', 'summary_large_image');
     updateMeta('name', 'twitter:title', metadata.twitterTitle || metadata.title);
     updateMeta('name', 'twitter:description', metadata.description);
-    updateMeta('name', 'twitter:image', 'https://monitormyhost.com/og-image.png');
+    updateMeta('name', 'twitter:image', metadata.ogImage || 'https://monitormyhost.com/og-image.png');
 
     // Structured Data JSON-LD — In-place update using #json-ld-seo-live
     if (metadata.structuredData) {

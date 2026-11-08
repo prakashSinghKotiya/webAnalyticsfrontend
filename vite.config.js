@@ -18,6 +18,7 @@ function devPrerenderPlugin() {
     '/dns-checker',
     '/redirection-checker',
     '/whois-lookup',
+    '/hosting-reviews',
     '/tools/ttfb',
     '/tools/lighthouse',
     '/tools/dns',

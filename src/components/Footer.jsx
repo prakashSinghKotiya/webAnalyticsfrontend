@@ -13,11 +13,13 @@ const SERVICES_NAV = [
   { name: 'DNS Record Inspector', path: '/dns-checker', isDemo: true },
   { name: 'Redirect Chain Tracer', path: '/redirection-checker', isDemo: true },
   { name: 'WHOIS Domain Intelligence', path: '/whois-lookup', isDemo: true },
+  { name: 'Hosting Reviews & Speed Data', path: '/hosting-reviews', isDemo: true },
   { name: 'Real-Time Uptime Monitoring', path: ROUTES.REGISTER, isDemo: false, badge: 'App' },
 ];
 
 const COMPANY_NAV = [
   { name: 'About MonitorMyHost', path: ROUTES.ABOUT, isLink: true },
+  { name: 'Hosting Reviews', path: '/hosting-reviews', isLink: true },
   { name: 'Platform Capabilities', href: '/#features', internal: true },
   { name: 'Core Diagnostic Tools', href: '/#tools', internal: true },
   { name: 'Pricing Plans', href: '/#pricing', internal: true },

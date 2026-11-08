@@ -22,6 +22,8 @@ const WhoisPage = lazy(() => import('../pages/Whois/WhoisPage'));
 const DNSPage = lazy(() => import('../pages/DnsType/DNSPage'));
 const RedirectsPage = lazy(() => import('../pages/Redirects/RedirectsPage'));
 const AdminPanel = lazy(() => import('../pages/Admin/AdminPanel'));
+const AdminHostingReviewsDashboard = lazy(() => import('../pages/Admin/HostingReviews/AdminHostingReviewsDashboard'));
+const AdminHostingReviewEditor = lazy(() => import('../pages/Admin/HostingReviews/AdminHostingReviewEditor'));
 const NotFound = lazy(() => import('../pages/Errors/NotFound'));
 
 /**
@@ -125,10 +127,36 @@ export const appRouter = createBrowserRouter([
               </AdminRoute>
             ),
           },
+          {
+            path: 'admin/hosting-reviews',
+            element: (
+              <AdminRoute>
+                <AdminHostingReviewsDashboard />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: 'admin/hosting-reviews/new',
+            element: (
+              <AdminRoute>
+                <AdminHostingReviewEditor />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: 'admin/hosting-reviews/:id/edit',
+            element: (
+              <AdminRoute>
+                <AdminHostingReviewEditor />
+              </AdminRoute>
+            ),
+          },
         ],
       },
 
       // ── PUBLIC MARKETING & TOOLS ROUTES REDIRECT TO MAIN DOMAIN ───────
+      { path: 'hosting-reviews', element: <RedirectToLanding /> },
+      { path: 'hosting-reviews/*', element: <RedirectToLanding /> },
       { path: 'about', element: <RedirectToLanding /> },
       { path: 'about-us', element: <RedirectToLanding /> },
       { path: 'contact', element: <RedirectToLanding /> },

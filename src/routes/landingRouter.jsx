@@ -14,6 +14,8 @@ import DemoRedirectsPage from '../pages/Demo/DemoRedirectsPage';
 import DemoWhoisPage from '../pages/Demo/DemoWhoisPage';
 import AboutPage from '../pages/Access/AboutPage';
 import ContactPage from '../pages/Access/ContactPage';
+import HostingReviewsListPage from '../pages/HostingReviews/HostingReviewsListPage';
+import HostingReviewDetailPage from '../pages/HostingReviews/HostingReviewDetailPage';
 import NotFound from '../pages/Errors/NotFound';
 
 /**
@@ -57,6 +59,9 @@ export const landingRouter = createBrowserRouter([
       { path: 'contact', element: <ContactPage /> },
       { path: 'contact-me', element: <Navigate to="/contact" replace /> },
       { path: 'contact-us', element: <Navigate to="/contact" replace /> },
+      // ── HOSTING REVIEWS PUBLIC ROUTES ─────────────────────────────────
+      { path: 'hosting-reviews', element: <HostingReviewsListPage /> },
+      { path: 'hosting-reviews/:slug', element: <HostingReviewDetailPage /> },
       // ── CANONICAL SERVICE TOOL DEMO ROUTES ─────────────────────────────
       { path: 'ttfb-test', element: <DemoTTFBPage /> },
       { path: 'fullsite-report', element: <DemoLighthousePage /> },

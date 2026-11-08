@@ -86,7 +86,7 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
           ))}
 
           {isAdmin && (
-            <div className="mt-4 border-t border-[var(--border)] pt-4">
+            <div className="mt-4 border-t border-[var(--border)] pt-4 space-y-1">
               <NavLink
                 to={ROUTES.ADMIN}
                 onClick={() => handleNav()}
@@ -104,6 +104,24 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
               >
                 {I.shield}
                 {isSuper ? 'SuperAdmin Panel' : 'Admin Panel'}
+              </NavLink>
+
+              <NavLink
+                to={ROUTES.ADMIN_HOSTING_REVIEWS}
+                onClick={() => handleNav()}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm no-underline transition ${
+                    isActive
+                      ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
+                      : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
+                  }`
+                }
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                Hosting Reviews
               </NavLink>
             </div>
           )}
@@ -131,24 +149,44 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
             </div>
           </div>
           {isAdmin && (
-            <NavLink
-              to={ROUTES.ADMIN}
-              onClick={() => handleNav()}
-              className={({ isActive }) =>
-                `mb-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium no-underline transition ${
-                  isActive
-                    ? isSuper
-                      ? 'bg-purple-100 font-semibold text-purple-900 border border-purple-300 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30'
-                      : 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
-                    : isSuper
-                    ? 'text-purple-800 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10'
-                    : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
-                }`
-              }
-            >
-              {I.shield}
-              {isSuper ? 'SuperAdmin Panel' : 'Admin Panel'}
-            </NavLink>
+            <>
+              <NavLink
+                to={ROUTES.ADMIN}
+                onClick={() => handleNav()}
+                className={({ isActive }) =>
+                  `mb-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium no-underline transition ${
+                    isActive
+                      ? isSuper
+                        ? 'bg-purple-100 font-semibold text-purple-900 border border-purple-300 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30'
+                        : 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
+                      : isSuper
+                      ? 'text-purple-800 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10'
+                      : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
+                  }`
+                }
+              >
+                {I.shield}
+                {isSuper ? 'SuperAdmin Panel' : 'Admin Panel'}
+              </NavLink>
+
+              <NavLink
+                to={ROUTES.ADMIN_HOSTING_REVIEWS}
+                onClick={() => handleNav()}
+                className={({ isActive }) =>
+                  `mb-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium no-underline transition ${
+                    isActive
+                      ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
+                      : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
+                  }`
+                }
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                Hosting Reviews
+              </NavLink>
+            </>
           )}
           <button
             type="button"

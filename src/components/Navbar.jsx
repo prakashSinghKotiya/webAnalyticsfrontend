@@ -167,29 +167,54 @@ function UserMenu({ user, onLogout, isAdmin }) {
           </div>
 
           {isAdmin && (
-            <NavLink
-              to={ROUTES.ADMIN}
-              onClick={() => {
-                if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
-                  document.activeElement.blur();
+            <>
+              <NavLink
+                to={ROUTES.ADMIN}
+                onClick={() => {
+                  if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                  }
+                  setOpen(false);
+                }}
+                className={({ isActive }) =>
+                  `flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition no-underline mb-1 ${
+                    isActive
+                      ? isSuper
+                        ? 'bg-purple-100 text-purple-900 border border-purple-300 font-semibold dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30'
+                        : 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
+                      : isSuper
+                      ? 'text-[var(--text-2)] hover:bg-purple-50 hover:text-purple-900 dark:hover:bg-purple-500/10 dark:hover:text-purple-300'
+                      : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
+                  }`
                 }
-                setOpen(false);
-              }}
-              className={({ isActive }) =>
-                `flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition no-underline mb-1 ${
-                  isActive
-                    ? isSuper
-                      ? 'bg-purple-100 text-purple-900 border border-purple-300 font-semibold dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30'
-                      : 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
-                    : isSuper
-                    ? 'text-[var(--text-2)] hover:bg-purple-50 hover:text-purple-900 dark:hover:bg-purple-500/10 dark:hover:text-purple-300'
-                    : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
-                }`
-              }
-            >
-              {I.shield}
-              <span>{isSuper ? 'SuperAdmin Panel' : 'Admin Panel'}</span>
-            </NavLink>
+              >
+                {I.shield}
+                <span>{isSuper ? 'SuperAdmin Panel' : 'Admin Panel'}</span>
+              </NavLink>
+
+              <NavLink
+                to={ROUTES.ADMIN_HOSTING_REVIEWS}
+                onClick={() => {
+                  if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                  }
+                  setOpen(false);
+                }}
+                className={({ isActive }) =>
+                  `flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition no-underline mb-1 ${
+                    isActive
+                      ? 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
+                      : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
+                  }`
+                }
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span>Hosting Reviews</span>
+              </NavLink>
+            </>
           )}
 
           <button
@@ -255,23 +280,42 @@ export default function Navbar({ user, onLogout, isAdmin, onMenuOpen }) {
           <ToolsDropdown />
 
           {isAdmin && (
-            <NavLink
-              to={ROUTES.ADMIN}
-              className={({ isActive }) =>
-                `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium no-underline transition ${
-                  isActive
-                    ? isSuper
-                      ? 'bg-purple-100 text-purple-900 border border-purple-300 font-semibold dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/40'
-                      : 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
-                    : isSuper
-                    ? 'text-purple-800 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:text-purple-950 dark:hover:text-purple-300'
-                    : 'text-[var(--muted-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
-                }`
-              }
-            >
-              {I.shield}
-              <span className="ml-1">{isSuper ? 'SuperAdmin' : 'Admin'}</span>
-            </NavLink>
+            <>
+              <NavLink
+                to={ROUTES.ADMIN}
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium no-underline transition ${
+                    isActive
+                      ? isSuper
+                        ? 'bg-purple-100 text-purple-900 border border-purple-300 font-semibold dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/40'
+                        : 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
+                      : isSuper
+                      ? 'text-purple-800 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:text-purple-950 dark:hover:text-purple-300'
+                      : 'text-[var(--muted-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
+                  }`
+                }
+              >
+                {I.shield}
+                <span className="ml-1">{isSuper ? 'SuperAdmin' : 'Admin'}</span>
+              </NavLink>
+
+              <NavLink
+                to={ROUTES.ADMIN_HOSTING_REVIEWS}
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium no-underline transition ${
+                    isActive
+                      ? 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
+                      : 'text-[var(--muted-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
+                  }`
+                }
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span className="ml-1">Reviews</span>
+              </NavLink>
+            </>
           )}
         </nav>
       </div>

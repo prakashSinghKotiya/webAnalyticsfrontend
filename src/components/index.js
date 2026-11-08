@@ -5,3 +5,8 @@ export { default as Navbar } from './Navbar';
 export { default as MobileDrawer } from './MobileDrawer';
 export { default as Logo } from './Logo';
 export { default as Footer } from './Footer';
+export { default as SafeMarkdown } from './SafeMarkdown';
+export { default as PerformanceChart } from './PerformanceChart';
+export { default as PublicHeader } from './PublicHeader';
+
+

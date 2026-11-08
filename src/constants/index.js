@@ -33,6 +33,9 @@ export const ROUTES = Object.freeze({
   DNS: '/dns-checker',
   REDIRECTS: '/redirection-checker',
   ADMIN: '/admin',
+  HOSTING_REVIEWS: '/hosting-reviews',
+  ADMIN_HOSTING_REVIEWS: '/admin/hosting-reviews',
+  ADMIN_HOSTING_REVIEWS_NEW: '/admin/hosting-reviews/new',
   NOT_FOUND: '/404',
 });
 

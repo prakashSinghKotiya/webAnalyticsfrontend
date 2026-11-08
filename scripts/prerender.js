@@ -44,13 +44,13 @@ async function prerender() {
       `<meta property="og:title" content="${escapeAttr(route.ogTitle || route.title)}" />`,
       `<meta property="og:description" content="${escapeAttr(route.description)}" />`,
       `<meta property="og:url" content="${route.canonical}" />`,
-      `<meta property="og:type" content="website" />`,
+      `<meta property="og:type" content="${escapeAttr(route.ogType || 'website')}" />`,
       `<meta property="og:site_name" content="MonitorMyHost" />`,
-      `<meta property="og:image" content="https://monitormyhost.com/og-image.png" />`,
+      `<meta property="og:image" content="${escapeAttr(route.ogImage || 'https://monitormyhost.com/og-image.png')}" />`,
       `<meta name="twitter:card" content="summary_large_image" />`,
       `<meta name="twitter:title" content="${escapeAttr(route.twitterTitle || route.title)}" />`,
       `<meta name="twitter:description" content="${escapeAttr(route.description)}" />`,
-      `<meta name="twitter:image" content="https://monitormyhost.com/og-image.png" />`,
+      `<meta name="twitter:image" content="${escapeAttr(route.ogImage || 'https://monitormyhost.com/og-image.png')}" />`,
       `<script id="json-ld-seo-live" type="application/ld+json">${JSON.stringify(route.structuredData)}</script>`,
     ].join('\n    ');
 
@@ -107,9 +107,69 @@ async function prerender() {
   fs.writeFileSync(path.resolve('dist/404.html'), notFoundPage, 'utf-8');
   console.log('[prerender]    Generated dist/404.html');
 
+  // Step 3.5: Optionally fetch published reviews from API to prerender dynamic review detail pages
+  const dynamicReviewRoutes = [];
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    const apiRes = await fetch('http://localhost:5000/review', { signal: controller.signal });
+    clearTimeout(timeout);
+    if (apiRes.ok) {
+      const json = await apiRes.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        console.log(`[prerender] Found ${json.data.length} published reviews from API...`);
+        for (const rev of json.data) {
+          if (!rev.slug) continue;
+          const reviewPath = `/hosting-reviews/${rev.slug}`;
+          console.log(`[prerender] -> Prerendering dynamic review ${reviewPath}...`);
+          const appHtml = render(reviewPath);
+          const currentYear = new Date().getFullYear();
+          const provider = rev.providerName || 'Hosting';
+          const title = `${provider} Review ${currentYear}: Real Uptime & Speed Test | MonitorMyHost`.slice(0, 60);
+          const desc = `${provider} averaged ${rev.headline?.uptime ?? 99.9}% uptime and ${Math.round(rev.headline?.avgResponseTime ?? 300)}ms response across ${rev.headline?.totalChecks ?? 100} checks. Read our expert review.`.slice(0, 155);
+          const canonical = `https://monitormyhost.com${reviewPath}`;
+          const headInjections = [
+            `<title>${escapeHtml(title)}</title>`,
+            `<meta name="description" content="${escapeAttr(desc)}" />`,
+            `<link rel="canonical" href="${canonical}" />`,
+            `<meta property="og:title" content="${escapeAttr(title)}" />`,
+            `<meta property="og:description" content="${escapeAttr(desc)}" />`,
+            `<meta property="og:url" content="${canonical}" />`,
+            `<meta property="og:type" content="article" />`,
+            `<meta property="og:site_name" content="MonitorMyHost" />`,
+            `<meta property="og:image" content="${escapeAttr(rev.extra?.logoUrl || 'https://monitormyhost.com/og-image.png')}" />`,
+            `<meta name="twitter:card" content="summary_large_image" />`,
+            `<meta name="twitter:title" content="${escapeAttr(title)}" />`,
+            `<meta name="twitter:description" content="${escapeAttr(desc)}" />`,
+            `<meta name="twitter:image" content="${escapeAttr(rev.extra?.logoUrl || 'https://monitormyhost.com/og-image.png')}" />`,
+          ].join('\n    ');
+
+          let pageHtml = rawTemplate;
+          pageHtml = pageHtml.replace(/<title>[\s\S]*?<\/title>/i, '');
+          pageHtml = pageHtml.replace(/<meta\s+name=["']description["'][\s\S]*?>/i, '');
+          pageHtml = pageHtml.replace('</head>', `  ${headInjections}\n  </head>`);
+          pageHtml = pageHtml.replace(
+            '<div id="root"></div>',
+            `<div id="root" data-prerendered-path="${reviewPath}">${appHtml}</div>`,
+          );
+          const outDir = path.resolve(`dist${reviewPath}`);
+          fs.mkdirSync(outDir, { recursive: true });
+          fs.writeFileSync(path.join(outDir, 'index.html'), pageHtml, 'utf-8');
+          dynamicReviewRoutes.push({
+            canonical,
+            changefreq: 'weekly',
+            priority: 0.8,
+          });
+        }
+      }
+    }
+  } catch {
+    console.log('[prerender] Backend API not reachable during build; skipped prerendering dynamic review slugs.');
+  }
+
   // Step 4: Generate Sitemap and Robots
   console.log('[prerender] Generating sitemap.xml and robots.txt...');
-  fs.writeFileSync(path.resolve('dist/sitemap.xml'), generateSitemapXml(), 'utf-8');
+  fs.writeFileSync(path.resolve('dist/sitemap.xml'), generateSitemapXml(dynamicReviewRoutes), 'utf-8');
   fs.writeFileSync(path.resolve('dist/robots.txt'), generateRobotsTxt(), 'utf-8');
   console.log('[prerender]    Generated dist/sitemap.xml and dist/robots.txt');
 
