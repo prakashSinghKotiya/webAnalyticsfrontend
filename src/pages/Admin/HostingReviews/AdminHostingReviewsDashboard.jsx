@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   getAllReviewsAdmin,
@@ -10,6 +10,7 @@ import {
 import { useToast } from '../../../context';
 import { ROUTES } from '../../../constants';
 import { formatDate, getRelativeTime } from '../admin.utils';
+import AdminPagination from '../components/AdminPagination';
 import AdminReviewConfirmModal from './AdminReviewConfirmModal';
 
 export default function AdminHostingReviewsDashboard() {
@@ -24,14 +25,39 @@ export default function AdminHostingReviewsDashboard() {
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState(null);
   const [reviewSearch, setReviewSearch] = useState('');
+  const [debouncedReviewSearch, setDebouncedReviewSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'published' | 'draft'
+  const [reviewSort, setReviewSort] = useState('updatedat_desc');
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const [reviewsLimit, setReviewsLimit] = useState(10);
+  const [reviewsPagination, setReviewsPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
 
   // Providers Tab State
   const [providers, setProviders] = useState([]);
-  const [minChecks, setMinChecks] = useState(100);
+  const [minChecks, setMinChecks] = useState(50);
   const [providersLoading, setProvidersLoading] = useState(true);
   const [providersError, setProvidersError] = useState(null);
   const [providerSearch, setProviderSearch] = useState('');
+  const [debouncedProviderSearch, setDebouncedProviderSearch] = useState('');
+  const [providerEligibleFilter, setProviderEligibleFilter] = useState('all'); // 'all' | 'eligible' | 'ineligible'
+  const [providerReviewFilter, setProviderReviewFilter] = useState('all'); // 'all' | 'hasReview' | 'needsReview'
+  const [providersPage, setProvidersPage] = useState(1);
+  const [providersLimit, setProvidersLimit] = useState(10);
+  const [providersPagination, setProvidersPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
 
   // Row Action State: { [id]: 'publish' | 'refresh' | 'delete' }
   const [actionInProgress, setActionInProgress] = useState({});
@@ -60,14 +86,50 @@ export default function AdminHostingReviewsDashboard() {
     };
   }, []);
 
-  // 1. Fetch Reviews
+  // Debounce search inputs
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedReviewSearch(reviewSearch.trim());
+      setReviewsPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [reviewSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProviderSearch(providerSearch.trim());
+      setProvidersPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [providerSearch]);
+
+  // 1. Fetch Reviews with Server-Side Pagination & Filtering
   const fetchReviews = useCallback(async () => {
     setReviewsLoading(true);
     setReviewsError(null);
     try {
-      const res = await getAllReviewsAdmin();
+      const params = {
+        page: reviewsPage,
+        limit: reviewsLimit,
+        ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+        ...(debouncedReviewSearch ? { search: debouncedReviewSearch } : {}),
+        ...(reviewSort ? { sort: reviewSort } : {}),
+      };
+      const res = await getAllReviewsAdmin(params);
       if (res.success && Array.isArray(res.data)) {
         setReviews(res.data);
+        if (res.pagination) {
+          setReviewsPagination(res.pagination);
+        } else {
+          setReviewsPagination({
+            page: reviewsPage,
+            limit: reviewsLimit,
+            total: res.data.length,
+            totalPages: Math.ceil(res.data.length / reviewsLimit) || 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+          });
+        }
       } else {
         setReviews([]);
       }
@@ -80,17 +142,40 @@ export default function AdminHostingReviewsDashboard() {
     } finally {
       setReviewsLoading(false);
     }
-  }, []);
+  }, [reviewsPage, reviewsLimit, statusFilter, debouncedReviewSearch, reviewSort]);
 
-  // 2. Fetch Providers
+  // 2. Fetch Providers with Server-Side Pagination & Filtering
   const fetchProviders = useCallback(async () => {
     setProvidersLoading(true);
     setProvidersError(null);
     try {
-      const res = await getAdminProviders();
+      const params = {
+        page: providersPage,
+        limit: providersLimit,
+        ...(debouncedProviderSearch ? { search: debouncedProviderSearch } : {}),
+        ...(providerEligibleFilter !== 'all'
+          ? { eligible: providerEligibleFilter === 'eligible' }
+          : {}),
+        ...(providerReviewFilter !== 'all'
+          ? { hasReview: providerReviewFilter === 'hasReview' }
+          : {}),
+      };
+      const res = await getAdminProviders(params);
       if (res.success && Array.isArray(res.data)) {
         setProviders(res.data);
         if (typeof res.minChecks === 'number') setMinChecks(res.minChecks);
+        if (res.pagination) {
+          setProvidersPagination(res.pagination);
+        } else {
+          setProvidersPagination({
+            page: providersPage,
+            limit: providersLimit,
+            total: res.data.length,
+            totalPages: Math.ceil(res.data.length / providersLimit) || 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+          });
+        }
       } else {
         setProviders([]);
       }
@@ -103,22 +188,17 @@ export default function AdminHostingReviewsDashboard() {
     } finally {
       setProvidersLoading(false);
     }
-  }, []);
+  }, [providersPage, providersLimit, debouncedProviderSearch, providerEligibleFilter, providerReviewFilter]);
 
+  // Trigger data fetches
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // Add noindex, nofollow for admin security
-    let metaRobots = document.querySelector('meta[name="robots"]');
-    if (!metaRobots) {
-      metaRobots = document.createElement('meta');
-      metaRobots.setAttribute('name', 'robots');
-      document.head.appendChild(metaRobots);
-    }
-    metaRobots.setAttribute('content', 'noindex,nofollow');
-
     fetchReviews();
+  }, [fetchReviews]);
+
+  useEffect(() => {
     fetchProviders();
-  }, [fetchReviews, fetchProviders]);
+  }, [fetchProviders]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Actions
@@ -193,32 +273,6 @@ export default function AdminHostingReviewsDashboard() {
     }
   };
 
-  // Filtered Reviews
-  const filteredReviews = useMemo(() => {
-    return reviews.filter((r) => {
-      const matchesSearch =
-        !reviewSearch.trim() ||
-        r.providerName?.toLowerCase().includes(reviewSearch.toLowerCase().trim()) ||
-        r.title?.toLowerCase().includes(reviewSearch.toLowerCase().trim());
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'published' && r.isPublished) ||
-        (statusFilter === 'draft' && !r.isPublished);
-      return matchesSearch && matchesStatus;
-    });
-  }, [reviews, reviewSearch, statusFilter]);
-
-  // Filtered Providers
-  const filteredProviders = useMemo(() => {
-    return providers.filter((p) => {
-      return (
-        !providerSearch.trim() ||
-        p.name?.toLowerCase().includes(providerSearch.toLowerCase().trim()) ||
-        p.key?.toLowerCase().includes(providerSearch.toLowerCase().trim())
-      );
-    });
-  }, [providers, providerSearch]);
-
   return (
     <div className="fade-up space-y-6">
       {/* Top Admin Breadcrumb / Switcher */}
@@ -272,7 +326,7 @@ export default function AdminHostingReviewsDashboard() {
           </svg>
           <span>Reviews</span>
           <span className="font-['JetBrains_Mono',monospace] rounded-md bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px] text-[var(--muted)]">
-            {reviews.length}
+            {reviewsPagination.total ?? reviews.length}
           </span>
         </button>
 
@@ -293,7 +347,7 @@ export default function AdminHostingReviewsDashboard() {
           </svg>
           <span>Detected Providers</span>
           <span className="font-['JetBrains_Mono',monospace] rounded-md bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px] text-[var(--muted)]">
-            {providers.length}
+            {providersPagination.total ?? providers.length}
           </span>
         </button>
       </div>
@@ -301,34 +355,72 @@ export default function AdminHostingReviewsDashboard() {
       {/* ── TAB 1: REVIEWS ───────────────────────────────────────────────── */}
       {activeTab === 'reviews' && (
         <section aria-label="Hosting reviews list" className="space-y-4">
-          {/* Controls: Search + Status Filter */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative w-full sm:max-w-xs">
+          {/* Controls: Search + Status Filter + Sort */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="relative w-full md:max-w-xs">
               <input
                 type="text"
                 value={reviewSearch}
                 onChange={(e) => setReviewSearch(e.target.value)}
-                placeholder="Search reviews..."
-                className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3.5 py-2 pl-9 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--cyan)] focus:outline-none"
+                placeholder="Search by title, provider..."
+                className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3.5 py-2 pl-9 pr-8 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--cyan)] focus:outline-none transition"
               />
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
+              {reviewSearch && (
+                <button
+                  type="button"
+                  onClick={() => setReviewSearch('')}
+                  aria-label="Clear review search"
+                  className="cursor-pointer absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--text)] transition"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-auto">
-              <label htmlFor="review-status" className="text-xs text-[var(--muted-2)] font-medium">Status:</label>
-              <select
-                id="review-status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none"
-              >
-                <option value="all">All Reviews</option>
-                <option value="published">Published Only</option>
-                <option value="draft">Drafts Only</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Status Select */}
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="review-status" className="text-xs text-[var(--muted-2)] font-medium">Status:</label>
+                <select
+                  id="review-status"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setReviewsPage(1);
+                  }}
+                  className="rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none transition"
+                >
+                  <option value="all">All Reviews</option>
+                  <option value="published">Published Only</option>
+                  <option value="draft">Drafts Only</option>
+                </select>
+              </div>
+
+              {/* Sort Select */}
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="review-sort" className="text-xs text-[var(--muted-2)] font-medium">Sort:</label>
+                <select
+                  id="review-sort"
+                  value={reviewSort}
+                  onChange={(e) => {
+                    setReviewSort(e.target.value);
+                    setReviewsPage(1);
+                  }}
+                  className="rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none transition"
+                >
+                  <option value="updatedat_desc">Recently Updated</option>
+                  <option value="updatedat_asc">Oldest Updated</option>
+                  <option value="rating_desc">Highest Rating</option>
+                  <option value="rating_asc">Lowest Rating</option>
+                  <option value="publishedat_desc">Recently Published</option>
+                  <option value="publishedat_asc">Oldest Published</option>
+                  <option value="provider_asc">Provider Name (A–Z)</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -362,14 +454,16 @@ export default function AdminHostingReviewsDashboard() {
                       Loading hosting reviews...
                     </td>
                   </tr>
-                ) : filteredReviews.length === 0 ? (
+                ) : reviews.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="py-12 text-center text-xs text-[var(--muted)]">
-                      No reviews found. Click &quot;New Review&quot; above to create one.
+                      {reviewSearch || statusFilter !== 'all'
+                        ? 'No reviews match your current filters.'
+                        : 'No reviews found. Click "New Review" above to create one.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredReviews.map((r) => {
+                  reviews.map((r) => {
                     const isPending = Boolean(actionInProgress[r.id]);
                     return (
                       <tr key={r.id} className="hover:bg-[var(--surface-2)]/50 transition">
@@ -501,12 +595,14 @@ export default function AdminHostingReviewsDashboard() {
           <div className="grid grid-cols-1 gap-3 md:hidden">
             {reviewsLoading ? (
               <div className="p-8 text-center text-xs text-[var(--muted)]">Loading reviews...</div>
-            ) : filteredReviews.length === 0 ? (
+            ) : reviews.length === 0 ? (
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center text-xs text-[var(--muted)]">
-                No reviews found.
+                {reviewSearch || statusFilter !== 'all'
+                  ? 'No reviews match your current filters.'
+                  : 'No reviews found.'}
               </div>
             ) : (
-              filteredReviews.map((r) => {
+              reviews.map((r) => {
                 const isPending = Boolean(actionInProgress[r.id]);
                 return (
                   <div key={r.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3">
@@ -582,29 +678,92 @@ export default function AdminHostingReviewsDashboard() {
               })
             )}
           </div>
+
+          {/* Reviews Pagination Controls */}
+          <AdminPagination
+            page={reviewsPagination.page}
+            totalPages={reviewsPagination.totalPages}
+            total={reviewsPagination.total}
+            limit={reviewsLimit}
+            onPageChange={(p) => setReviewsPage(p)}
+            onLimitChange={(l) => {
+              setReviewsLimit(l);
+              setReviewsPage(1);
+            }}
+            itemName="reviews"
+            loading={reviewsLoading}
+          />
         </section>
       )}
 
       {/* ── TAB 2: DETECTED PROVIDERS ────────────────────────────────────── */}
       {activeTab === 'providers' && (
         <section aria-label="Detected hosting providers" className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative w-full sm:max-w-xs">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="relative w-full md:max-w-xs">
               <input
                 type="text"
                 value={providerSearch}
                 onChange={(e) => setProviderSearch(e.target.value)}
-                placeholder="Search detected providers..."
-                className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3.5 py-2 pl-9 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--cyan)] focus:outline-none"
+                placeholder="Search provider name or key..."
+                className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3.5 py-2 pl-9 pr-8 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--cyan)] focus:outline-none transition"
               />
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
+              {providerSearch && (
+                <button
+                  type="button"
+                  onClick={() => setProviderSearch('')}
+                  aria-label="Clear provider search"
+                  className="cursor-pointer absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--text)] transition"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
-            <div className="text-xs text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">
-              Minimum checks requirement: <strong className="text-[var(--text)]">{minChecks}</strong>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Eligibility Filter */}
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="provider-eligibility" className="text-xs text-[var(--muted-2)] font-medium">Eligibility:</label>
+                <select
+                  id="provider-eligibility"
+                  value={providerEligibleFilter}
+                  onChange={(e) => {
+                    setProviderEligibleFilter(e.target.value);
+                    setProvidersPage(1);
+                  }}
+                  className="rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none transition"
+                >
+                  <option value="all">All Eligibility</option>
+                  <option value="eligible">Eligible (≥{minChecks})</option>
+                  <option value="ineligible">Ineligible (&lt;{minChecks})</option>
+                </select>
+              </div>
+
+              {/* Review Filter */}
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="provider-review-filter" className="text-xs text-[var(--muted-2)] font-medium">Review:</label>
+                <select
+                  id="provider-review-filter"
+                  value={providerReviewFilter}
+                  onChange={(e) => {
+                    setProviderReviewFilter(e.target.value);
+                    setProvidersPage(1);
+                  }}
+                  className="rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none transition"
+                >
+                  <option value="all">All Providers</option>
+                  <option value="hasReview">Has Review</option>
+                  <option value="needsReview">Needs Review</option>
+                </select>
+              </div>
+
+              <div className="hidden sm:block text-xs text-[var(--muted-2)] font-['JetBrains_Mono',monospace] pl-1">
+                Min checks: <strong className="text-[var(--text)]">{minChecks}</strong>
+              </div>
             </div>
           </div>
 
@@ -636,14 +795,16 @@ export default function AdminHostingReviewsDashboard() {
                       Scanning monitored hosting providers...
                     </td>
                   </tr>
-                ) : filteredProviders.length === 0 ? (
+                ) : providers.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="py-12 text-center text-xs text-[var(--muted)]">
-                      No hosting providers detected from active uptime monitors.
+                      {providerSearch || providerEligibleFilter !== 'all' || providerReviewFilter !== 'all'
+                        ? 'No hosting providers match your filter criteria.'
+                        : 'No hosting providers detected from active uptime monitors.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredProviders.map((p) => {
+                  providers.map((p) => {
                     const progressPct = Math.min(100, Math.round((p.totalChecks / minChecks) * 100));
                     const hasReview = Boolean(p.review);
 
@@ -714,6 +875,21 @@ export default function AdminHostingReviewsDashboard() {
               </tbody>
             </table>
           </div>
+
+          {/* Providers Pagination Controls */}
+          <AdminPagination
+            page={providersPagination.page}
+            totalPages={providersPagination.totalPages}
+            total={providersPagination.total}
+            limit={providersLimit}
+            onPageChange={(p) => setProvidersPage(p)}
+            onLimitChange={(l) => {
+              setProvidersLimit(l);
+              setProvidersPage(1);
+            }}
+            itemName="providers"
+            loading={providersLoading}
+          />
         </section>
       )}
 

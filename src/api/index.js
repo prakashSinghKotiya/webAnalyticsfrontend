@@ -172,3 +172,14 @@ export {
   deleteReviewAdmin,
 } from './hostingReviewApi';
 
+// Contact Us API
+export {
+  submitContactMessage,
+  getContactMessagesAdmin,
+  getContactMessageByIdAdmin,
+  deleteContactMessageAdmin,
+  ALLOWED_ENQUIRY_TOPICS,
+  ENQUIRY_TOPICS,
+} from './contactApi';
+
+

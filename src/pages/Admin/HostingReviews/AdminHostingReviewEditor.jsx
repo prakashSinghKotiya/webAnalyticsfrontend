@@ -132,7 +132,7 @@ export default function AdminHostingReviewEditor() {
     if (isEditMode) return;
     async function loadProviders() {
       try {
-        const res = await getAdminProviders();
+        const res = await getAdminProviders({ all: true });
         if (res.success && Array.isArray(res.data)) {
           setProviders(res.data);
           // If query param providerKey provided, set it

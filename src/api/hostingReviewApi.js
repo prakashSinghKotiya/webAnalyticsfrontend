@@ -27,9 +27,11 @@ import { axiosWithCreds, axiosWithoutCreds } from './axiosInstance';
 /**
  * Get all published hosting reviews with headline stats.
  * Cacheable, public endpoint.
+ * Supports pagination (?page=1&limit=10), search (?search=...), and sorting (?sort=...).
+ * @param {Object} [params] - { page, limit, search, sort, all }
  */
-export async function getPublicReviews() {
-  const { data } = await axiosWithoutCreds.get('/review');
+export async function getPublicReviews(params = {}) {
+  const { data } = await axiosWithoutCreds.get('/review', { params });
   return data;
 }
 
@@ -49,10 +51,13 @@ export async function getPublicReviewBySlug(slug) {
 
 /**
  * List all hosting providers detected from uptime monitors with eligibility.
- * Returns { success, minChecks, data: [{ key, name, monitors, activeMonitors, totalChecks, eligible, review }] }
+ * Supports compact pagination (?page=1&limit=10), search (?search=...),
+ * and filters (?eligible=true|false, ?hasReview=true|false, ?all=true).
+ * Returns { success, minChecks, data: [{ key, name, monitors, activeMonitors, totalChecks, eligible, review }], pagination }
+ * @param {Object} [params] - { page, limit, search, eligible, hasReview, all }
  */
-export async function getAdminProviders() {
-  const { data } = await axiosWithCreds.get('/review/admin/providers');
+export async function getAdminProviders(params = {}) {
+  const { data } = await axiosWithCreds.get('/review/admin/providers', { params });
   return data;
 }
 
@@ -68,10 +73,13 @@ export async function previewAdminProviderStats(providerKey) {
 
 /**
  * Get all reviews (draft and published) for the admin dashboard.
- * Returns { success, data: [{ id, providerKey, providerName, slug, title, rating, isPublished, publishedAt, statsUpdatedAt, updatedAt }] }
+ * Supports compact pagination (?page=1&limit=10), status filtering (?status=published|draft),
+ * search filtering (?search=...), and sorting (?sort=rating_desc|publishedat_desc|updatedat_asc).
+ * Returns { success, data: [{ id, providerKey, providerName, slug, title, rating, isPublished, publishedAt, statsUpdatedAt, updatedAt }], pagination }
+ * @param {Object} [params] - { page, limit, status, search, sort, all }
  */
-export async function getAllReviewsAdmin() {
-  const { data } = await axiosWithCreds.get('/review/admin/all');
+export async function getAllReviewsAdmin(params = {}) {
+  const { data } = await axiosWithCreds.get('/review/admin/all', { params });
   return data;
 }
 

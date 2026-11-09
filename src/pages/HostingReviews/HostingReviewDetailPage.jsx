@@ -138,7 +138,7 @@ export default function HostingReviewDetailPage() {
   useEffect(() => {
     async function loadMore() {
       try {
-        const res = await getPublicReviews();
+        const res = await getPublicReviews({ limit: 4 });
         if (res.success && Array.isArray(res.data)) {
           setMoreReviews(res.data.filter((r) => r.slug !== slug).slice(0, 3));
         }

@@ -548,4 +548,77 @@ export function exportMonitorsToCsv(monitors, filename = 'uptime-monitors-export
   return true;
 }
 
+/**
+ * Get visual badge configuration for contact message enquiry topic.
+ */
+export function getEnquiryTopicBadgeConfig(topic) {
+  const normalized = (topic || '').toLowerCase();
+  switch (normalized) {
+    case 'support':
+      return {
+        label: 'Support',
+        fullLabel: 'Technical Support',
+        className: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30',
+        dotColor: 'bg-amber-500',
+      };
+    case 'enterprise':
+      return {
+        label: 'Enterprise',
+        fullLabel: 'Sales & Enterprise',
+        className: 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30',
+        dotColor: 'bg-purple-500',
+      };
+    case 'feature':
+      return {
+        label: 'Feature',
+        fullLabel: 'Feature Request',
+        className: 'bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-500/15 dark:text-cyan-300 dark:border-cyan-500/30',
+        dotColor: 'bg-cyan-500',
+      };
+    case 'billing':
+      return {
+        label: 'Billing',
+        fullLabel: 'Billing & Account',
+        className: 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30',
+        dotColor: 'bg-emerald-500',
+      };
+    case 'general':
+    default:
+      return {
+        label: 'General',
+        fullLabel: 'General Inquiry',
+        className: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-500/15 dark:text-slate-300 dark:border-slate-500/30',
+        dotColor: 'bg-slate-400',
+      };
+  }
+}
+
+/**
+ * Export array of contact messages to a CSV downloadable file.
+ */
+export function exportContactsToCsv(messages, filename = 'contact-inquiries-export.csv') {
+  if (!messages || !messages.length) return false;
+
+  const headers = ['Message ID', 'Name', 'Email', 'Topic', 'Message', 'Created At'];
+  const rows = messages.map((m) => [
+    `"${m.id || ''}"`,
+    `"${(m.name || '').replace(/"/g, '""')}"`,
+    `"${(m.email || '').replace(/"/g, '""')}"`,
+    `"${m.enquiryTopic || ''}"`,
+    `"${(m.message || '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`,
+    `"${m.createdAt || ''}"`,
+  ]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  return true;
+}
+
+
 

@@ -128,6 +128,22 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
+            path: 'admin/contacts',
+            element: (
+              <AdminRoute>
+                <Navigate to="/admin?tab=contacts" replace />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: 'admin/contact',
+            element: (
+              <AdminRoute>
+                <Navigate to="/admin?tab=contacts" replace />
+              </AdminRoute>
+            ),
+          },
+          {
             path: 'admin/hosting-reviews',
             element: (
               <AdminRoute>

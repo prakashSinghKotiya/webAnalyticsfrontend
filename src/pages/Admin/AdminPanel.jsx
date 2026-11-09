@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '../../constants';
 import { useAuthState } from '../../context';
 import useAdmin from './useAdmin';
+import useAdminContacts from './useAdminContacts';
 import {
   AdminHeader,
   AdminStatsOverview,
@@ -19,11 +20,35 @@ import {
   AdminMonitorInspectModal,
   AdminMonitorBulkModal,
   AdminRunnersManager,
+  AdminContactStats,
+  AdminContactFilters,
+  AdminContactTable,
+  AdminContactInspectModal,
+  AdminContactConfirmModal,
 } from './components';
 
 export default function AdminPanel() {
   const { user: currentUser } = useAuthState();
-  const [activeTab, setActiveTab] = useState('monitors'); // 'monitors' | 'runners' | 'users'
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const validTabs = ['monitors', 'runners', 'users', 'contacts'];
+  const queryTab = searchParams.get('tab');
+  const activeTab = validTabs.includes(queryTab) ? queryTab : 'monitors';
+
+  const handleTabChange = useCallback((newTab) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (newTab === 'monitors') {
+          next.delete('tab');
+        } else {
+          next.set('tab', newTab);
+        }
+        return next;
+      },
+      { replace: true }
+    );
+  }, [setSearchParams]);
 
   const {
     // User Accounts
@@ -61,19 +86,8 @@ export default function AdminPanel() {
     handleDemoteUser,
     inspectUser,
     setInspectUser,
-    auditLogs,
     handleRefresh,
     handleExportCsv,
-
-    // SuperAdmin Exclusive Role & Audit Log Telemetry
-    isSuperAdminUser,
-    serverAuditLogs,
-    serverAuditPagination,
-    serverAuditPage,
-    setServerAuditPage,
-    serverAuditLoading,
-    serverAuditError,
-    fetchServerAuditLogs,
 
     // Uptime Monitors RBAC
     monitors,
@@ -132,11 +146,38 @@ export default function AdminPanel() {
     handleToggleRunner,
     handleMoveRunnerMonitors,
     handleAssignMonitorRunner,
-    handleBulkAssignMonitorRunner,
     handleTestRunner,
     handleCreateRunner,
     handleDeleteRunner,
   } = useAdmin(currentUser);
+
+  // Contact Inquiries Subsystem
+  const {
+    messages: contactMessages,
+    totalMessages: totalContactMessages,
+    totalPages: contactTotalPages,
+    page: contactPage,
+    limit: contactLimit,
+    loading: contactLoading,
+    refreshing: contactRefreshing,
+    error: contactError,
+    searchQuery: contactSearchQuery,
+    topicFilter: contactTopicFilter,
+    topicCounts: contactTopicCounts,
+    inspectMessage: contactInspectMessage,
+    setInspectMessage: setContactInspectMessage,
+    deleteModal: contactDeleteModal,
+    deletingId: contactDeletingId,
+    promptDeleteMessage: handlePromptDeleteContact,
+    closeDeleteModal: handleCloseContactDeleteModal,
+    handleDeleteMessage: handleConfirmDeleteContact,
+    handleRefresh: handleRefreshContacts,
+    handlePageChange: handleContactPageChange,
+    handleLimitChange: handleContactLimitChange,
+    handleSearchChange: handleContactSearchChange,
+    handleTopicFilterChange: handleContactTopicFilterChange,
+    handleExportCsv: handleExportContactsCsv,
+  } = useAdminContacts();
 
   // Tab navigation definitions
   const tabs = [
@@ -176,6 +217,17 @@ export default function AdminPanel() {
         </svg>
       ),
     },
+    {
+      id: 'contacts',
+      label: 'Contact Inquiries',
+      count: totalContactMessages,
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      ),
+      badgeColor: totalContactMessages > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30' : undefined,
+    },
   ];
 
   // Coordinated header actions
@@ -184,24 +236,30 @@ export default function AdminPanel() {
       handleRefreshMonitors();
     } else if (activeTab === 'runners') {
       fetchRunners();
+    } else if (activeTab === 'contacts') {
+      handleRefreshContacts();
     } else {
       handleRefresh();
     }
-  }, [activeTab, handleRefreshMonitors, fetchRunners, handleRefresh]);
+  }, [activeTab, handleRefreshMonitors, fetchRunners, handleRefreshContacts, handleRefresh]);
 
   const handleHeaderExport = useCallback(() => {
     if (activeTab === 'monitors') {
       handleExportMonitorsCsv();
+    } else if (activeTab === 'contacts') {
+      handleExportContactsCsv();
     } else {
       handleExportCsv();
     }
-  }, [activeTab, handleExportMonitorsCsv, handleExportCsv]);
+  }, [activeTab, handleExportMonitorsCsv, handleExportContactsCsv, handleExportCsv]);
 
   const isRefreshing =
     activeTab === 'monitors'
       ? monitorRefreshing
       : activeTab === 'runners'
       ? runnersRefreshing
+      : activeTab === 'contacts'
+      ? contactRefreshing
       : refreshing;
 
   const activeError =
@@ -209,6 +267,8 @@ export default function AdminPanel() {
       ? monitorError
       : activeTab === 'runners'
       ? runnersError
+      : activeTab === 'contacts'
+      ? contactError
       : error;
 
   const headerTotal =
@@ -216,6 +276,8 @@ export default function AdminPanel() {
       ? totalMonitors
       : activeTab === 'runners'
       ? runners.length
+      : activeTab === 'contacts'
+      ? totalContactMessages
       : totalUsers;
 
   return (
@@ -261,7 +323,7 @@ export default function AdminPanel() {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition border ${
                 isActive
                   ? 'border-[var(--cyan)] bg-[var(--cyan-dim)] text-[var(--cyan)] shadow-sm dark:shadow-[0_0_12px_var(--cyan-dim)]'
@@ -324,7 +386,7 @@ export default function AdminPanel() {
             </div>
             <button
               type="button"
-              onClick={() => setActiveTab('runners')}
+              onClick={() => handleTabChange('runners')}
               className="cursor-pointer font-medium text-[var(--cyan)] hover:underline flex items-center gap-1"
             >
               <span>Manage Runners & Architecture</span>
@@ -501,6 +563,60 @@ export default function AdminPanel() {
         </section>
       )}
 
+      {/* ── TAB 3: CONTACT INQUIRIES & MESSAGES ─────────────────────────── */}
+      {activeTab === 'contacts' && (
+        <section>
+          {/* Key Metrics Stats Overview by Topic */}
+          <AdminContactStats
+            totalMessages={totalContactMessages}
+            topicCounts={contactTopicCounts}
+            selectedTopic={contactTopicFilter}
+            onSelectTopic={handleContactTopicFilterChange}
+          />
+
+          {/* Search, Topic Filters & Pagination limit controls */}
+          <AdminContactFilters
+            searchQuery={contactSearchQuery}
+            onSearchChange={handleContactSearchChange}
+            topicFilter={contactTopicFilter}
+            onTopicFilterChange={handleContactTopicFilterChange}
+            limit={contactLimit}
+            onLimitChange={handleContactLimitChange}
+            totalMessages={totalContactMessages}
+            displayedCount={contactMessages.length}
+            onRefresh={handleRefreshContacts}
+            refreshing={contactRefreshing}
+            onExportCsv={handleExportContactsCsv}
+          />
+
+          {/* Contact Inquiries Data Table & Mobile Cards */}
+          <AdminContactTable
+            messages={contactMessages}
+            loading={contactLoading}
+            onInspect={(msg) => setContactInspectMessage(msg)}
+            onPromptDelete={handlePromptDeleteContact}
+            deletingId={contactDeletingId}
+            onResetFilters={() => {
+              handleContactSearchChange('');
+              handleContactTopicFilterChange('all');
+            }}
+          />
+
+          {/* Server-side Pagination */}
+          <AdminPagination
+            page={contactPage}
+            totalPages={contactTotalPages}
+            onPageChange={handleContactPageChange}
+            total={totalContactMessages}
+            limit={contactLimit}
+            onLimitChange={handleContactLimitChange}
+            limitOptions={[10, 25, 50, 100]}
+            itemName="inquiries"
+          />
+        </section>
+      )}
+
+
       {/* ── MODALS: USERS ──────────────────────────────────────────────── */}
       {/* User Details Inspector Modal */}
       {inspectUser && (
@@ -586,6 +702,26 @@ export default function AdminPanel() {
             }
             setMonitorBulkModal({ open: false, type: null, targetMonitor: null });
           }}
+        />
+      )}
+      {/* ── MODALS: CONTACT INQUIRIES ───────────────────────────────── */}
+      {/* Contact Message Details Inspector Modal */}
+      {contactInspectMessage && (
+        <AdminContactInspectModal
+          message={contactInspectMessage}
+          onClose={() => setContactInspectMessage(null)}
+          onPromptDelete={handlePromptDeleteContact}
+        />
+      )}
+
+      {/* Contact Message Delete Confirmation Modal */}
+      {contactDeleteModal.open && (
+        <AdminContactConfirmModal
+          open={contactDeleteModal.open}
+          message={contactDeleteModal.message}
+          onClose={handleCloseContactDeleteModal}
+          onConfirm={handleConfirmDeleteContact}
+          loading={Boolean(contactDeletingId)}
         />
       )}
     </div>

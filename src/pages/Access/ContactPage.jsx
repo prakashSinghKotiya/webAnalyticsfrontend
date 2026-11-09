@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../constants';
 import { getAppUrl } from '../../utils/subdomainNav';
-import { useTheme } from '../../context';
+import { useTheme, useToast } from '../../context';
 import { Logo, Footer } from '../../components';
+import { submitContactMessage, ENQUIRY_TOPICS } from '../../api';
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -35,49 +36,159 @@ function ThemeToggle() {
   );
 }
 
+const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
 export default function ContactPage() {
+  const toast = useToast();
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    subject: 'support',
+    enquiryTopic: 'support',
     message: '',
   });
-  const [submitted, setSubmitted] = useState(false);
+
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [generalError, setGeneralError] = useState('');
+  const [isRateLimited, setIsRateLimited] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [submissionResult, setSubmissionResult] = useState(null);
+  const [copiedRefId, setCopiedRefId] = useState(false);
+
+  const messageLength = formData.message.length;
+  const maxMessageLength = 5000;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    setError('');
+    setGeneralError('');
+    setIsRateLimited(false);
+
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
-      setError('Please fill in all required fields.');
-      return;
+  const validateForm = () => {
+    const errors = {};
+    const trimmedName = formData.name.trim();
+    const trimmedEmail = formData.email.trim();
+    const trimmedMessage = formData.message.trim();
+
+    if (!trimmedName) {
+      errors.name = 'Please enter your name.';
+    } else if (trimmedName.length > 100) {
+      errors.name = 'Name cannot exceed 100 characters.';
     }
 
-    // Basic email pattern check
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      setError('Please provide a valid email address.');
+    if (!trimmedEmail) {
+      errors.email = 'Please enter your email address.';
+    } else if (!EMAIL_REGEX.test(trimmedEmail) || trimmedEmail.length > 320) {
+      errors.email = 'Please provide a valid email address (e.g. name@company.com).';
+    }
+
+    const validTopics = ENQUIRY_TOPICS.map((t) => t.value);
+    if (!validTopics.includes(formData.enquiryTopic)) {
+      errors.enquiryTopic = 'Please select a valid enquiry topic.';
+    }
+
+    if (!trimmedMessage) {
+      errors.message = 'Please enter your message or infrastructure question.';
+    } else if (trimmedMessage.length > maxMessageLength) {
+      errors.message = `Message cannot exceed ${maxMessageLength.toLocaleString()} characters.`;
+    }
+
+    return errors;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setGeneralError('');
+    setIsRateLimited(false);
+
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setGeneralError('Please review the highlighted fields below.');
       return;
     }
 
     setLoading(true);
-    // Simulate lightweight client-side submission with success confirmation
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const response = await submitContactMessage({
+        name: formData.name,
+        email: formData.email,
+        enquiryTopic: formData.enquiryTopic,
+        message: formData.message,
+      });
+
+      setSubmissionResult({
+        id: response?.data?.id || null,
+        message: response?.message || 'Your message has been received successfully. Our team will get back to you shortly.',
+        senderName: formData.name.trim(),
+        senderEmail: formData.email.trim(),
+        enquiryTopic: formData.enquiryTopic,
+      });
       setSubmitted(true);
-    }, 700);
+      toast?.success(response?.message || 'Inquiry submitted successfully!');
+    } catch (err) {
+      const status = err.status || err.response?.status;
+      if (status === 429) {
+        setIsRateLimited(true);
+        setGeneralError('Rate limit exceeded: You have submitted 5 inquiries in the last 15 minutes. Please wait before submitting another inquiry.');
+      } else if (status === 400 && Array.isArray(err.errors) && err.errors.length > 0) {
+        const mappedErrors = {};
+        err.errors.forEach((issue) => {
+          if (issue.field) {
+            mappedErrors[issue.field] = issue.message;
+          }
+        });
+        setFieldErrors(mappedErrors);
+        setGeneralError(err.message || 'Validation failed. Please correct your inputs.');
+      } else {
+        setGeneralError(err.message || 'Unable to submit your inquiry at this moment. Please try again later or email us directly.');
+      }
+      toast?.error(err.message || 'Failed to submit inquiry.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleReset = () => {
-    setFormData({ name: '', email: '', subject: 'support', message: '' });
+    setFormData({
+      name: '',
+      email: '',
+      enquiryTopic: 'support',
+      message: '',
+    });
+    setFieldErrors({});
+    setGeneralError('');
+    setIsRateLimited(false);
     setSubmitted(false);
-    setError('');
+    setSubmissionResult(null);
+    setCopiedRefId(false);
   };
+
+  const handleCopyRefId = async () => {
+    if (!submissionResult?.id) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(submissionResult.id);
+      }
+      setCopiedRefId(true);
+      setTimeout(() => setCopiedRefId(false), 2000);
+    } catch {
+      // Fallback
+    }
+  };
+
+  const selectedTopicMeta = ENQUIRY_TOPICS.find((t) => t.value === formData.enquiryTopic) || ENQUIRY_TOPICS[0];
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)] transition-colors">
@@ -138,7 +249,7 @@ export default function ContactPage() {
               </span>
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[var(--muted-2)] sm:text-base">
-              Need assistance with website monitoring, custom alert integrations, or enterprise SLA plans? Our team of infrastructure engineers is ready to support you.
+              Need assistance with website monitoring, custom probe deployment, or enterprise SLA plans? Our infrastructure engineering team is here to help.
             </p>
           </div>
         </section>
@@ -234,7 +345,7 @@ export default function ContactPage() {
                   </p>
                 </div>
 
-                {submitted ? (
+                {submitted && submissionResult ? (
                   <div className="rounded-2xl border border-[var(--green)]/30 bg-[var(--green-dim)] p-8 text-center animate-fade-in">
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--green)] text-white shadow-lg">
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -245,9 +356,32 @@ export default function ContactPage() {
                       Message Sent Successfully!
                     </h3>
                     <p className="mx-auto mt-2.5 max-w-md text-xs leading-6 text-[var(--muted-2)]">
-                      Thank you, <strong className="text-[var(--text)]">{formData.name}</strong>. We have received your inquiry and our engineering team will get back to you at <strong className="text-[var(--text)]">{formData.email}</strong> shortly.
+                      Thank you, <strong className="text-[var(--text)]">{submissionResult.senderName}</strong>. {submissionResult.message}
                     </p>
-                    <div className="mt-6">
+
+                    {submissionResult.id && (
+                      <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3.5 py-1.5 text-xs text-[var(--text-2)] font-['JetBrains_Mono',monospace]">
+                        <span className="text-[var(--muted)] text-[11px]">Ticket ID:</span>
+                        <span className="font-semibold text-[var(--cyan)]">{submissionResult.id}</span>
+                        <button
+                          type="button"
+                          onClick={handleCopyRefId}
+                          className="cursor-pointer ml-1 text-[var(--muted)] hover:text-[var(--text)] transition border-none bg-transparent"
+                          title="Copy ticket reference ID"
+                        >
+                          {copiedRefId ? (
+                            <span className="text-[10px] font-bold text-[var(--green)]">Copied!</span>
+                          ) : (
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                       <button
                         type="button"
                         onClick={handleReset}
@@ -255,13 +389,43 @@ export default function ContactPage() {
                       >
                         Send Another Inquiry
                       </button>
+                      <Link
+                        to={ROUTES.PUBLIC_HOME}
+                        className="cursor-pointer rounded-xl bg-[var(--cyan-dim)] border border-[var(--cyan)]/30 px-5 py-2.5 text-xs font-semibold text-[var(--cyan)] transition hover:bg-[var(--cyan-dim)]/80"
+                      >
+                        Return to Home
+                      </Link>
                     </div>
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit} noValidate className="space-y-5">
-                    {error && (
-                      <div className="rounded-xl border border-[var(--red)]/40 bg-[var(--red-dim,rgba(239,68,68,0.1))] px-4 py-3 text-xs text-[var(--red)]">
-                        {error}
+                    {/* General Error / Rate Limit Alert */}
+                    {generalError && (
+                      <div
+                        role="alert"
+                        className={`rounded-xl border p-4 text-xs transition ${
+                          isRateLimited
+                            ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+                            : 'border-[var(--red)]/40 bg-[var(--red-dim,rgba(239,68,68,0.1))] text-[var(--red)]'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          {isRateLimited ? (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 mt-0.5">
+                              <circle cx="12" cy="12" r="10" />
+                              <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 mt-0.5">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="8" x2="12" y2="12" />
+                              <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                          )}
+                          <div className="flex-1 leading-5 font-medium">
+                            {generalError}
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -276,12 +440,20 @@ export default function ContactPage() {
                           name="name"
                           type="text"
                           required
+                          maxLength={100}
                           autoComplete="name"
                           placeholder="e.g. Alex Morgan"
                           value={formData.name}
                           onChange={handleChange}
-                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--text)] placeholder:text-[var(--muted)] outline-none transition focus:border-[var(--cyan)] focus:ring-1 focus:ring-[var(--cyan)]"
+                          disabled={loading}
+                          aria-invalid={Boolean(fieldErrors.name)}
+                          className={`w-full rounded-xl border bg-[var(--surface-2)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--text)] placeholder:text-[var(--muted)] outline-none transition focus:border-[var(--cyan)] focus:ring-1 focus:ring-[var(--cyan)] disabled:opacity-50 ${
+                            fieldErrors.name ? 'border-[var(--red)] ring-1 ring-[var(--red)]' : 'border-[var(--border)]'
+                          }`}
                         />
+                        {fieldErrors.name && (
+                          <p className="mt-1.5 text-[11px] font-medium text-[var(--red)]">{fieldErrors.name}</p>
+                        )}
                       </div>
                       <div>
                         <label htmlFor="contact-email" className="block text-xs font-semibold text-[var(--text-2)] mb-2">
@@ -292,54 +464,98 @@ export default function ContactPage() {
                           name="email"
                           type="email"
                           required
+                          maxLength={320}
                           autoComplete="email"
                           placeholder="alex@company.com"
                           value={formData.email}
                           onChange={handleChange}
-                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--text)] placeholder:text-[var(--muted)] outline-none transition focus:border-[var(--cyan)] focus:ring-1 focus:ring-[var(--cyan)]"
+                          disabled={loading}
+                          aria-invalid={Boolean(fieldErrors.email)}
+                          className={`w-full rounded-xl border bg-[var(--surface-2)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--text)] placeholder:text-[var(--muted)] outline-none transition focus:border-[var(--cyan)] focus:ring-1 focus:ring-[var(--cyan)] disabled:opacity-50 ${
+                            fieldErrors.email ? 'border-[var(--red)] ring-1 ring-[var(--red)]' : 'border-[var(--border)]'
+                          }`}
                         />
+                        {fieldErrors.email && (
+                          <p className="mt-1.5 text-[11px] font-medium text-[var(--red)]">{fieldErrors.email}</p>
+                        )}
                       </div>
                     </div>
 
                     {/* Inquiry Topic Dropdown */}
                     <div>
-                      <label htmlFor="contact-subject" className="block text-xs font-semibold text-[var(--text-2)] mb-2">
-                        Inquiry Topic
-                      </label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label htmlFor="contact-enquiryTopic" className="block text-xs font-semibold text-[var(--text-2)]">
+                          Inquiry Topic <span className="text-[var(--cyan)]">*</span>
+                        </label>
+                        <span className="text-[11px] text-[var(--muted)] font-['JetBrains_Mono',monospace]">
+                          {selectedTopicMeta.shortLabel}
+                        </span>
+                      </div>
                       <select
-                        id="contact-subject"
-                        name="subject"
-                        value={formData.subject}
+                        id="contact-enquiryTopic"
+                        name="enquiryTopic"
+                        value={formData.enquiryTopic}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--text)] outline-none transition focus:border-[var(--cyan)] focus:ring-1 focus:ring-[var(--cyan)] cursor-pointer"
+                        disabled={loading}
+                        aria-invalid={Boolean(fieldErrors.enquiryTopic)}
+                        className={`w-full rounded-xl border bg-[var(--surface-2)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--text)] outline-none transition focus:border-[var(--cyan)] focus:ring-1 focus:ring-[var(--cyan)] cursor-pointer disabled:opacity-50 ${
+                          fieldErrors.enquiryTopic ? 'border-[var(--red)]' : 'border-[var(--border)]'
+                        }`}
                       >
-                        <option value="support">Technical Support &amp; Incident Triage</option>
-                        <option value="enterprise">Enterprise Plans &amp; Custom Probes</option>
-                        <option value="feature">Feature Request or Feedback</option>
-                        <option value="billing">Billing &amp; Account Assistance</option>
-                        <option value="general">General Inquiry</option>
+                        {ENQUIRY_TOPICS.map((topic) => (
+                          <option key={topic.value} value={topic.value}>
+                            {topic.label}
+                          </option>
+                        ))}
                       </select>
+                      <p className="mt-1 text-[11px] text-[var(--muted)]">
+                        {selectedTopicMeta.description}
+                      </p>
+                      {fieldErrors.enquiryTopic && (
+                        <p className="mt-1 text-[11px] font-medium text-[var(--red)]">{fieldErrors.enquiryTopic}</p>
+                      )}
                     </div>
 
                     {/* Message Area */}
                     <div>
-                      <label htmlFor="contact-message" className="block text-xs font-semibold text-[var(--text-2)] mb-2">
-                        Message <span className="text-[var(--cyan)]">*</span>
-                      </label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label htmlFor="contact-message" className="block text-xs font-semibold text-[var(--text-2)]">
+                          Message <span className="text-[var(--cyan)]">*</span>
+                        </label>
+                        <span
+                          className={`font-['JetBrains_Mono',monospace] text-[11px] ${
+                            messageLength > 4800
+                              ? 'text-[var(--red)] font-bold'
+                              : messageLength > 4000
+                              ? 'text-amber-500 font-semibold'
+                              : 'text-[var(--muted)]'
+                          }`}
+                        >
+                          {messageLength.toLocaleString()} / {maxMessageLength.toLocaleString()}
+                        </span>
+                      </div>
                       <textarea
                         id="contact-message"
                         name="message"
                         rows="5"
                         required
-                        placeholder="Describe your question or infrastructure requirements..."
+                        maxLength={maxMessageLength}
+                        placeholder="Describe your question or infrastructure requirements in detail..."
                         value={formData.message}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--text)] placeholder:text-[var(--muted)] outline-none transition focus:border-[var(--cyan)] focus:ring-1 focus:ring-[var(--cyan)] resize-y min-h-[120px]"
+                        disabled={loading}
+                        aria-invalid={Boolean(fieldErrors.message)}
+                        className={`w-full rounded-xl border bg-[var(--surface-2)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--text)] placeholder:text-[var(--muted)] outline-none transition focus:border-[var(--cyan)] focus:ring-1 focus:ring-[var(--cyan)] resize-y min-h-[130px] disabled:opacity-50 ${
+                          fieldErrors.message ? 'border-[var(--red)] ring-1 ring-[var(--red)]' : 'border-[var(--border)]'
+                        }`}
                       />
+                      {fieldErrors.message && (
+                        <p className="mt-1.5 text-[11px] font-medium text-[var(--red)]">{fieldErrors.message}</p>
+                      )}
                     </div>
 
                     {/* Submit Button */}
-                    <div>
+                    <div className="pt-2">
                       <button
                         type="submit"
                         disabled={loading}
@@ -351,7 +567,7 @@ export default function ContactPage() {
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                             </svg>
-                            Sending Message...
+                            Sending Inquiry...
                           </>
                         ) : (
                           <>
@@ -366,7 +582,7 @@ export default function ContactPage() {
                     </div>
 
                     <p className="text-[11px] text-[var(--muted)]">
-                      We value your privacy. We never share or sell contact information.
+                      We value your privacy. Submissions are encrypted in transit and never shared with third parties.
                     </p>
                   </form>
                 )}
