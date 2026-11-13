@@ -88,5 +88,5 @@ export const THEMES = Object.freeze({
 /** Production subdomains configuration */
 export const SUBDOMAINS = Object.freeze({
   LANDING_HOST: 'monitormyhost.com',
-  APP_HOST: 'webpulse.monitormyhost.com',
+  APP_HOST: 'dashboard.monitormyhost.com',
 });

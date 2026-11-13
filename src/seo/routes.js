@@ -9,7 +9,7 @@
  */
 
 export const CANONICAL_HOST = 'https://monitormyhost.com';
-export const APP_HOST = 'https://webpulse.monitormyhost.com';
+export const APP_HOST = 'https://dashboard.monitormyhost.com';
 
 export const PUBLIC_ROUTES = [
   {
@@ -716,7 +716,7 @@ ${urlsXml}
 
 /**
  * Generate robots.txt
- * Rule 5: webpulse.monitormyhost.com has noindex via meta + X-Robots-Tag header,
+ * Rule 5: dashboard.monitormyhost.com has noindex via meta + X-Robots-Tag header,
  * and must NOT be Disallowed in robots.txt so crawlers can discover the noindex header.
  */
 export function generateRobotsTxt() {

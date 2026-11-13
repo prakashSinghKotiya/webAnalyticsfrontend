@@ -190,8 +190,8 @@ ErrorDocument 404 /404.html
 # HTTP Headers & Robots Directives
 # ----------------------------------------------------------------------
 <IfModule mod_headers.c>
-  # webpulse.monitormyhost.com receives noindex via X-Robots-Tag header
-  SetEnvIfNoCase Host ^webpulse\. is_app_subdomain
+  # dashboard.monitormyhost.com receives noindex via X-Robots-Tag header
+  SetEnvIfNoCase Host ^dashboard\. is_app_subdomain
   Header always set X-Robots-Tag "noindex, nofollow, noarchive" env=is_app_subdomain
 
   # Never cache HTML or data feeds so users/bots receive fresh prerendered content

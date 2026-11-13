@@ -4,14 +4,14 @@ import { SUBDOMAINS } from '../constants';
  * Subdomain and Cross-Domain Navigation Utilities
  * Enables single-build deployment across:
  *  - monitormyhost.com (Landing page & Demos)
- *  - webpulse.monitormyhost.com (Login, Register & Authenticated App)
+ *  - dashboard.monitormyhost.com (Login, Register & Authenticated App)
  */
 
 export const LANDING_HOSTNAME = SUBDOMAINS.LANDING_HOST || 'monitormyhost.com';
-export const APP_HOSTNAME = SUBDOMAINS.APP_HOST || 'webpulse.monitormyhost.com';
+export const APP_HOSTNAME = SUBDOMAINS.APP_HOST || 'dashboard.monitormyhost.com';
 
 export const LANDING_ORIGIN = 'https://monitormyhost.com'; 
-export const APP_ORIGIN = 'https://webpulse.monitormyhost.com';
+export const APP_ORIGIN = 'https://dashboard.monitormyhost.com';
 
 /** Check if current runtime is a local development environment */
 export function isLocalhost(hostname) {
@@ -31,7 +31,7 @@ export function isLocalhost(hostname) {
  *  2. Session storage wp_dev_subdomain (on localhost)
  *  3. VITE_SUBDOMAIN environment variable (if provided)
  *  4. Production hostname matching:
- *     - webpulse.monitormyhost.com -> 'app'
+ *     - dashboard.monitormyhost.com -> 'app'
  *     - monitormyhost.com (and www / landing aliases) -> 'landing'
  *  5. Path heuristic on localhost (/, /about, /contact, /tools, /demo -> landing, others -> app)
  */
@@ -71,8 +71,8 @@ export function getActiveSubdomain() {
   if (
     hostname === APP_HOSTNAME ||
     hostname.startsWith('app.') ||
-    hostname.startsWith('webpulse.') ||
-    hostname.includes('webpulse')
+    hostname.startsWith('dashboard.') ||
+    hostname.includes('dashboard')
   ) {
     return 'app';
   }
@@ -142,7 +142,7 @@ export function getLandingBaseUrl() {
 
 /**
  * Returns the fully-qualified base URL for the app subdomain.
- * Hardcoded to https://webpulse.monitormyhost.com (or localhost origin in dev)
+ * Hardcoded to https://dashboard.monitormyhost.com (or localhost origin in dev)
  */
 export function getAppBaseUrl() {
   if (typeof window !== 'undefined' && isLocalhost(window.location.hostname)) {

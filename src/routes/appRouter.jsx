@@ -42,7 +42,7 @@ function RedirectToLanding() {
 }
 
 /**
- * App Subdomain Router (webpulse.monitormyhost.com)
+ * App Subdomain Router (dashboard.monitormyhost.com)
  * Serves login, registration, and all authenticated monitoring services.
  */
 export const appRouter = createBrowserRouter([

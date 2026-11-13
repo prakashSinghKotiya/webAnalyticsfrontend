@@ -15,7 +15,7 @@ const currentPath = typeof window !== 'undefined' ? normalizePath(window.locatio
 // 1. We are in the landing domain context (monitormyhost.com), AND
 // 2. The container has child DOM nodes from prerendering, AND
 // 3. The prerendered path matches the current browser pathname.
-// In all other cases (app subdomain webpulse.*, unknown routes, or fallback HTML),
+// In all other cases (app subdomain dashboard.*, unknown routes, or fallback HTML),
 // clear any mismatched DOM nodes and use createRoot to prevent React #418 hydration errors.
 const canHydrate =
   isLandingSubdomain() &&
