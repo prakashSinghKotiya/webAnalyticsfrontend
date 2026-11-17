@@ -94,7 +94,7 @@ function AdminRunnerTestModal({
                   {testing ? (
                     <>
                       <span className="h-3 w-3 animate-spin rounded-full border-2 border-white dark:border-black border-t-transparent" />
-                      <span>Probing…</span>
+                      <span>LOADING</span>
                     </>
                   ) : (
                     'Run Probe'

@@ -160,24 +160,9 @@ function WhoisResultSection({ result, isLookingUp = false, error = null, onReRun
       <section className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-3">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--cyan)] border-t-transparent" />
-          <div>
-            <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-              Querying Authoritative RDAP &amp; WHOIS Servers…
-            </h3>
-            <p className="text-xs text-[var(--muted-2)]">
-              Parsing registry events, cryptographic DNSSEC records, and accredited registrar data.
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 space-y-3">
-          <div className="h-8 w-2/5 animate-pulse rounded-lg bg-[var(--surface-2)]" />
-          <div className="h-4 w-4/5 animate-pulse rounded-md bg-[var(--surface-2)]" />
-          <div className="h-4 w-3/5 animate-pulse rounded-md bg-[var(--surface-2)]" />
-          <div className="mt-6 divide-y divide-[var(--border)]">
-            <div className="h-10 animate-pulse bg-[var(--surface-2)]/40" />
-            <div className="h-10 animate-pulse bg-[var(--surface-2)]/40" />
-            <div className="h-10 animate-pulse bg-[var(--surface-2)]/40" />
-          </div>
+          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
+            LOADING
+          </h3>
         </div>
       </section>
     );

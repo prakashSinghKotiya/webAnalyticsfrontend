@@ -85,7 +85,7 @@ export default function AdminSystemHealth({ stats, onRefresh, refreshing }) {
             disabled={refreshing}
             className="cursor-pointer rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-2)] hover:border-[var(--cyan)] hover:text-[var(--cyan)] disabled:opacity-50"
           >
-            {refreshing ? 'Probing…' : 'Probe Services'}
+            {refreshing ? 'LOADING' : 'Probe Services'}
           </button>
         </div>
 

@@ -1,2 +1,4 @@
-/*    /index.html   200
+/hosting-reviews/:slug    /reviews/:slug    301!
+/hosting-reviews          /reviews          301!
+/*                        /index.html       200
 

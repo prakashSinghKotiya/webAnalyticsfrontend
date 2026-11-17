@@ -171,6 +171,8 @@ export const appRouter = createBrowserRouter([
       },
 
       // ── PUBLIC MARKETING & TOOLS ROUTES REDIRECT TO MAIN DOMAIN ───────
+      { path: 'reviews', element: <RedirectToLanding /> },
+      { path: 'reviews/*', element: <RedirectToLanding /> },
       { path: 'hosting-reviews', element: <RedirectToLanding /> },
       { path: 'hosting-reviews/*', element: <RedirectToLanding /> },
       { path: 'about', element: <RedirectToLanding /> },
@@ -178,6 +180,11 @@ export const appRouter = createBrowserRouter([
       { path: 'contact', element: <RedirectToLanding /> },
       { path: 'contact-me', element: <RedirectToLanding /> },
       { path: 'contact-us', element: <RedirectToLanding /> },
+      { path: 'privacy', element: <RedirectToLanding /> },
+      { path: 'privacy-policy', element: <RedirectToLanding /> },
+      { path: 'terms', element: <RedirectToLanding /> },
+      { path: 'terms-of-service', element: <RedirectToLanding /> },
+      { path: 'terms-of-use', element: <RedirectToLanding /> },
       { path: 'tools', element: <RedirectToLanding /> },
       { path: 'tools/*', element: <RedirectToLanding /> },
       { path: 'demo', element: <RedirectToLanding /> },

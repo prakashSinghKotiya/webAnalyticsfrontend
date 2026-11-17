@@ -222,14 +222,8 @@ function RedirectResultSection({ result, isChecking, error, onReRun }) {
             </div>
           </div>
           <h3 className="font-['Outfit',sans-serif] text-xl font-bold text-[var(--text)]">
-            Tracing Redirect Chain…
+            LOADING
           </h3>
-          <p className="mt-2 max-w-sm text-xs text-[var(--muted-2)]">
-            Probing HTTP headers, following location directives, and measuring hop-by-hop latency.
-          </p>
-          <div className="mt-5 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[var(--bar-track)]">
-            <div className="h-full w-full rounded-full bg-gradient-to-r from-[var(--cyan)] to-blue-500 animate-[marquee_2s_linear_infinite]" />
-          </div>
         </div>
       </section>
     );

@@ -136,7 +136,7 @@ function DnsInputSection({
             {isScanning ? (
               <>
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
-                <span>Resolving…</span>
+                <span>LOADING</span>
               </>
             ) : (
               <>

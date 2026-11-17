@@ -77,7 +77,7 @@ function UrlForm({ url, region, isScanning, onUrlChange, onRegionChange, onSubmi
                 className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--bg-deep)] border-t-transparent"
                 aria-hidden="true"
               />
-              Measuring…
+              LOADING
             </>
           ) : (
             <>

@@ -113,7 +113,7 @@ function PerformanceChart({
       .map((idx) => {
         const d = data[idx];
         const dateObj = new Date(d.date);
-        const formatted = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+        const formatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
         const x = padding.left + (idx / Math.max(1, data.length - 1)) * innerWidth;
         return { label: formatted, x };
       });

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-function LighthouseScanningState({ targetUrl, auditStep }) {
+function LighthouseScanningState() {
   return (
     <div className="fade-up rounded-2xl border border-[var(--border-bright)] bg-[var(--surface)] p-8 shadow-[var(--hero-shadow)] sm:p-12">
       <div className="flex flex-col items-center justify-center text-center">
@@ -33,29 +33,8 @@ function LighthouseScanningState({ targetUrl, auditStep }) {
         </div>
 
         <h3 className="font-['Outfit',sans-serif] text-xl font-bold tracking-tight text-[var(--text)] sm:text-2xl">
-          Running FullSite Report Audit…
+          LOADING
         </h3>
-
-        {targetUrl && (
-          <p className="mt-1.5 max-w-md truncate font-['JetBrains_Mono',monospace] text-xs text-[var(--cyan)]">
-            {targetUrl}
-          </p>
-        )}
-
-        {/* Dynamic active step */}
-        <div className="mt-4 flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-4 py-1.5 text-xs text-[var(--text-2)]">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cyan)]" />
-          <span>{auditStep || 'Analyzing performance, accessibility, SEO & best practices…'}</span>
-        </div>
-
-        {/* Progress bar */}
-        <div className="mt-6 h-1.5 w-full max-w-md overflow-hidden rounded-full bg-[var(--bar-track)]">
-          <div className="h-full w-full rounded-full bg-gradient-to-r from-[var(--cyan)] to-blue-500 animate-[marquee_2s_linear_infinite]" />
-        </div>
-
-        <p className="mt-4 max-w-sm text-xs text-[var(--muted-2)]">
-          Audits typically complete in 15–30 seconds. Real-time updates stream directly via WebSockets.
-        </p>
       </div>
     </div>
   );

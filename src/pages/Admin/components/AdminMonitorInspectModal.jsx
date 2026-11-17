@@ -59,12 +59,13 @@ function AdminMonitorInspectModal({
   };
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setPage(1);
     setDetails(null);
     setPagination(null);
     setLiveResult(null);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load
     loadDetails(1);
+    /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monitorId]);
 

@@ -218,12 +218,14 @@ export default function ContactPage() {
           <div className="flex items-center gap-3">
             <a
               href={getAppUrl(ROUTES.LOGIN)}
+              suppressHydrationWarning
               className="hidden sm:inline-flex text-xs sm:text-sm font-semibold text-[var(--text-2)] hover:text-[var(--cyan)] transition"
             >
               Sign In
             </a>
             <a
               href={getAppUrl(ROUTES.REGISTER)}
+              suppressHydrationWarning
               className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--action-end,var(--cyan))] px-4 py-2 text-xs font-bold text-white shadow-xs hover:brightness-110 active:scale-95 transition"
             >
               Get Started Free

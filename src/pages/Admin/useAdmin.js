@@ -26,7 +26,6 @@ import {
   getAdminRunners as apiGetAdminRunners,
   adminCreateRunner as apiAdminCreateRunner,
   adminSetDefaultRunner as apiAdminSetDefaultRunner,
-  adminActivateRunner as apiAdminActivateRunner,
   adminToggleRunner as apiAdminToggleRunner,
   adminTestRunner as apiAdminTestRunner,
   adminDeleteRunner as apiAdminDeleteRunner,
@@ -1324,7 +1323,7 @@ export default function useAdmin(currentUser) {
         if (res?.ok) {
           toast.success(`Probe succeeded via ${res.runner || 'runner'} in ${res.ms || 0}ms`);
         } else {
-          toast.warning(`Probe completed: ${res.status || 'DOWN'} (${res.error || 'Check failed'})`);
+          (toast.warning || toast.error)(`Probe completed: ${res.status || 'DOWN'} (${res.error || 'Check failed'})`);
         }
         return res;
       } catch (err) {

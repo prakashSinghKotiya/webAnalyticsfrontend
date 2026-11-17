@@ -3,7 +3,7 @@
  *  - auth bootstrap (guards deciding where to route)
  *  - Suspense fallback for lazy-loaded routes
  */
-export default function FullScreenLoader({ label = 'Loading…' }) {
+export default function FullScreenLoader({ label = 'LOADING' }) {
   return (
     <div
       role="status"

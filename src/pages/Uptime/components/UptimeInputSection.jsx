@@ -161,7 +161,7 @@ function UptimeInputSection({ isCreating, onSubmit }) {
                     className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
                     aria-hidden="true"
                   />
-                  <span>Scheduling…</span>
+                  <span>LOADING</span>
                 </>
               ) : (
                 <>

@@ -3,6 +3,18 @@
   command = "npm run build"
 
 [[redirects]]
+  from = "/hosting-reviews/:slug"
+  to = "/reviews/:slug"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/hosting-reviews"
+  to = "/reviews"
+  status = 301
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

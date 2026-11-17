@@ -107,13 +107,9 @@ function RegionReadingRow({ reading, maxLatency, isExpandedByDefault = false }) 
 
 /* ── ResultPanel Component ────────────────────────────────────────────────── */
 
-function ResultPanel({ result, isScanning = false, progress = {}, error = null, onReRun = null }) {
+function ResultPanel({ result, isScanning = false, error = null, onReRun = null }) {
   // Scanning / Loading State
   if (isScanning) {
-    const pct = progress.expected
-      ? Math.min(100, Math.round((progress.received / progress.expected) * 100))
-      : 0;
-
     return (
       <section className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-3">
@@ -121,20 +117,9 @@ function ResultPanel({ result, isScanning = false, progress = {}, error = null, 
             className="h-5 w-5 flex-none animate-spin rounded-full border-2 border-[var(--cyan)] border-t-transparent"
             aria-hidden="true"
           />
-          <div>
-            <h3 className="font-['Outfit',sans-serif] text-base font-semibold text-[var(--text)]">
-              Probing {progress.expected || 3} edge region{progress.expected === 1 ? '' : 's'}…
-            </h3>
-            <p className="text-xs text-[var(--muted-2)]">
-              {progress.received || 0} of {progress.expected || 3} probe responses received
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bar-track)]">
-          <div
-            className="h-full rounded-full bg-[var(--cyan)] transition-[width] duration-300"
-            style={{ width: `${pct}%` }}
-          />
+          <h3 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
+            LOADING
+          </h3>
         </div>
       </section>
     );

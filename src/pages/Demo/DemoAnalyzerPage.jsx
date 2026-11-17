@@ -211,6 +211,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
   const [ttfbMode, setTtfbMode] = useState('all');
   const [ttfbRegion, setTtfbRegion] = useState('india');
   const [lighthouseStrategy, setLighthouseStrategy] = useState('mobile');
+  // eslint-disable-next-line no-unused-vars
   const [progress, setProgress] = useState({ received: 0, expected: 0 });
 
   const pendingRef = useRef(null);
@@ -857,12 +858,14 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
             <a
               href={getAppUrl(`/login?from=${encodeURIComponent(currentTool.authRoute)}`)}
+              suppressHydrationWarning
               className="text-xs sm:text-sm font-semibold text-[var(--muted-2)] hover:text-[var(--text)]"
             >
               Sign in
             </a>
             <a
               href={getAppUrl(`/register?from=${encodeURIComponent(currentTool.authRoute)}`)}
+              suppressHydrationWarning
               className="rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
             >
               Sign up
@@ -917,7 +920,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                     {quota.nextAvailableAt ? (
                       <span> Your quota resets at <strong className="text-[var(--text)]">{formatResetTime(quota.nextAvailableAt)}</strong>.</span>
                     ) : (
-                      <span> Sign in or create a free account to bypass limits with unlimited instant runs.</span>
+                      <span> Sign in.</span>
                     )}
                   </p>
                 </div>
@@ -926,12 +929,14 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
               <div className="flex items-center gap-2.5 sm:shrink-0">
                 <a
                   href={getAppUrl(`/register?from=${encodeURIComponent(currentTool.authRoute)}`)}
+                  suppressHydrationWarning
                   className="rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--green)] px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:brightness-110"
                 >
                   Create Free Account
                 </a>
                 <a
                   href={getAppUrl(`/login?from=${encodeURIComponent(currentTool.authRoute)}`)}
+                  suppressHydrationWarning
                   className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
                 >
                   Log In
@@ -958,7 +963,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
               {seoData?.h1 || currentTool.title}
             </h1>
             <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[var(--muted-2)]">
-              {seoData?.summary || currentTool.description} Free guest runs are delivered live via Socket.IO with failsafe recovery.
+              {seoData?.summary || currentTool.description}
             </p>
 
             {/* TTFB Mode Options */}
@@ -1074,7 +1079,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                 {isRunning ? (
                   <>
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    <span>Analyzing…</span>
+                    <span>LOADING</span>
                   </>
                 ) : (
                   <>
@@ -1095,30 +1100,12 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
               </div>
             )}
 
-            {/* In-Flight Live Progress Animation */}
+            {/* In-Flight Live Loading */}
             {isRunning && (
               <div className="mt-6 rounded-2xl border border-[var(--cyan-mid)] bg-[var(--cyan-dim)] p-4">
                 <div className="flex items-center gap-3">
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--cyan-mid)] border-t-[var(--cyan)]" />
-                  <div>
-                    <p className="text-sm font-bold text-[var(--text)]">Streaming Live Analysis via Socket.IO…</p>
-                    <p className="text-xs text-[var(--muted-2)]">
-                      {activeTool === 'ttfb'
-                        ? `Awaiting probe responses (${progress.received}/${progress.expected})`
-                        : 'BullMQ worker process is executing diagnostics with 100% failsafe delivery guarantee.'}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface)]">
-                  <div
-                    className="h-full animate-pulse rounded-full bg-[var(--cyan)]"
-                    style={{
-                      width:
-                        activeTool === 'ttfb'
-                          ? `${Math.max(15, (progress.received / Math.max(1, progress.expected)) * 100)}%`
-                          : '75%',
-                    }}
-                  />
+                  <p className="font-['Outfit',sans-serif] text-sm font-bold text-[var(--text)]">LOADING</p>
                 </div>
               </div>
             )}

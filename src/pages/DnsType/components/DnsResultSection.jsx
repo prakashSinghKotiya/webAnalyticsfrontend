@@ -121,7 +121,7 @@ function MxRecordView({ records = [], extraIps = {}, isDemo = false }) {
                     <span className="font-semibold text-[var(--text)] break-all">{displayIp}</span>
                   </div>
                 ) : (
-                  <span className="text-xs text-[var(--muted-2)] italic">Resolving IP…</span>
+                  <span className="text-xs text-[var(--muted-2)] italic">LOADING</span>
                 )}
               </div>
 
@@ -833,14 +833,8 @@ function DnsResultSection({
             </div>
           </div>
           <h3 className="font-['Outfit',sans-serif] text-xl font-bold text-[var(--text)]">
-            Querying DNS Nameservers…
+            LOADING
           </h3>
-          <p className="mt-2 max-w-sm text-xs text-[var(--muted-2)]">
-            Resolving A, AAAA, MX, TXT, NS, CNAME, SOA, and SPF records across global authoritative roots.
-          </p>
-          <div className="mt-5 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[var(--bar-track)]">
-            <div className="h-full w-full animate-[marquee_2s_linear_infinite] rounded-full bg-gradient-to-r from-[var(--cyan)] to-blue-500" />
-          </div>
         </div>
       </section>
     );

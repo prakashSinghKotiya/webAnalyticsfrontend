@@ -144,8 +144,27 @@ function StepCredentials({ onNext }) {
         <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-snug text-[var(--text-2)]">
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--cyan)]" />
           <span>
-            I agree to the <span className="text-[var(--cyan)]">Terms of Service</span> and{' '}
-            <span className="text-[var(--cyan)]">Privacy Policy</span>.
+            I agree to the{' '}
+            <a
+              href={getLandingUrl(ROUTES.TERMS)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-[var(--cyan)] hover:underline"
+            >
+              Terms of Use
+            </a>{' '}
+            and{' '}
+            <a
+              href={getLandingUrl(ROUTES.PRIVACY)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-[var(--cyan)] hover:underline"
+            >
+              Privacy Policy
+            </a>
+            .
           </span>
         </label>
         {errors.agree && <p role="alert" className="mt-1.5 text-xs text-[var(--red)]">{errors.agree}</p>}

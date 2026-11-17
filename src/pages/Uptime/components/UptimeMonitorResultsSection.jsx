@@ -204,7 +204,7 @@ function UptimeMonitorResultsSection({
         {loading && displayResults.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10">
             <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--cyan)] border-t-transparent" />
-            <p className="mt-2 text-xs text-[var(--muted-2)]">Loading check records…</p>
+            <p className="mt-2 font-['Outfit',sans-serif] text-xs font-bold tracking-wider text-[var(--text)]">LOADING</p>
           </div>
         ) : filteredList.length === 0 ? (
           <div className="py-12 text-center text-xs sm:text-sm text-[var(--muted-2)]">

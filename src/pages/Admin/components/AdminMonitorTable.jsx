@@ -16,7 +16,6 @@ function AdminMonitorTable({
   loading = false,
   selectedIds = [],
   runners = [],
-  defaultRunner = null,
   onToggleSelect,
   onToggleSelectAll,
   onInspect,

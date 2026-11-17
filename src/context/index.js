@@ -14,9 +14,11 @@ export { useAuth, useAuthState, useAuthActions } from './AuthContext';
 export { useSocket } from './SocketContext';
 export { useTheme } from './ThemeContext';
 export { useToast } from './ToastContext';
+export { useInitialData } from './InitialDataContext';
 
 // ── Providers (for advanced/partial mounting) ───────────────────────────────
 export { AuthProvider } from './AuthContext';
 export { SocketProvider } from './SocketContext';
 export { ThemeProvider, ThemeContext } from './ThemeContext';
 export { ToastProvider } from './ToastContext';
+export { InitialDataProvider } from './InitialDataContext';

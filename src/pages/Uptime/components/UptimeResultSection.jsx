@@ -31,18 +31,14 @@ function UptimeResultSection({ result: rawResult, activeMonitor }) {
 
   // If no check has completed yet, show a clean awaiting state (no hardcoded fake data)
   if (!result) {
-    const target = activeMonitor?.url ? new URL(activeMonitor.url).hostname : 'Target Domain';
     return (
       <section className="fade-up rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-8 sm:p-12 text-center shadow-[var(--shadow-card)]">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--cyan-dim)] text-[var(--cyan)]">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--cyan)] border-t-transparent" />
         </div>
         <h3 className="mt-4 font-['Outfit',sans-serif] text-base sm:text-lg font-bold text-[var(--text)]">
-          Awaiting First Check for {target}
+          LOADING
         </h3>
-        <p className="mt-1 max-w-md mx-auto text-xs sm:text-sm text-[var(--muted-2)]">
-          The background probe worker is executing diagnostics. Real-time availability, DNS timings, and server response will stream in shortly.
-        </p>
       </section>
     );
   }

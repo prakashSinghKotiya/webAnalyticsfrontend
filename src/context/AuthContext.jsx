@@ -15,10 +15,8 @@ import {
 } from '../api/socket';
 import { onAuthExpired } from '../utils/authEvents';
 import {
-  setAuthToken,
   removeAuthToken,
   getGuestId,
-  removeGuestId,
 } from '../utils/tokenStorage';
 
 /**
@@ -132,12 +130,12 @@ export function AuthProvider({ children }) {
       const guestId = getGuestId();
       const response = await apiLogin({ ...credentials, guestId });
 
-      // Save token for cross-domain headers (iOS Safari support)
-      const token = response?.token || response?.sessionId;
-      if (token) {
-        setAuthToken(token);
-        removeGuestId(); // Clean up guest state once user is authenticated
-      }
+      // // Save token for cross-domain headers (iOS Safari support)
+      // const token = response?.token || response?.sessionId;
+      // if (token) {
+      //   setAuthToken(token);
+      //   removeGuestId(); // Clean up guest state once user is authenticated
+      // }
 
       // Immediately hydrate user object if returned by login payload
       if (response?.user) {
@@ -161,12 +159,12 @@ export function AuthProvider({ children }) {
       const guestId = getGuestId();
       const response = await apiGoogleLogin(idToken, guestId);
 
-      // Save token for cross-domain headers (iOS Safari support)
-      const token = response?.token || response?.sessionId || response?.data?.token;
-      if (token) {
-        setAuthToken(token);
-        removeGuestId(); // Clean up guest state once user is authenticated
-      }
+      // // Save token for cross-domain headers (iOS Safari support)
+      // const token = response?.token || response?.sessionId || response?.data?.token;
+      // if (token) {
+      //   setAuthToken(token);
+      //   removeGuestId(); // Clean up guest state once user is authenticated
+      // }
 
       // Immediately hydrate user object if returned by login payload
       const userData = response?.user || response?.data?.user;

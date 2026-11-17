@@ -95,6 +95,8 @@ export function getActiveSubdomain() {
       path === '/' ||
       path.startsWith('/about') ||
       path.startsWith('/contact') ||
+      path.startsWith('/privacy') ||
+      path.startsWith('/terms') ||
       path.startsWith('/tools') ||
       path.startsWith('/demo') ||
       path.startsWith('/ttfb-test') ||
@@ -102,7 +104,9 @@ export function getActiveSubdomain() {
       path.startsWith('/dns-checker') ||
       path.startsWith('/redirection-checker') ||
       path.startsWith('/whois-lookup') ||
-      path.startsWith('/hosting-reviews')
+      path.startsWith('/reviews') ||
+      path.startsWith('/hosting-reviews') ||
+      path === '/404'
     ) {
       return 'landing';
     }

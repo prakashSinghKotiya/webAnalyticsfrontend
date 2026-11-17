@@ -10,6 +10,7 @@ let nextId = 1;
 const VARIANTS = Object.freeze({
   success: { icon: '✓', className: 'text-[var(--green)] border-[var(--green)]/30 bg-[var(--green-dim)]' },
   error: { icon: '!', className: 'text-[var(--red)] border-[var(--red)]/30 bg-[var(--red)]/10' },
+  warning: { icon: '⚠', className: 'text-amber-500 border-amber-500/30 bg-amber-500/10' },
   info: { icon: 'i', className: 'text-[var(--cyan)] border-[var(--border-bright)] bg-[var(--cyan-dim)]' },
 });
 
@@ -62,6 +63,7 @@ export function ToastProvider({ children }) {
     () => ({
       success: (message, options) => push(message, { ...options, variant: 'success' }),
       error: (message, options) => push(message, { ...options, variant: 'error' }),
+      warning: (message, options) => push(message, { ...options, variant: 'warning' }),
       info: (message, options) => push(message, { ...options, variant: 'info' }),
       dismiss,
     }),
@@ -118,7 +120,7 @@ function ToastViewport({ toasts, onDismiss }) {
   );
 }
 
-/** Global toast helpers: { success, error, info, dismiss }. */
+/** Global toast helpers: { success, error, warning, info, dismiss }. */
 export function useToast() {
   const context = useContext(ToastContext);
   if (!context) throw new Error('useToast must be used within a ToastProvider');

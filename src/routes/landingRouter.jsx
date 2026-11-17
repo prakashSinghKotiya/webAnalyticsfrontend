@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom';
 import { RouteErrorElement } from '../components/ErrorBoundary';
 import PublicLayout from './PublicLayout';
 import FullScreenLoader from '../components/FullScreenLoader';
@@ -14,9 +14,21 @@ import DemoRedirectsPage from '../pages/Demo/DemoRedirectsPage';
 import DemoWhoisPage from '../pages/Demo/DemoWhoisPage';
 import AboutPage from '../pages/Access/AboutPage';
 import ContactPage from '../pages/Access/ContactPage';
+import PrivacyPolicyPage from '../pages/Access/PrivacyPolicyPage';
+import TermsPage from '../pages/Access/TermsPage';
 import HostingReviewsListPage from '../pages/HostingReviews/HostingReviewsListPage';
 import HostingReviewDetailPage from '../pages/HostingReviews/HostingReviewDetailPage';
 import NotFound from '../pages/Errors/NotFound';
+
+/**
+ * Backward-compatible redirect from /hosting-reviews/:slug to /reviews/:slug,
+ * preserving slug and query parameters.
+ */
+function HostingReviewSlugRedirect() {
+  const { slug } = useParams();
+  const location = useLocation();
+  return <Navigate to={`/reviews/${slug || ''}${location.search}`} replace />;
+}
 
 /**
  * Redirects visitors who landed on an app route (e.g. /login, /dashboard)
@@ -59,9 +71,18 @@ export const landingRouter = createBrowserRouter([
       { path: 'contact', element: <ContactPage /> },
       { path: 'contact-me', element: <Navigate to="/contact" replace /> },
       { path: 'contact-us', element: <Navigate to="/contact" replace /> },
-      // ── HOSTING REVIEWS PUBLIC ROUTES ─────────────────────────────────
-      { path: 'hosting-reviews', element: <HostingReviewsListPage /> },
-      { path: 'hosting-reviews/:slug', element: <HostingReviewDetailPage /> },
+      { path: 'privacy', element: <PrivacyPolicyPage /> },
+      { path: 'privacy-policy', element: <Navigate to="/privacy" replace /> },
+      { path: 'terms', element: <TermsPage /> },
+      { path: 'terms-of-service', element: <Navigate to="/terms" replace /> },
+      { path: 'terms-of-use', element: <Navigate to="/terms" replace /> },
+      // ── HOSTING REVIEWS PUBLIC ROUTES (CANONICAL /reviews) ────────────
+      { path: 'reviews', element: <HostingReviewsListPage /> },
+      { path: 'reviews/:slug', element: <HostingReviewDetailPage /> },
+
+      // Backward compatibility permanent redirects: /hosting-reviews -> /reviews
+      { path: 'hosting-reviews', element: <RedirectWithSearch to="/reviews" /> },
+      { path: 'hosting-reviews/:slug', element: <HostingReviewSlugRedirect /> },
       // ── CANONICAL SERVICE TOOL DEMO ROUTES ─────────────────────────────
       { path: 'ttfb-test', element: <DemoTTFBPage /> },
       { path: 'fullsite-report', element: <DemoLighthousePage /> },

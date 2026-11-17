@@ -515,7 +515,7 @@ export default function AdminHostingReviewsDashboard() {
                             {/* View Public Page */}
                             {r.isPublished && (
                               <a
-                                href={`/hosting-reviews/${r.slug}`}
+                                href={`/reviews/${r.slug}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="rounded-lg p-1.5 text-[var(--muted-2)] hover:bg-[var(--surface-3)] hover:text-[var(--cyan)] transition"
@@ -628,7 +628,7 @@ export default function AdminHostingReviewsDashboard() {
                     <div className="flex items-center justify-end gap-2 pt-1">
                       {r.isPublished && (
                         <a
-                          href={`/hosting-reviews/${r.slug}`}
+                          href={`/reviews/${r.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="rounded-lg border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted-2)]"
@@ -791,8 +791,8 @@ export default function AdminHostingReviewsDashboard() {
               <tbody className="divide-y divide-[var(--border)] text-[var(--text-2)]">
                 {providersLoading ? (
                   <tr>
-                    <td colSpan="5" className="py-8 text-center text-xs text-[var(--muted)]">
-                      Scanning monitored hosting providers...
+                    <td colSpan="5" className="py-8 text-center text-xs font-bold text-[var(--text)]">
+                      LOADING
                     </td>
                   </tr>
                 ) : providers.length === 0 ? (

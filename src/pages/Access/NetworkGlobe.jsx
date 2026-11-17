@@ -14,21 +14,31 @@ const probeButton = `${mono} cursor-pointer rounded-md border border-[var(--bord
 
 /**
  * Pre-flight WebGL and environment capability check.
- * Returns false on SSR, crawlers/bots (navigator.webdriver), mobile/narrow viewports (< 768px),
- * prefers-reduced-motion, or when WebGL context cannot be created.
+ * Safe for search engine crawlers (Googlebot, Bingbot, Lighthouse) by serving semantic text fallback,
+ * while allowing real mobile and desktop browsers with WebGL to render the interactive 3D globe.
  */
+function isSearchCrawler() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return true
+  }
+  // Headless crawler / bot signals (Google Search Console, Lighthouse, Puppeteer)
+  if (navigator.webdriver) {
+    return true
+  }
+  // User agent check for automated search bots and web crawlers
+  const ua = (navigator.userAgent || "").toLowerCase()
+  return /bot|crawler|spider|googlebot|bingbot|yandex|duckduckbot|slurp|baiduspider|headlesschrome|lighthouse|searchconsole/i.test(
+    ua
+  )
+}
+
 function isWebGLAvailable() {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return false
   }
 
-  // Headless crawler / bot signals (Google Search Console, Lighthouse, Puppeteer)
-  if (navigator.webdriver) {
-    return false
-  }
-
-  // Mobile / small screens: show lightweight static fallback to prevent main-thread/GPU stalls
-  if (window.innerWidth < 768) {
+  // Crawlers & bots get lightweight static semantic fallback for SEO & 100% crawl budget efficiency
+  if (isSearchCrawler()) {
     return false
   }
 
@@ -60,12 +70,14 @@ function isWebGLAvailable() {
 
 export default function NetworkGlobe({ theme, probes = defaultProbes }) {
   const canvasRef = useRef(null)
+  const globeRef = useRef(null)
   const rotation = useRef(1.25)
+  const targetRotation = useRef(null)
   const drag = useRef(null)
   const [paused, setPaused] = useState(false)
   const pausedRef = useRef(paused)
   const [canMountGlobe, setCanMountGlobe] = useState(false)
-  const [isMobileOrCrawler, setIsMobileOrCrawler] = useState(false)
+  const [isCrawler, setIsCrawler] = useState(false)
   const [available, setAvailable] = useState(true)
   const [selected, setSelected] = useState(0)
 
@@ -76,11 +88,8 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
   // Feature detection on client mount and resize
   useEffect(() => {
     const checkEligibility = () => {
-      const isMobile =
-        typeof window !== "undefined" &&
-        (window.innerWidth < 768 || Boolean(navigator.webdriver))
-      setIsMobileOrCrawler(isMobile)
-
+      const crawler = isSearchCrawler()
+      setIsCrawler(crawler)
       const supported = isWebGLAvailable()
       setCanMountGlobe(supported)
     }
@@ -90,6 +99,35 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
     window.addEventListener("resize", checkEligibility, { passive: true })
     return () => window.removeEventListener("resize", checkEligibility)
   }, [])
+
+  // Smoothly update markers, arcs, and rotate towards selected probe location without recreating the globe
+  useEffect(() => {
+    if (!globeRef.current) return
+    const activeProbe = probes[selected] || probes[0]
+
+    try {
+      globeRef.current.update({
+        markers: probes.map((probe, index) => ({
+          location: probe.location,
+          size: index === selected ? 0.085 : 0.045,
+        })),
+        arcs: probes
+          .filter((_, index) => index !== selected)
+          .map((probe) => ({
+            from: activeProbe.location,
+            to: probe.location,
+          })),
+      })
+    } catch {
+      // ignore update errors
+    }
+
+    // Orient towards active probe longitude
+    if (activeProbe?.location) {
+      const lng = activeProbe.location[1]
+      targetRotation.current = -((lng * Math.PI) / 180) + Math.PI / 2
+    }
+  }, [selected, probes])
 
   // Interactive Globe lifecycle: lazy-loaded and deferred via requestIdleCallback
   useEffect(() => {
@@ -108,11 +146,14 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
 
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
     const dark = theme !== "light"
+    const isMobile = window.innerWidth < 768
     const isTablet = window.innerWidth < 1024
-    // Cap DPR and mapSamples to avoid ReadPixels GPU stalls
-    const pixelRatio = isTablet ? 1 : Math.min(window.devicePixelRatio || 1, 1.5)
-    const mapSamples = isTablet ? 6000 : 12000
-    const size = canvas.clientWidth || 300
+
+    // Optimized DPR & sample density: mobile devices use 1.0 DPR and 5000 samples for high performance
+    const pixelRatio = isMobile ? 1.0 : isTablet ? 1.2 : Math.min(window.devicePixelRatio || 1, 1.5)
+    const mapSamples = isMobile ? 5000 : isTablet ? 8000 : 12000
+    const container = canvas.parentElement || canvas
+    const size = container.clientWidth || canvas.clientWidth || 300
 
     const scheduleIdle =
       typeof window.requestIdleCallback === "function"
@@ -134,6 +175,7 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
       } catch {
         /* ignore destroy errors */
       }
+      globeRef.current = null
       setAvailable(false)
     }
     canvas.addEventListener("webglcontextlost", handleContextLost, false)
@@ -142,7 +184,7 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
       if (cancelled) return
 
       try {
-        // Dynamic import: lazy-load cobe out of hydration-critical bundle
+        // Dynamic import: lazy-load cobe out of critical hydration bundle
         const { default: createGlobe } = await import("cobe")
         if (cancelled) return
 
@@ -174,17 +216,27 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
           arcWidth: 0.6,
           arcHeight: 0.24,
         })
+        globeRef.current = globe
 
         resizeObserver = new ResizeObserver(() => {
-          if (!canvas || !canvas.clientWidth || !globe) return
+          if (!canvas || !globe) return
+          const currentContainer = canvas.parentElement || canvas
+          const clientW = currentContainer.clientWidth
+          if (!clientW) return
+          const isMob = window.innerWidth < 768
+          const dpr = isMob ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.5)
           try {
-            const width = canvas.clientWidth * pixelRatio
-            globe.update({ width, height: width })
+            const width = clientW * dpr
+            globe.update({ width, height: width, devicePixelRatio: dpr })
           } catch {
             // Guard against resize update errors
           }
         })
-        resizeObserver.observe(canvas)
+        if (canvas.parentElement) {
+          resizeObserver.observe(canvas.parentElement)
+        } else {
+          resizeObserver.observe(canvas)
+        }
 
         intersectionObserver = new IntersectionObserver(([entry]) => {
           visible = entry.isIntersecting
@@ -196,7 +248,14 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
             const elapsed = Math.min(time - lastTime, 40)
             lastTime = time
             if (visible && !document.hidden && globe) {
-              if (!pausedRef.current && !motion.matches && drag.current === null) {
+              if (targetRotation.current !== null) {
+                const diff = targetRotation.current - rotation.current
+                if (Math.abs(diff) > 0.005) {
+                  rotation.current += diff * 0.06
+                } else {
+                  targetRotation.current = null
+                }
+              } else if (!pausedRef.current && !motion.matches && drag.current === null) {
                 rotation.current += elapsed * 0.00007
               }
               globe.update({ phi: rotation.current })
@@ -211,6 +270,7 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
               } catch {
                 /* ignore destroy errors */
               }
+              globeRef.current = null
               setAvailable(false)
               return
             }
@@ -230,6 +290,7 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
       canvas.removeEventListener("webglcontextlost", handleContextLost)
       if (resizeObserver) resizeObserver.disconnect()
       if (intersectionObserver) intersectionObserver.disconnect()
+      globeRef.current = null
       if (globe) {
         try {
           globe.destroy()
@@ -238,7 +299,8 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
         }
       }
     }
-  }, [canMountGlobe, available, theme, selected, probes])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- probes & selected are updated dynamically via globe.update()
+  }, [canMountGlobe, available, theme])
 
   const showGlobe = canMountGlobe && available
 
@@ -273,8 +335,13 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
                 drag.current = event.clientX
               }
             }}
-            onPointerUp={() => {
+            onPointerUp={(event) => {
               drag.current = null
+              try {
+                event.currentTarget.releasePointerCapture(event.pointerId)
+              } catch {
+                // ignore
+              }
             }}
             onPointerCancel={() => {
               drag.current = null
@@ -285,7 +352,7 @@ export default function NetworkGlobe({ theme, probes = defaultProbes }) {
             <span className="text-[64px] sm:text-[80px] leading-none" aria-hidden="true">◎</span>
             <p className="font-semibold text-center text-xs sm:text-sm">Worldwide probe network</p>
             <small className="text-[10px] text-[var(--muted-2)] text-center px-4">
-              {isMobileOrCrawler
+              {isCrawler
                 ? "Global latency & uptime monitoring mesh"
                 : "3D preview needs WebGL support."}
             </small>

@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getPublicReviewBySlug, getPublicReviews } from '../../api/hostingReviewApi';
 import { PublicHeader, Footer, SafeMarkdown, PerformanceChart } from '../../components';
 import { buildReviewDetailMetadata } from '../../seo/routes';
 import { ROUTES } from '../../constants';
+import { useInitialData } from '../../context/InitialDataContext';
 import NotFound from '../Errors/NotFound';
 
 /**
@@ -90,15 +91,35 @@ function FAQAccordionItem({ faq, isOpen, onToggle, id }) {
 
 export default function HostingReviewDetailPage() {
   const { slug } = useParams();
-  const [review, setReview] = useState(null);
-  const [statsSource, setStatsSource] = useState('live');
-  const [loading, setLoading] = useState(true);
+  const initialData = useInitialData();
+  const isMatchingInitialData = useMemo(() => {
+    return Boolean(
+      initialData?.reviewDetail &&
+      initialData.reviewDetail.slug === slug
+    );
+  }, [initialData, slug]);
+
+  const [review, setReview] = useState(() => (isMatchingInitialData ? initialData.reviewDetail : null));
+  const [statsSource, setStatsSource] = useState(() => (isMatchingInitialData ? (initialData.reviewDetail.statsSource || 'live') : 'live'));
+  const [loading, setLoading] = useState(() => !isMatchingInitialData);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState(null);
   const [openFaqIndex, setOpenFaqIndex] = useState(null);
-  const [moreReviews, setMoreReviews] = useState([]);
+  const [moreReviews, setMoreReviews] = useState(() => (
+    isMatchingInitialData && Array.isArray(initialData.moreReviews)
+      ? initialData.moreReviews
+      : []
+  ));
 
-  // Fetch Review Data
+  // Track which slug has been loaded to avoid redundant or looping fetches
+  const loadedSlugRef = useRef(isMatchingInitialData ? slug : null);
+  const loadedMoreSlugRef = useRef(
+    isMatchingInitialData && Array.isArray(initialData?.moreReviews) && initialData.moreReviews.length > 0
+      ? slug
+      : null
+  );
+
+  // Fetch Review Data for the current slug (used on mount/slug change & retry)
   const loadReview = useCallback(async () => {
     if (!slug) return;
     setLoading(true);
@@ -110,6 +131,7 @@ export default function HostingReviewDetailPage() {
       if (res.success && res.data) {
         setReview(res.data);
         setStatsSource(res.data.statsSource || 'live');
+        loadedSlugRef.current = slug;
       } else {
         setNotFound(true);
       }
@@ -128,25 +150,44 @@ export default function HostingReviewDetailPage() {
     }
   }, [slug]);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    loadReview();
-  }, [loadReview]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    // If review is already populated in state for this slug (e.g. from SSR initial data), skip fetch
+    if (loadedSlugRef.current === slug && review && review.slug === slug) {
+      return;
+    }
 
-  // Load "More Reviews" excluding current
+    loadReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, loadReview]);
+
+  // Load "More Reviews" excluding current slug
   useEffect(() => {
+    // If more reviews are already loaded for this slug, skip fetch
+    if (loadedMoreSlugRef.current === slug && moreReviews.length > 0) {
+      return;
+    }
+
+    let isCancelled = false;
+
     async function loadMore() {
       try {
         const res = await getPublicReviews({ limit: 4 });
+        if (isCancelled) return;
         if (res.success && Array.isArray(res.data)) {
           setMoreReviews(res.data.filter((r) => r.slug !== slug).slice(0, 3));
+          loadedMoreSlugRef.current = slug;
         }
       } catch {
         // Silently swallow more reviews error
       }
     }
+
     loadMore();
+
+    return () => {
+      isCancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   // Dynamic Client-side SEO update
@@ -318,7 +359,7 @@ export default function HostingReviewDetailPage() {
     const checkCount = `${formatNumber(stats.checks?.total || 0)} checks`;
     const dateStr = review?.statsUpdatedAt
       ? formatDate(review.statsUpdatedAt)
-      : new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     return `${siteCount} • ${checkCount} • ${dateStr}`;
   }, [stats.monitors?.total, stats.checks?.total, review?.statsUpdatedAt]);
 
@@ -378,7 +419,7 @@ export default function HostingReviewDetailPage() {
             Home
           </Link>
           <span>/</span>
-          <Link to="/hosting-reviews" className="hover:text-[var(--cyan)] transition">
+          <Link to="/reviews" className="hover:text-[var(--cyan)] transition">
             Hosting Reviews
           </Link>
           <span>/</span>
@@ -1220,7 +1261,7 @@ export default function HostingReviewDetailPage() {
                 Visit {providerName} Now
               </a>
               <Link
-                to="/hosting-reviews"
+                to="/reviews"
                 className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-6 py-3 font-['Outfit',sans-serif] text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition"
               >
                 Browse All Reviews
@@ -1238,7 +1279,7 @@ export default function HostingReviewDetailPage() {
                 {moreReviews.map((m) => (
                   <Link
                     key={m.slug}
-                    to={`/hosting-reviews/${m.slug}`}
+                    to={`/reviews/${m.slug}`}
                     className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 hover:border-[var(--cyan)] transition"
                   >
                     <div>

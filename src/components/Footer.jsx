@@ -13,13 +13,13 @@ const SERVICES_NAV = [
   { name: 'DNS Record Inspector', path: '/dns-checker', isDemo: true },
   { name: 'Redirect Chain Tracer', path: '/redirection-checker', isDemo: true },
   { name: 'WHOIS Domain Intelligence', path: '/whois-lookup', isDemo: true },
-  { name: 'Hosting Reviews & Speed Data', path: '/hosting-reviews', isDemo: true },
+  { name: 'Hosting Reviews & Speed Data', path: '/reviews', isDemo: true },
   { name: 'Real-Time Uptime Monitoring', path: ROUTES.REGISTER, isDemo: false, badge: 'App' },
 ];
 
 const COMPANY_NAV = [
   { name: 'About MonitorMyHost', path: ROUTES.ABOUT, isLink: true },
-  { name: 'Hosting Reviews', path: '/hosting-reviews', isLink: true },
+  { name: 'Hosting Reviews', path: '/reviews', isLink: true },
   { name: 'Platform Capabilities', href: '/#features', internal: true },
   { name: 'Core Diagnostic Tools', href: '/#tools', internal: true },
   { name: 'Pricing Plans', href: '/#pricing', internal: true },
@@ -110,6 +110,7 @@ export default function Footer() {
                   ) : (
                     <a
                       href={getAppUrl(service.path)}
+                      suppressHydrationWarning
                       className="inline-flex items-center gap-1.5 text-xs text-[var(--muted-2)] transition hover:text-[var(--cyan)] group"
                     >
                       <span>{service.name}</span>
@@ -164,7 +165,13 @@ export default function Footer() {
             &copy; 2026 MonitorMyHost. Built for developers and infrastructure teams who care about uptime and speed.
           </p>
           <div className="flex items-center gap-4 text-[11px] text-[var(--muted)] font-['JetBrains_Mono',monospace]">
-         
+            <Link to={ROUTES.TERMS} className="transition hover:text-[var(--cyan)]">
+              Terms of Use
+            </Link>
+            <span className="text-[var(--border-mid)]" aria-hidden="true">·</span>
+            <Link to={ROUTES.PRIVACY} className="transition hover:text-[var(--cyan)]">
+              Privacy Policy
+            </Link>
           </div>
         </div>
       </div>

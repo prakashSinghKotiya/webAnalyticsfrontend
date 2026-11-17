@@ -124,7 +124,7 @@ export default function UptimePage() {
       {loading && !hasMonitors && (
         <div className="rounded-3xl border border-[var(--border-mid)] bg-[var(--surface)] p-8 text-center">
           <span className="mx-auto block h-6 w-6 animate-spin rounded-full border-2 border-[var(--cyan)] border-t-transparent" />
-          <p className="mt-3 text-xs text-[var(--muted-2)]">Syncing uptime monitors from server…</p>
+          <p className="mt-3 font-['Outfit',sans-serif] text-xs font-bold tracking-wider text-[var(--text)]">LOADING</p>
         </div>
       )}
 

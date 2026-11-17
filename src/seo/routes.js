@@ -498,8 +498,72 @@ export const PUBLIC_ROUTES = [
     ],
   },
   {
-    path: '/hosting-reviews',
-    canonical: `${CANONICAL_HOST}/hosting-reviews`,
+    path: '/privacy',
+    canonical: `${CANONICAL_HOST}/privacy`,
+    title: 'Privacy Policy — MonitorMyHost Web Performance & Monitoring',
+    ogTitle: 'Privacy Policy — MonitorMyHost Web Performance & Monitoring',
+    twitterTitle: 'Privacy Policy — MonitorMyHost Web Performance & Monitoring',
+    description: 'Learn how MonitorMyHost collects, uses, stores, and protects personal information, account data, telemetry records, and cookie preferences.',
+    keywords: 'privacy policy, MonitorMyHost privacy, data protection, cookie policy, uptime monitor privacy, personal data rights',
+    h1: 'Privacy Policy',
+    summary: 'Clear, transparent disclosure of how personal information and monitoring telemetry are collected, processed, and secured on the MonitorMyHost platform.',
+    sitemap: {
+      changefreq: 'monthly',
+      priority: 0.5,
+    },
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name: 'MonitorMyHost Privacy Policy',
+        url: `${CANONICAL_HOST}/privacy`,
+        description: 'Privacy policy and data protection practices for the MonitorMyHost uptime monitoring and diagnostic platform.',
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'MonitorMyHost',
+        url: CANONICAL_HOST,
+        logo: `${CANONICAL_HOST}/favicon.svg`,
+        description: 'Global web performance and synthetic uptime monitoring platform operating multi-region edge diagnostic probes.',
+      },
+    ],
+  },
+  {
+    path: '/terms',
+    canonical: `${CANONICAL_HOST}/terms`,
+    title: 'Terms of Use — MonitorMyHost Web Performance & Monitoring',
+    ogTitle: 'Terms of Use — MonitorMyHost Web Performance & Monitoring',
+    twitterTitle: 'Terms of Use — MonitorMyHost Web Performance & Monitoring',
+    description: 'Read the Terms of Use governing access to and use of MonitorMyHost website uptime monitoring and diagnostic services.',
+    keywords: 'terms of use, terms of service, user agreement, MonitorMyHost terms, uptime monitoring terms',
+    h1: 'Terms of Use',
+    summary: 'Terms and conditions governing the use of the MonitorMyHost uptime monitoring and performance diagnostics platform.',
+    sitemap: {
+      changefreq: 'monthly',
+      priority: 0.5,
+    },
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name: 'MonitorMyHost Terms of Use',
+        url: `${CANONICAL_HOST}/terms`,
+        description: 'Terms of Use governing the MonitorMyHost platform and services.',
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'MonitorMyHost',
+        url: CANONICAL_HOST,
+        logo: `${CANONICAL_HOST}/favicon.svg`,
+        description: 'Global web performance and synthetic uptime monitoring platform operating multi-region edge diagnostic probes.',
+      },
+    ],
+  },
+  {
+    path: '/reviews',
+    canonical: `${CANONICAL_HOST}/reviews`,
     title: 'Web Hosting Reviews with Real Uptime & Speed Data | MonitorMyHost',
     ogTitle: 'Web Hosting Reviews with Real Uptime & Speed Data | MonitorMyHost',
     twitterTitle: 'Web Hosting Reviews with Real Uptime & Speed Data | MonitorMyHost',
@@ -517,7 +581,7 @@ export const PUBLIC_ROUTES = [
         '@type': 'ItemList',
         name: 'Web Hosting Reviews & Performance Benchmarks',
         description: 'Independent web hosting reviews backed by continuous real uptime monitoring and speed testing telemetry.',
-        url: `${CANONICAL_HOST}/hosting-reviews`,
+        url: `${CANONICAL_HOST}/reviews`,
       },
       {
         '@context': 'https://schema.org',
@@ -533,7 +597,7 @@ export const PUBLIC_ROUTES = [
             '@type': 'ListItem',
             position: 2,
             name: 'Hosting Reviews',
-            item: `${CANONICAL_HOST}/hosting-reviews`,
+            item: `${CANONICAL_HOST}/reviews`,
           },
         ],
       },
@@ -556,7 +620,7 @@ export function buildReviewDetailMetadata(review, slug) {
   // Strict length limits: Title <= 60 chars, Description <= 155 chars
   const title = `${provider} Review ${currentYear}: Real Uptime & Speed Test | MonitorMyHost`.slice(0, 60);
   const description = `${provider} averaged ${uptime} uptime and ${avg}ms response across ${checks} checks. Read our expert review, pros, cons and pricing.`.slice(0, 155);
-  const canonical = `${CANONICAL_HOST}/hosting-reviews/${slug}`;
+  const canonical = `${CANONICAL_HOST}/reviews/${slug}`;
   const logo = review?.extra?.logoUrl || `${CANONICAL_HOST}/og-image.png`;
 
   const structuredData = [
@@ -610,7 +674,7 @@ export function buildReviewDetailMetadata(review, slug) {
           '@type': 'ListItem',
           position: 2,
           name: 'Hosting Reviews',
-          item: `${CANONICAL_HOST}/hosting-reviews`,
+          item: `${CANONICAL_HOST}/reviews`,
         },
         {
           '@type': 'ListItem',
@@ -651,10 +715,12 @@ export function buildReviewDetailMetadata(review, slug) {
 }
 
 
+import { SEED_REVIEWS_MAP } from '../data/seedReviews.js';
+
 /**
  * Match a pathname to its canonical route definition
  */
-export function getRouteMetadata(pathname = '/') {
+export function getRouteMetadata(pathname = '/', reviewData = null) {
   // Normalize: strip trailing slash (except bare '/') and query params
   const cleanPath = pathname === '/' ? '/' : pathname.replace(/\/+$/, '').split('?')[0];
   const legacyAliases = {
@@ -665,20 +731,33 @@ export function getRouteMetadata(pathname = '/') {
     '/tools/whois': '/whois-lookup',
     '/tools': '/ttfb-test',
     '/demo': '/ttfb-test',
+    '/privacy-policy': '/privacy',
+    '/terms-of-service': '/terms',
+    '/terms-of-use': '/terms',
+    '/hosting-reviews': '/reviews',
   };
   const targetPath = legacyAliases[cleanPath] || cleanPath;
   const matched = PUBLIC_ROUTES.find((r) => r.path === targetPath);
   if (matched) return matched;
 
-  if (targetPath.startsWith('/hosting-reviews/')) {
-    const slug = targetPath.replace('/hosting-reviews/', '');
+  if (targetPath.startsWith('/reviews/') || targetPath.startsWith('/hosting-reviews/')) {
+    const slug = targetPath.startsWith('/reviews/')
+      ? targetPath.replace('/reviews/', '')
+      : targetPath.replace('/hosting-reviews/', '');
+    const canonicalPath = `/reviews/${slug}`;
+    const review = reviewData || SEED_REVIEWS_MAP[slug];
+    if (review) {
+      const meta = buildReviewDetailMetadata(review, slug);
+      return { path: canonicalPath, ...meta };
+    }
+
     const providerName = slug.replace(/-review$/, '').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     const currentYear = new Date().getFullYear();
     const title = `${providerName} Review ${currentYear}: Real Uptime & Speed Test | MonitorMyHost`.slice(0, 60);
     const description = `Real uptime & speed test results for ${providerName}. 24/7 synthetic monitoring data, performance scores, expert review and pricing.`.slice(0, 155);
-    const canonical = `${CANONICAL_HOST}${targetPath}`;
+    const canonical = `${CANONICAL_HOST}/reviews/${slug}`;
     return {
-      path: targetPath,
+      path: canonicalPath,
       canonical,
       title,
       ogTitle: title,

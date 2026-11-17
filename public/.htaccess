@@ -60,6 +60,16 @@ DirectorySlash Off
   # Backward Compatibility Redirects -> Canonical Slugs (301 with QSA)
   # Strictly for frontend domain on GET requests (never API or OPTIONS/POST)
   # ----------------------------------------------------------------------
+
+  # Permanent 301 Redirects: Hosting Reviews Migration (/hosting-reviews -> /reviews)
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^hosting-reviews/([^/]+)/?$ /reviews/$1 [R=301,QSA,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^hosting-reviews/?$ /reviews [R=301,QSA,L]
+
   # Underscore aliases redirected to canonical hyphenated slugs
   RewriteCond %{HTTP_HOST} ^(www\.)?monitormyhost\.com$ [NC]
   RewriteCond %{REQUEST_METHOD} =GET
@@ -160,7 +170,7 @@ DirectorySlash Off
   RewriteCond %{HTTP_HOST} !^api\. [NC]
   RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f [OR]
   RewriteCond %{REQUEST_FILENAME}/index.html -f
-  RewriteRule ^(ttfb-test|fullsite-report|dns-checker|redirection-checker|whois-lookup|about|contact)/?$ $1/index.html [QSA,L]
+  RewriteRule ^(ttfb-test|fullsite-report|dns-checker|redirection-checker|whois-lookup|about|contact|privacy|terms|reviews)/?$ $1/index.html [QSA,L]
 
   # General rule: if any requested path is a directory containing index.html, serve that index.html directly
   RewriteCond %{HTTP_HOST} !^api\. [NC]

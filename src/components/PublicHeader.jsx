@@ -9,15 +9,15 @@ import Logo from './Logo';
 const NAV_LINKS = [
   { name: 'Home', to: ROUTES.PUBLIC_HOME, end: true },
   { name: 'Tools', to: '/ttfb-test' },
-  { name: 'Hosting Reviews', to: '/hosting-reviews' },
+  { name: 'Reviews', to: '/reviews' },
   { name: 'About', to: ROUTES.ABOUT },
   { name: 'Contact', to: ROUTES.CONTACT },
 ];
 
 const SERVICES_LINKS = [
   {
-    name: 'Hosting Reviews',
-    to: '/hosting-reviews',
+    name: 'Reviews',
+    to: '/reviews',
     badge: 'Real Uptime',
     tone: 'cyan',
     desc: 'Independent reviews with real speed & uptime data',
@@ -189,12 +189,14 @@ function PublicHeader({ activeKey = '' }) {
           <div className="flex items-center gap-2 sm:gap-3">
             <a
               href={getAppUrl(ROUTES.LOGIN)}
+              suppressHydrationWarning
               className="hidden sm:inline-flex text-xs sm:text-sm font-semibold text-[var(--text-2)] hover:text-[var(--cyan)] transition"
             >
               Sign In
             </a>
             <a
               href={getAppUrl(ROUTES.REGISTER)}
+              suppressHydrationWarning
               className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--action-end,var(--cyan))] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:brightness-110 active:scale-95 transition"
             >
               Get Started Free
@@ -283,10 +285,10 @@ function PublicHeader({ activeKey = '' }) {
             >
               {/* Featured Hosting Reviews Banner Link */}
               <Link
-                to="/hosting-reviews"
+                to="/reviews"
                 onClick={() => setOpen(false)}
                 className={`group flex items-center justify-between rounded-xl border p-3 transition active:scale-[0.98] ${
-                  activeKey === 'Hosting Reviews'
+                  activeKey === 'Reviews'
                     ? 'border-[var(--cyan)] bg-[var(--cyan-dim)] text-[var(--cyan)]'
                     : 'border-[var(--cyan-mid)]/40 bg-[var(--cyan-dim)]/30 text-[var(--text)] hover:border-[var(--cyan)] hover:bg-[var(--cyan-dim)]'
                 }`}
@@ -430,6 +432,7 @@ function PublicHeader({ activeKey = '' }) {
                 <a
                   href={getAppUrl(ROUTES.LOGIN)}
                   onClick={() => setOpen(false)}
+                  suppressHydrationWarning
                   className="flex flex-1 items-center justify-center rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] py-2 text-xs font-bold text-[var(--text)] transition hover:border-[var(--border-bright)]"
                 >
                   Sign In
@@ -437,6 +440,7 @@ function PublicHeader({ activeKey = '' }) {
                 <a
                   href={getAppUrl(ROUTES.REGISTER)}
                   onClick={() => setOpen(false)}
+                  suppressHydrationWarning
                   className="flex flex-1 items-center justify-center rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--action-end,var(--cyan))] py-2 text-xs font-bold text-white shadow-xs transition hover:brightness-110"
                 >
                   Get Started

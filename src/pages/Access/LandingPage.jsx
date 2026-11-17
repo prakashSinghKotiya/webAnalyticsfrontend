@@ -177,8 +177,8 @@ const MOBILE_DEMO_SERVICES = [
     desc: "Registrar intel, nameservers, & expiration dates",
   },
   {
-    name: "Hosting Reviews",
-    path: "/hosting-reviews",
+    name: "Reviews",
+    path: "/reviews",
     icon: "chart",
     badge: "Real Uptime",
     tone: "green",
@@ -303,28 +303,31 @@ function Navbar() {
               </a>
             ))}
             <Link
-              to="/hosting-reviews"
+              to="/reviews"
               className="text-sm font-semibold text-[var(--muted-2)] transition hover:text-[var(--cyan)]"
             >
-              Hosting Reviews
+              Reviews
             </Link>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
             <ThemeToggle />
             <a
               href={getAppUrl(ROUTES.LOGIN)}
+              suppressHydrationWarning
               className="hidden text-sm font-medium text-[var(--text-2)] hover:text-[var(--cyan)] sm:block"
             >
               Login
             </a>
             <a
               href={getAppUrl(ROUTES.REGISTER)}
+              suppressHydrationWarning
               className="hidden text-sm font-medium text-[var(--muted-2)] hover:text-[var(--cyan)] sm:block"
             >
               Sign Up
             </a>
             <a
               href={getAppUrl(ROUTES.LOGIN)}
+              suppressHydrationWarning
               className={`${display} inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg sm:rounded-xl bg-linear-to-br from-[var(--cyan)] to-[var(--action-end)] px-2.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:brightness-110 active:scale-95`}
             >
               <span className="hidden sm:inline">Get Started Free</span>
@@ -478,7 +481,7 @@ function Navbar() {
             </p>
             <div className="space-y-1">
               <Link
-                to="/hosting-reviews"
+                to="/reviews"
                 onClick={() => setOpen(false)}
                 className="flex items-center justify-between rounded-lg bg-[var(--cyan-dim)]/40 border border-[var(--cyan-mid)]/40 px-3 py-2 text-xs font-semibold text-[var(--cyan)] transition hover:bg-[var(--cyan-dim)]"
               >
@@ -524,6 +527,7 @@ function Navbar() {
             <a
               href={getAppUrl(ROUTES.LOGIN)}
               onClick={() => setOpen(false)}
+              suppressHydrationWarning
               className={`${secondary} flex-1 justify-center py-2 text-xs`}
             >
               Log In
@@ -531,6 +535,7 @@ function Navbar() {
             <a
               href={getAppUrl(ROUTES.REGISTER)}
               onClick={() => setOpen(false)}
+              suppressHydrationWarning
               className={`${primary} flex-1 justify-center py-2 text-xs`}
             >
               Sign Up
@@ -1195,7 +1200,7 @@ function Pricing() {
       description: "Essential checks for developers and personal projects.",
       features: [
         "15 tool tests / day",
-        "1 Uptime monitor (15-min check interval)",
+        "2 Uptime monitor (15-min check interval and above )",
         "Standard single-region checks",
         "Basic response time & SSL alerts",
         "Community & email support",
@@ -1312,6 +1317,7 @@ function Pricing() {
 
               <a
                 href={getAppUrl(ROUTES.REGISTER)}
+                suppressHydrationWarning
                 className={`${
                   plan.highlight ? primary : secondary
                 } mb-7 w-full text-center py-2.5 rounded-lg text-sm font-semibold transition`}
@@ -1369,7 +1375,7 @@ function CallToAction() {
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             {isAuthenticated ? (
-              <a href={getAppUrl(ROUTES.TTFB)} className={primary}>
+              <a href={getAppUrl(ROUTES.TTFB)} suppressHydrationWarning className={primary}>
                 Analyze Your Site <Icon name="arrow" size={14} />
               </a>
             ) : (
@@ -1377,7 +1383,7 @@ function CallToAction() {
                 Analyze Your Site <Icon name="arrow" size={14} />
               </Link>
             )}
-            <a href={getAppUrl(ROUTES.LOGIN)} className={secondary}>
+            <a href={getAppUrl(ROUTES.LOGIN)} suppressHydrationWarning className={secondary}>
               View Sample Report
             </a>
           </div>
@@ -1385,6 +1391,7 @@ function CallToAction() {
             Don&apos;t have an account yet?{" "}
             <a
               href={getAppUrl(ROUTES.REGISTER)}
+              suppressHydrationWarning
               className="font-semibold text-[var(--cyan)] hover:underline"
             >
               Sign Up

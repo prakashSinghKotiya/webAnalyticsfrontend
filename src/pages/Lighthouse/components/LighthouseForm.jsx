@@ -121,7 +121,7 @@ function LighthouseForm({
           {isAuditing ? (
             <>
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
-              <span>Analyzing…</span>
+              <span>LOADING</span>
             </>
           ) : (
             <>

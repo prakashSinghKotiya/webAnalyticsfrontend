@@ -155,7 +155,7 @@ function MonitorCard({
         ) : (
           <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)]/50 px-3 py-2 text-xs text-[var(--muted-2)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--orange)] animate-pulse" />
-            <span>Awaiting first probe check…</span>
+            <span>LOADING</span>
           </div>
         )}
 
@@ -409,7 +409,7 @@ function UptimeAllMonitorsSection({
       {loading && monitors.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <span className="h-8 w-8 animate-spin rounded-full border-3 border-[var(--cyan)] border-t-transparent" />
-          <p className="mt-3 text-xs text-[var(--muted-2)]">Fetching uptime monitors from server…</p>
+          <p className="mt-3 font-['Outfit',sans-serif] text-xs font-bold tracking-wider text-[var(--text)]">LOADING</p>
         </div>
       ) : error && monitors.length === 0 ? (
         <div className="rounded-xl border border-[var(--red)]/30 bg-[var(--red)]/10 p-6 text-center text-sm text-[var(--red)]">

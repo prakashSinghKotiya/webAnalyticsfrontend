@@ -1,4 +1,16 @@
 {
+  "redirects": [
+    {
+      "source": "/hosting-reviews/:slug",
+      "destination": "/reviews/:slug",
+      "permanent": true
+    },
+    {
+      "source": "/hosting-reviews",
+      "destination": "/reviews",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

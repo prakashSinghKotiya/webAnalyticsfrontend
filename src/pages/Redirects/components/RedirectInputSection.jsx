@@ -125,7 +125,7 @@ function RedirectInputSection({ url, onUrlChange, isChecking, onSubmit }) {
             {isChecking ? (
               <>
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
-                <span>Tracing Chain…</span>
+                <span>LOADING</span>
               </>
             ) : (
               <>

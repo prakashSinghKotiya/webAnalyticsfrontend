@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { getPublicReviews } from '../../api/hostingReviewApi';
 import { PublicHeader, Footer } from '../../components';
+import { useInitialData } from '../../context/InitialDataContext';
 
 /**
  * StarRating — Renders 5 star icons based on rating number (e.g. 4.8).
@@ -200,28 +201,50 @@ function ReviewsPagination({ page, totalPages, total, limit, onPageChange }) {
 }
 
 export default function HostingReviewsListPage() {
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const initialData = useInitialData();
+  const hasValidInitialData = useMemo(() => {
+    return Boolean(
+      initialData?.reviewsList &&
+      Array.isArray(initialData.reviewsList.reviews) &&
+      initialData.reviewsList.reviews.length > 0
+    );
+  }, [initialData]);
+
+  const [reviews, setReviews] = useState(() => (hasValidInitialData ? initialData.reviewsList.reviews : []));
+  const [loading, setLoading] = useState(() => !hasValidInitialData);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('rating'); // 'rating' | 'uptime' | 'speed' | 'newest' | 'oldest' | 'provider'
   const [page, setPage] = useState(1);
   const limit = 9; // 3 columns x 3 rows grid
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 9,
-    total: 0,
-    totalPages: 1,
-    hasNextPage: false,
-    hasPrevPage: false,
-  });
+  const [pagination, setPagination] = useState(() => (
+    hasValidInitialData && initialData.reviewsList.pagination
+      ? initialData.reviewsList.pagination
+      : {
+          page: 1,
+          limit: 9,
+          total: hasValidInitialData ? initialData.reviewsList.reviews.length : 0,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        }
+  ));
+
+  const hasMountedWithInitialDataRef = useRef(hasValidInitialData);
+  const lastFetchKeyRef = useRef(hasValidInitialData ? '1__default_rating' : '');
 
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery.trim());
-      setPage(1);
+      const trimmed = searchQuery.trim();
+      setDebouncedSearchQuery((prev) => {
+        if (prev !== trimmed) {
+          setPage(1);
+          return trimmed;
+        }
+        return prev;
+      });
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -246,6 +269,7 @@ export default function HostingReviewsListPage() {
         ...(backendSort ? { sort: backendSort } : {}),
       };
       const res = await getPublicReviews(params);
+
       if (res.success && Array.isArray(res.data)) {
         let list = [...res.data];
         // Handle client-side sorting for computed stats if selected
@@ -284,11 +308,23 @@ export default function HostingReviewsListPage() {
     }
   }, [page, limit, debouncedSearchQuery, backendSort, sortBy]);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    const queryKey = `${page}_${debouncedSearchQuery}_${backendSort || 'default'}_${sortBy}`;
+
+    // If state was populated from initial SSR data, skip redundant refetch on initial mount
+    if (hasMountedWithInitialDataRef.current && page === 1 && !debouncedSearchQuery && sortBy === 'rating') {
+      hasMountedWithInitialDataRef.current = false;
+      lastFetchKeyRef.current = queryKey;
+      return;
+    }
+
+    if (lastFetchKeyRef.current === queryKey) {
+      return;
+    }
+
+    lastFetchKeyRef.current = queryKey;
     fetchReviews();
-  }, [fetchReviews]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }, [fetchReviews, page, debouncedSearchQuery, backendSort, sortBy]);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
@@ -573,7 +609,7 @@ export default function HostingReviewsListPage() {
                         </time>
 
                         <Link
-                          to={`/hosting-reviews/${rev.slug}`}
+                          to={`/reviews/${rev.slug}`}
                           className="inline-flex min-h-[44px] items-center gap-1.5 font-['Outfit',sans-serif] text-xs font-bold text-[var(--cyan)] hover:text-white transition group-hover:translate-x-0.5"
                         >
                           Read review
