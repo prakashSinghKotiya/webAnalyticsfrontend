@@ -143,7 +143,7 @@ function pickMs(source) {
 }
 
 /** First non-empty region string found on an object. */
-function pickRegion(source, fallback = 'Unknown') {
+export function pickRegion(source, fallback = 'Unknown') {
   if (source && typeof source === 'object') {
     for (const key of REGION_KEYS) {
       const value = source[key];

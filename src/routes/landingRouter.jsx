@@ -119,6 +119,7 @@ export const landingRouter = createBrowserRouter([
       { path: 'forgot-password', element: <RedirectToApp /> },
       { path: 'reset-password', element: <RedirectToApp /> },
       { path: 'dashboard', element: <RedirectToApp /> },
+      { path: 'dashboard/*', element: <RedirectToApp /> },
       { path: 'home', element: <RedirectToApp /> },
       { path: 'uptime-monitor', element: <RedirectToApp /> },
       { path: 'uptime', element: <RedirectToApp /> },

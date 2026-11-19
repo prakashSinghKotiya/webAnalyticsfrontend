@@ -151,7 +151,7 @@ export default function AdminHostingReviewEditor() {
     loadProviders();
   }, [isEditMode, initialProviderKey]);
 
-  // 2. Fetch stats preview when providerKey changes
+  // 2. In Create Mode: Fetch live stats preview when providerKey changes
   const loadStatsPreview = useCallback(async (key) => {
     if (!key) return;
     setStatsLoading(true);
@@ -159,9 +159,7 @@ export default function AdminHostingReviewEditor() {
       const res = await previewAdminProviderStats(key);
       if (res.success && res.data) {
         setPreviewStats(res.data);
-        if (!isEditMode && !providerName) {
-          setProviderName(res.data.provider?.name || '');
-        }
+        setProviderName((prev) => prev || res.data.provider?.name || '');
       }
     } catch {
       // 404 or no data
@@ -169,13 +167,15 @@ export default function AdminHostingReviewEditor() {
     } finally {
       setStatsLoading(false);
     }
-  }, [isEditMode, providerName]);
+  }, []);
 
   useEffect(() => {
-    if (providerKey) {
+    // Only auto-preview live stats in create mode when a provider is picked.
+    // In edit mode, the review's saved snapshot is loaded and preserved.
+    if (!isEditMode && providerKey) {
       loadStatsPreview(providerKey);
     }
-  }, [providerKey, loadStatsPreview]);
+  }, [isEditMode, providerKey, loadStatsPreview]);
 
   // 3. In Edit Mode: Load single review
   useEffect(() => {
@@ -232,8 +232,15 @@ export default function AdminHostingReviewEditor() {
           // Use the review's stored stats snapshot for the preview panel
           if (rev.stats) {
             setPreviewStats(rev.stats);
-          } else {
-            loadStatsPreview(rev.providerKey);
+          } else if (rev.providerKey) {
+            try {
+              const statsRes = await previewAdminProviderStats(rev.providerKey);
+              if (statsRes?.success && statsRes?.data) {
+                setPreviewStats(statsRes.data);
+              }
+            } catch {
+              // No live monitoring data found
+            }
           }
 
           initialLoadedRef.current = true;
@@ -247,7 +254,7 @@ export default function AdminHostingReviewEditor() {
       }
     }
     loadReview();
-  }, [isEditMode, id, loadStatsPreview]);
+  }, [isEditMode, id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Refresh Stats in Edit Mode

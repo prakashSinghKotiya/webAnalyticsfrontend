@@ -294,17 +294,29 @@ export default function AdminHostingReviewsDashboard() {
           </p>
         </div>
 
-        {/* Create Review CTA */}
-        <Link
-          to="/admin/hosting-reviews/new"
-          className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--action-end,var(--cyan))] px-4 py-2 font-['Outfit',sans-serif] text-xs font-bold text-white shadow-xs hover:brightness-110 active:scale-95 transition"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New Review
-        </Link>
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to={ROUTES.ADMIN_COMMENTS}
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-4 py-2 font-['Outfit',sans-serif] text-xs font-bold text-[var(--text)] hover:bg-[var(--surface-2)] transition"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Moderate Comments
+          </Link>
+
+          <Link
+            to="/admin/hosting-reviews/new"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-gradient-to-r from-[var(--cyan)] to-[var(--action-end,var(--cyan))] px-4 py-2 font-['Outfit',sans-serif] text-xs font-bold text-white shadow-xs hover:brightness-110 active:scale-95 transition"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            New Review
+          </Link>
+        </div>
       </div>
 
       {/* Tabs Bar */}

@@ -12,6 +12,7 @@ import {
 function RegionReadingRow({ reading, maxLatency, isExpandedByDefault = false }) {
   const [expanded, setExpanded] = useState(isExpandedByDefault);
 
+  const isFailed = reading.status === 'failed' || (reading.ms == null && reading.ttfb == null);
   const ttfbMs = Number(reading.ttfb ?? reading.ms) || 0;
   const totalMs = Number(reading.totalToFirstByte) || 0;
   // Calculate relative bar width (balanced between 15% and 85%)
@@ -20,19 +21,17 @@ function RegionReadingRow({ reading, maxLatency, isExpandedByDefault = false }) 
 
   // Detailed timing line 1:
   const line1Parts = [];
-  if (reading.dns != null) line1Parts.push(`DNS ${formatMs(reading.dns)}`);
-  if (reading.tcp != null) line1Parts.push(`TCP ${formatMs(reading.tcp)}`);
-  if (reading.tls != null) line1Parts.push(`TLS ${formatMs(reading.tls)}`);
-  if (ttfbMs > 0) line1Parts.push(`TTFB (server) ${formatMs(ttfbMs)}`);
-  if (totalMs > 0 && totalMs !== ttfbMs) line1Parts.push(`Total to 1st byte ${formatMs(totalMs)}`);
+  if (isFailed) {
+    line1Parts.push(reading.error || 'Measurement failed for this region');
+  } else {
+    if (reading.dns != null) line1Parts.push(`DNS ${formatMs(reading.dns)}`);
+    if (reading.tcp != null) line1Parts.push(`TCP ${formatMs(reading.tcp)}`);
+    if (reading.tls != null) line1Parts.push(`TLS ${formatMs(reading.tls)}`);
+    if (ttfbMs > 0) line1Parts.push(`TTFB (server) ${formatMs(ttfbMs)}`);
+    if (totalMs > 0 && totalMs !== ttfbMs) line1Parts.push(`Total to 1st byte ${formatMs(totalMs)}`);
+  }
 
   const line2Parts = [];
-  if (reading.min != null && reading.max != null) {
-    line2Parts.push(`Min / max ${formatMs(reading.min)} / ${formatMs(reading.max)}`);
-  }
-  if (reading.samples != null) {
-    line2Parts.push(`${reading.samples} samples`);
-  }
   if (reading.reliable != null) {
     line2Parts.push(reading.reliable ? 'reliable' : 'unreliable');
   }
@@ -43,6 +42,8 @@ function RegionReadingRow({ reading, maxLatency, isExpandedByDefault = false }) 
   // Fallbacks if detailed sub-timings were not reported by worker
   const line1 = line1Parts.length > 0
     ? line1Parts.join(' · ')
+    : isFailed
+    ? 'Probe unavailable'
     : `TTFB ${formatMs(ttfbMs)} · HTTP ${reading.statusCode || 200}`;
   const line2 = line2Parts.length > 0
     ? line2Parts.join(' · ')
@@ -62,21 +63,31 @@ function RegionReadingRow({ reading, maxLatency, isExpandedByDefault = false }) 
 
         {/* Progress Bar Track & Dark Forest Green Fill */}
         <div className="flex-1 h-1.5 w-full bg-[#f0eae1] dark:bg-white/10 rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full bg-[#065f46] dark:bg-[#10b981] transition-all duration-500 ease-out"
-            style={{ width: `${barWidth}%` }}
-          />
+          {isFailed ? (
+            <div className="h-full rounded-full bg-[var(--red)]/40 w-full" />
+          ) : (
+            <div
+              className="h-full rounded-full bg-[#065f46] dark:bg-[#10b981] transition-all duration-500 ease-out"
+              style={{ width: `${barWidth}%` }}
+            />
+          )}
         </div>
 
         {/* Latency Value */}
         <div className="w-20 sm:w-28 shrink-0 text-right">
-          <span className="text-sm font-semibold text-[var(--text)] tabular-nums">
-            {formatMs(ttfbMs)}
-          </span>
-          {totalMs > 0 && totalMs !== ttfbMs && (
-            <span className="hidden sm:block text-[10px] text-[var(--muted-2)] tabular-nums">
-              tot {formatMs(totalMs)}
-            </span>
+          {isFailed ? (
+            <span className="text-xs font-semibold text-[var(--red)]">Failed</span>
+          ) : (
+            <>
+              <span className="text-sm font-semibold text-[var(--text)] tabular-nums">
+                {formatMs(ttfbMs)}
+              </span>
+              {totalMs > 0 && totalMs !== ttfbMs && (
+                <span className="hidden sm:block text-[10px] text-[var(--muted-2)] tabular-nums">
+                  tot {formatMs(totalMs)}
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -97,8 +108,8 @@ function RegionReadingRow({ reading, maxLatency, isExpandedByDefault = false }) 
       {/* Expanded Timing Breakdown */}
       {expanded && (
         <div className="mt-2.5 sm:pl-32 sm:pr-32 space-y-1 text-xs text-[var(--muted-2)] leading-relaxed">
-          <p>{line1}</p>
-          <p>{line2}</p>
+          <p className={isFailed ? 'text-[var(--red)]' : ''}>{line1}</p>
+          {!isFailed && <p>{line2}</p>}
         </div>
       )}
     </div>
@@ -175,6 +186,35 @@ function ResultPanel({ result, isScanning = false, error = null, onReRun = null 
   // Normalize readings array
   const readings = Array.isArray(result.readings) ? result.readings : [];
   const validReadings = readings.filter((r) => r && r.ms != null && Number.isFinite(Number(r.ms)));
+
+  if (!validReadings.length && readings.length > 0) {
+    return (
+      <section className="rounded-3xl border border-[var(--red)]/30 bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]" role="alert">
+        <div className="flex items-start gap-3">
+          <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-[var(--red)]/30 bg-[var(--red)]/10 text-sm font-bold text-[var(--red)]">
+            !
+          </span>
+          <div>
+            <h3 className="font-['Outfit',sans-serif] text-base font-semibold text-[var(--text)]">
+              Measurement failed
+            </h3>
+            <p className="mt-0.5 text-sm text-[var(--muted-2)]">
+              {readings[0]?.error || error || 'All probe regions failed to measure TTFB.'}
+            </p>
+            {onReRun && (
+              <button
+                type="button"
+                onClick={onReRun}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[var(--border-mid)] bg-[var(--surface-2)] px-4 py-1.5 text-xs font-semibold text-[var(--text)] hover:text-[var(--cyan)]"
+              >
+                Retry Scan
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   // Calculate fastest, slowest, average if not on result
   const fastestReading = [...validReadings].sort((a, b) => Number(a.ms) - Number(b.ms))[0];
@@ -319,7 +359,7 @@ function ResultPanel({ result, isScanning = false, error = null, onReRun = null 
 
       {/* ── Region Rows with Forest Green Bars & Accordion Details ─────────── */}
       <div className="divide-y-0">
-        {validReadings.map((reading, idx) => (
+        {readings.map((reading, idx) => (
           <RegionReadingRow
             key={`${result.id || 'ttfb'}-${reading.region || idx}`}
             reading={{

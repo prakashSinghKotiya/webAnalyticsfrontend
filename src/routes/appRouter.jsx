@@ -15,6 +15,7 @@ import ForgotPassword from '../pages/Access/ForgotPassword';
 // Lazy-loaded application feature pages
 const Home = lazy(() => import('../pages/Home/Home'));
 const Dashboard = lazy(() => import('../pages/Dashboard/Dashboard'));
+const MonthlyAnalysisPage = lazy(() => import('../pages/Dashboard/MonthlyAnalysisPage'));
 const TTFBPage = lazy(() => import('../pages/TTFB/TTFBPage'));
 const LighthousePage = lazy(() => import('../pages/Lighthouse/LighthousePage'));
 const UptimePage = lazy(() => import('../pages/Uptime/UptimePage'));
@@ -24,6 +25,7 @@ const RedirectsPage = lazy(() => import('../pages/Redirects/RedirectsPage'));
 const AdminPanel = lazy(() => import('../pages/Admin/AdminPanel'));
 const AdminHostingReviewsDashboard = lazy(() => import('../pages/Admin/HostingReviews/AdminHostingReviewsDashboard'));
 const AdminHostingReviewEditor = lazy(() => import('../pages/Admin/HostingReviews/AdminHostingReviewEditor'));
+const AdminCommentsModeration = lazy(() => import('../pages/Admin/HostingReviews/AdminCommentsModeration'));
 const NotFound = lazy(() => import('../pages/Errors/NotFound'));
 
 /**
@@ -106,6 +108,8 @@ export const appRouter = createBrowserRouter([
         children: [
           { path: 'home', element: <Home /> },
           { path: 'dashboard', element: <Dashboard /> },
+          { path: 'dashboard/monthly-analysis', element: <MonthlyAnalysisPage /> },
+          { path: 'monthly-analysis', element: <Navigate to="/dashboard/monthly-analysis" replace /> },
           { path: 'ttfb-test', element: <TTFBPage /> },
           { path: 'fullsite-report', element: <LighthousePage /> },
           { path: 'uptime-monitor', element: <UptimePage /> },
@@ -164,6 +168,14 @@ export const appRouter = createBrowserRouter([
             element: (
               <AdminRoute>
                 <AdminHostingReviewEditor />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: 'admin/comments',
+            element: (
+              <AdminRoute>
+                <AdminCommentsModeration />
               </AdminRoute>
             ),
           },

@@ -64,7 +64,10 @@ function PerformanceChart({
 
     const pts = data.map((d, i) => {
       const val = activeMetric === 'uptime' ? d.uptime : d.avgResponseTime;
-      const x = padding.left + (i / Math.max(1, data.length - 1)) * innerWidth;
+      const x =
+        data.length === 1
+          ? padding.left + innerWidth / 2
+          : padding.left + (i / Math.max(1, data.length - 1)) * innerWidth;
       const y =
         val === null
           ? innerHeight + padding.top
@@ -80,6 +83,17 @@ function PerformanceChart({
     const validPoints = points.filter((p) => p.value !== null);
     if (validPoints.length === 0) return { linePath: '', areaPath: '' };
 
+    if (validPoints.length === 1) {
+      const p = validPoints[0];
+      const leftX = padding.left.toFixed(1);
+      const rightX = (width - padding.right).toFixed(1);
+      const y = p.y.toFixed(1);
+      const bottomY = (padding.top + innerHeight).toFixed(1);
+      const line = `M ${leftX},${y} L ${rightX},${y}`;
+      const area = `${line} L ${rightX},${bottomY} L ${leftX},${bottomY} Z`;
+      return { linePath: line, areaPath: area };
+    }
+
     const line = validPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)},${p.y.toFixed(1)}`, '');
     const firstX = validPoints[0].x.toFixed(1);
     const lastX = validPoints[validPoints.length - 1].x.toFixed(1);
@@ -87,7 +101,7 @@ function PerformanceChart({
     const area = `${line} L ${lastX},${bottomY} L ${firstX},${bottomY} Z`;
 
     return { linePath: line, areaPath: area };
-  }, [points, padding.top, innerHeight]);
+  }, [points, padding.top, padding.left, padding.right, innerHeight, width]);
 
   // Y-axis tick values (3 steps: e.g. 99%, 99.5%, 100%)
   const yTicks = useMemo(() => {
@@ -107,6 +121,12 @@ function PerformanceChart({
   // X-axis date labels (start, middle, end)
   const xLabels = useMemo(() => {
     if (data.length === 0) return [];
+    if (data.length === 1) {
+      const d = data[0];
+      const dateObj = new Date(d.date);
+      const formatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      return [{ label: formatted, x: padding.left + innerWidth / 2 }];
+    }
     const indices = [0, Math.floor((data.length - 1) / 2), data.length - 1];
     return indices
       .filter((idx, i, arr) => arr.indexOf(idx) === i)

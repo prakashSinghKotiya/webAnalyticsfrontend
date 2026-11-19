@@ -214,6 +214,28 @@ function UserMenu({ user, onLogout, isAdmin }) {
                 </svg>
                 <span>Reviews</span>
               </NavLink>
+
+              <NavLink
+                to={ROUTES.ADMIN_COMMENTS}
+                onClick={() => {
+                  if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                  }
+                  setOpen(false);
+                }}
+                className={({ isActive }) =>
+                  `flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition no-underline mb-1 ${
+                    isActive
+                      ? 'bg-[var(--cyan-dim)] text-[var(--cyan)] font-semibold'
+                      : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]'
+                  }`
+                }
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                <span>Comments</span>
+              </NavLink>
             </>
           )}
 

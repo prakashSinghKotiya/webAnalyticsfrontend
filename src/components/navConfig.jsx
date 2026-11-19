@@ -29,7 +29,8 @@ export const TOOL_GROUPS = [
   {
     label: 'Monitoring',
     items: [
-      { to: ROUTES.UPTIME,     icon: I.clock,    label: 'Uptime Monitor',   desc: '24/7 availability tracking' },
+      { to: ROUTES.UPTIME,                     icon: I.clock,     label: 'Uptime Monitor',   desc: '24/7 availability tracking' },
+      { to: ROUTES.DASHBOARD_MONTHLY_ANALYSIS, icon: I.dashboard, label: 'Monthly Analysis', desc: 'Historical rollups & comparisons' },
     ],
   },
   {

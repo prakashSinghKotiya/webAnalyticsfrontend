@@ -6,6 +6,7 @@ import { buildReviewDetailMetadata } from '../../seo/routes';
 import { ROUTES } from '../../constants';
 import { useInitialData } from '../../context/InitialDataContext';
 import NotFound from '../Errors/NotFound';
+import ReviewCommentsSection from './components/ReviewCommentsSection';
 
 /**
  * StarRating — Renders 5 star icons with numeric label
@@ -1242,6 +1243,9 @@ export default function HostingReviewDetailPage() {
               Stats are generated automatically from <strong>{stats.monitors?.total || 1}</strong> monitors and <strong>{formatNumber(stats.checks?.total || 100)}</strong> checks collected by MonitorMyHost uptime monitoring. Our distributed edge probes run round the clock without browser extensions or simulated caching.
             </p>
           </section>
+
+          {/* ── 12. PUBLIC VISITOR COMMENTS ─────────────────────────────── */}
+          <ReviewCommentsSection slug={slug} providerName={providerName} />
 
           {/* ── 10. BOTTOM CTA & MORE REVIEWS ────────────────────────────── */}
           <section className="rounded-2xl border border-[var(--border-bright)] bg-gradient-to-r from-[var(--cyan-dim)] via-[var(--surface)] to-[var(--green-dim)] p-8 text-center shadow-lg">

@@ -45,6 +45,28 @@ export async function getPublicReviewBySlug(slug) {
   return data;
 }
 
+/**
+ * Submit an anonymous public comment on a published review.
+ * @param {string} slug - Review slug
+ * @param {Object} payload - { guestName: string, body: string, website?: string }
+ */
+export async function submitPublicComment(slug, payload) {
+  const cleanSlug = encodeURIComponent(String(slug).trim());
+  const { data } = await axiosWithoutCreds.post(`/review/${cleanSlug}/comments`, payload);
+  return data;
+}
+
+/**
+ * Fetch approved comments for a published hosting review with pagination.
+ * @param {string} slug - Review slug
+ * @param {Object} [params] - { page, limit }
+ */
+export async function getPublicComments(slug, params = {}) {
+  const cleanSlug = encodeURIComponent(String(slug).trim());
+  const { data } = await axiosWithoutCreds.get(`/review/${cleanSlug}/comments`, { params });
+  return data;
+}
+
 // ==========================================
 // ADMIN API
 // ==========================================
@@ -145,5 +167,49 @@ export async function setReviewPublishedAdmin(id, published) {
 export async function deleteReviewAdmin(id) {
   const cleanId = encodeURIComponent(String(id));
   const { data } = await axiosWithCreds.delete(`/review/admin/${cleanId}`);
+  return data;
+}
+
+// ==========================================
+// ADMIN COMMENT MODERATION API
+// ==========================================
+
+/**
+ * Fetch comments for admin moderation across reviews with filtering and pagination.
+ * @param {Object} [params] - { status: 'pending'|'approved'|'rejected'|'all', search, reviewId, page, limit }
+ * @returns {Promise<{ success: boolean, comments: Array, counts: Object, pagination: Object }>}
+ */
+export async function getAdminComments(params = {}) {
+  const { data } = await axiosWithCreds.get('/review/admin/comments', { params });
+  return data;
+}
+
+/**
+ * Update moderation status of a comment (approved, rejected, pending).
+ * @param {number|string} id - Comment ID
+ * @param {'approved'|'rejected'|'pending'} status
+ */
+export async function updateAdminCommentStatus(id, status) {
+  const cleanId = encodeURIComponent(String(id));
+  const { data } = await axiosWithCreds.patch(`/review/admin/comments/${cleanId}/status`, { status });
+  return data;
+}
+
+/**
+ * Permanently hard delete a comment by ID.
+ * @param {number|string} id - Comment ID
+ */
+export async function deleteAdminComment(id) {
+  const cleanId = encodeURIComponent(String(id));
+  const { data } = await axiosWithCreds.delete(`/review/admin/comments/${cleanId}`);
+  return data;
+}
+
+/**
+ * Perform bulk moderation action (approve, reject, or delete) on multiple comments.
+ * @param {Object} payload - { ids: number[], action: 'approve'|'reject'|'delete' }
+ */
+export async function bulkModerateAdminComments(payload) {
+  const { data } = await axiosWithCreds.post('/review/admin/comments/bulk', payload);
   return data;
 }

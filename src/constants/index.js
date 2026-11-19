@@ -28,6 +28,7 @@ export const ROUTES = Object.freeze({
   DEMO_REDIRECTS: '/redirection-checker',
   DEMO_WHOIS: '/whois-lookup',
   DASHBOARD: '/dashboard',
+  DASHBOARD_MONTHLY_ANALYSIS: '/dashboard/monthly-analysis',
   TTFB: '/ttfb-test',
   LIGHTHOUSE: '/fullsite-report',
   UPTIME: '/uptime-monitor',
@@ -41,6 +42,7 @@ export const ROUTES = Object.freeze({
   REVIEWS: '/reviews',
   ADMIN_HOSTING_REVIEWS: '/admin/hosting-reviews',
   ADMIN_HOSTING_REVIEWS_NEW: '/admin/hosting-reviews/new',
+  ADMIN_COMMENTS: '/admin/comments',
   NOT_FOUND: '/404',
 });
 

@@ -27,6 +27,7 @@ import {
   summarize,
   groupDbRecords,
   normalizeDbEntry,
+  pickRegion,
 } from './ttfb.utils';
 
 export default function useTTFB() {
@@ -90,8 +91,53 @@ export default function useTTFB() {
       if (!pending) return;
 
       const reportData = payload?.result || payload;
-      if (payload?.status === 'failed' || reportData?.status === 'failed') {
-        settle(new Error(payload?.error || reportData?.error || 'TTFB measurement failed on target server.'));
+      const isFailed = payload?.status === 'failed' || reportData?.status === 'failed';
+
+      if (isFailed) {
+        if (pending.expected <= 1) {
+          settle(new Error(payload?.error || reportData?.error || 'TTFB measurement failed on target server.'));
+          return;
+        }
+
+        const failedRegion = pickRegion(payload, pickRegion(reportData, 'Unknown'));
+        const key = failedRegion.toLowerCase();
+        const existingIndex = pending.readings.findIndex(
+          (r) => r.region.toLowerCase() === key,
+        );
+        const failedReading = {
+          region: failedRegion,
+          ms: null,
+          status: 'failed',
+          error: payload?.error || reportData?.error || 'Probe failed',
+        };
+
+        if (existingIndex < 0) {
+          pending.readings.push(failedReading);
+        } else {
+          pending.readings[existingIndex] = {
+            ...pending.readings[existingIndex],
+            ...failedReading,
+          };
+        }
+
+        setProgress({ received: pending.readings.length, expected: pending.expected });
+        setResult({
+          id: 'live',
+          url: pending.url,
+          region: pending.region,
+          readings: [...pending.readings],
+          ...summarize(pending.readings),
+          createdAt: new Date().toISOString(),
+        });
+
+        if (pending.readings.length >= pending.expected) {
+          const hasValid = pending.readings.some((r) => r.ms != null);
+          if (hasValid) {
+            settle(null, pending.readings);
+          } else {
+            settle(new Error(payload?.error || reportData?.error || 'All probe regions failed.'));
+          }
+        }
         return;
       }
 
@@ -284,8 +330,39 @@ export default function useTTFB() {
                 const check = await getTtfbStatus(jId);
                 if (check?.success && (check.status === 'completed' || check.status === 'failed')) {
                   if (check.status === 'failed') {
-                    settle(new Error(check.error || 'TTFB measurement failed.'));
-                    return;
+                    if (pendingRef.current.expected <= 1) {
+                      settle(new Error(check.error || 'TTFB measurement failed.'));
+                      return;
+                    }
+                    const failedRegion = (check.region || 'Unknown').toLowerCase();
+                    const existingIndex = pendingRef.current.readings.findIndex(
+                      (r) => r.region.toLowerCase() === failedRegion,
+                    );
+                    const failedReading = {
+                      region: check.region || 'Unknown',
+                      ms: null,
+                      status: 'failed',
+                      error: check.error || 'Probe failed',
+                    };
+                    if (existingIndex < 0) {
+                      pendingRef.current.readings.push(failedReading);
+                    } else {
+                      pendingRef.current.readings[existingIndex] = failedReading;
+                    }
+                    setProgress({
+                      received: pendingRef.current.readings.length,
+                      expected: pendingRef.current.expected,
+                    });
+                    if (pendingRef.current.readings.length >= pendingRef.current.expected) {
+                      const hasValid = pendingRef.current.readings.some((r) => r.ms != null);
+                      if (hasValid) {
+                        settle(null, pendingRef.current.readings);
+                      } else {
+                        settle(new Error(check.error || 'All probe regions failed.'));
+                      }
+                      return;
+                    }
+                    continue;
                   }
                   if (check.result) {
                     const extracted = extractReadings(check)[0] || extractReadings(check.result)[0];

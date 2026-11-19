@@ -123,6 +123,23 @@ export default function MobileDrawer({ open, onClose, user, onLogout, isAdmin })
                 </svg>
                Reviews
               </NavLink>
+
+              <NavLink
+                to={ROUTES.ADMIN_COMMENTS}
+                onClick={() => handleNav()}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm no-underline transition ${
+                    isActive
+                      ? 'bg-[var(--cyan-dim)] font-semibold text-[var(--cyan)]'
+                      : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
+                  }`
+                }
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+               Comments
+              </NavLink>
             </div>
           )}
         </nav>

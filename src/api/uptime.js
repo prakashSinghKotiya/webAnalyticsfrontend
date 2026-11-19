@@ -79,3 +79,26 @@ export const getRecentMonitorResults = async (id, { page = 1, limit = 6, status 
   );
   return data;
 };
+
+// Fetch monthly statistics and month-over-month deltas for a specific monitor
+export const getMonitorMonthlyStats = async (id, months = 6) => {
+  const { data } = await axiosWithCreds.get(
+    `/uptime/monitor/${encodeURIComponent(id)}/monthly-stats`,
+    { params: { months } }
+  );
+  return data;
+};
+
+// Fetch fleet-wide monthly overview (fleet uptime, 3-month trend, worst monitor)
+export const getMonthlyOverview = async () => {
+  const { data } = await axiosWithCreds.get('/uptime/monthly-overview');
+  return data;
+};
+
+// Trigger manual refresh / incremental rollup for a monitor's monthly stats
+export const refreshMonitorMonthlyStats = async (id) => {
+  const { data } = await axiosWithCreds.post(
+    `/uptime/monitor/${encodeURIComponent(id)}/monthly-stats/refresh`
+  );
+  return data;
+};
