@@ -93,12 +93,19 @@ function FAQAccordionItem({ faq, isOpen, onToggle, id }) {
 export default function HostingReviewDetailPage() {
   const { slug } = useParams();
   const initialData = useInitialData();
+  const normalizedSlug = useMemo(() => (slug ? String(slug).trim().toLowerCase() : ''), [slug]);
+
   const isMatchingInitialData = useMemo(() => {
-    return Boolean(
-      initialData?.reviewDetail &&
-      initialData.reviewDetail.slug === slug
-    );
-  }, [initialData, slug]);
+    if (!initialData?.reviewDetail) return false;
+    const initialSlug = initialData.reviewDetail.slug
+      ? String(initialData.reviewDetail.slug).trim().toLowerCase()
+      : '';
+    if (initialSlug && normalizedSlug && initialSlug === normalizedSlug) return true;
+    if (initialData.url && normalizedSlug && (initialData.url === `/reviews/${normalizedSlug}` || initialData.url.endsWith(`/${normalizedSlug}`))) {
+      return true;
+    }
+    return false;
+  }, [initialData, normalizedSlug]);
 
   const [review, setReview] = useState(() => (isMatchingInitialData ? initialData.reviewDetail : null));
   const [statsSource, setStatsSource] = useState(() => (isMatchingInitialData ? (initialData.reviewDetail.statsSource || 'live') : 'live'));

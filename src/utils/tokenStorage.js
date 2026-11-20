@@ -85,42 +85,24 @@ export function isValidGuestId(id) {
   return typeof id === 'string' && /^[a-f0-9]{32}$/i.test(id);
 }
 
-/**
- * Generates a cryptographically strong 32-character hexadecimal guest ID
- * aligned with backend crypto.randomBytes(16).toString("hex").
- */
-export function generateGuestHexId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  }
-  let hex = '';
-  for (let i = 0; i < 32; i++) {
-    hex += Math.floor(Math.random() * 16).toString(16);
-  }
-  return hex;
-}
-
 export function getGuestId() {
-  return getStoredItem(STORAGE_KEYS.GUEST_ID);
+  const gid = getStoredItem(STORAGE_KEYS.GUEST_ID);
+  return isValidGuestId(gid) ? gid : null;
 }
 
 export function setGuestId(guestId) {
-  setStoredItem(STORAGE_KEYS.GUEST_ID, guestId);
+  if (isValidGuestId(guestId)) {
+    setStoredItem(STORAGE_KEYS.GUEST_ID, guestId);
+  }
 }
 
 /**
- * Returns the persisted guest ID if valid, or creates and persists a new 32-char hex ID.
- * Self-heals any legacy or non-hex string stored previously in localStorage.
+ * Returns the active guest ID issued by the server if available.
+ * Client NEVER invents or generates its own guest ID; identity is strictly
+ * established by server-signed HttpOnly cookies (gid).
  */
 export function getOrCreateGuestId() {
-  let gid = getGuestId();
-  if (!isValidGuestId(gid)) {
-    gid = generateGuestHexId();
-    setGuestId(gid);
-  }
-  return gid;
+  return getGuestId();
 }
 
 export function removeGuestId() {

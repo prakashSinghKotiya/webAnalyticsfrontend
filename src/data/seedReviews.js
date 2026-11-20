@@ -8,8 +8,77 @@
 
 export const SEED_REVIEWS_LIST = [
   {
-    "slug": "microsoft-corp-msn-as-block-microsoft-review",
-    "providerName": "Microsoft-corp-msn-as-block - Microsoft",
+    "slug": "hostinger-review",
+    "providerName": "Hostinger",
+    "title": "HostingerReview : Budget cloud hosting",
+    "rating": 4.8,
+    "publishedAt": "2026-11-08T22:22:28.418Z",
+    "extra": {
+      "faqs": [
+        {
+          "answer": "Based on MonitorMyHost 24/7 synthetic probes, this host maintains consistent availability with rapid outage recovery.",
+          "question": "What is the recorded uptime percentage for this host?"
+        },
+        {
+          "answer": "Yes, a standard money-back guarantee is provided to test the platform risk-free.",
+          "question": "Does this provider offer a money-back guarantee?"
+        }
+      ],
+      "plans": [
+        {
+          "name": "Starter Plan",
+          "badge": "",
+          "price": "$2.99",
+          "period": "mo",
+          "features": [
+            "1 Website",
+            "10 GB Storage",
+            "Free SSL"
+          ]
+        },
+        {
+          "name": "Business Cloud",
+          "badge": "Most Popular",
+          "price": "$5.99",
+          "period": "mo",
+          "features": [
+            "100 Websites",
+            "100 GB NVMe",
+            "Free Domain",
+            "Daily Backups"
+          ]
+        }
+      ],
+      "expert": {
+        "bio": "Conducts multi-region synthetic TTFB and continuous uptime telemetry.",
+        "name": "MonitorMyHost Research Team",
+        "title": "Infrastructure Performance Analyst",
+        "avatarUrl": ""
+      },
+      "bestFor": "small business  ,startup",
+      "logoUrl": "https://www.hostinger.com/logo-400x400.png",
+      "freeDomain": true,
+      "affiliateUrl": "https://www.hostinger.com/",
+      "startingPrice": "$2",
+      "categoryRatings": {
+        "speed": 4.8,
+        "uptime": 4.9,
+        "pricing": 4.6,
+        "support": 4.5,
+        "features": 4.7
+      },
+      "moneyBackGuarantee": "30 Days"
+    },
+    "headline": {
+      "uptime": 98.857,
+      "avgResponseTime": 1046,
+      "performanceScore": 67,
+      "totalChecks": 700
+    }
+  },
+  {
+    "slug": "microsoft-review",
+    "providerName": "Microsoft",
     "title": "Microsoft review",
     "rating": 4.8,
     "publishedAt": "2026-11-13T18:57:02.533Z",
@@ -70,79 +139,10 @@ export const SEED_REVIEWS_LIST = [
       "moneyBackGuarantee": "30 Days"
     },
     "headline": {
-      "uptime": 99.711,
-      "avgResponseTime": 144,
-      "performanceScore": 97,
-      "totalChecks": 693
-    }
-  },
-  {
-    "slug": "as-hostinger-hostinger-review",
-    "providerName": "As-hostinger - Hostinger",
-    "title": "HostingerReview : Budget cloud hosting",
-    "rating": 4.8,
-    "publishedAt": "2026-11-08T22:22:28.418Z",
-    "extra": {
-      "faqs": [
-        {
-          "answer": "Based on MonitorMyHost 24/7 synthetic probes, this host maintains consistent availability with rapid outage recovery.",
-          "question": "What is the recorded uptime percentage for this host?"
-        },
-        {
-          "answer": "Yes, a standard money-back guarantee is provided to test the platform risk-free.",
-          "question": "Does this provider offer a money-back guarantee?"
-        }
-      ],
-      "plans": [
-        {
-          "name": "Starter Plan",
-          "badge": "",
-          "price": "$2.99",
-          "period": "mo",
-          "features": [
-            "1 Website",
-            "10 GB Storage",
-            "Free SSL"
-          ]
-        },
-        {
-          "name": "Business Cloud",
-          "badge": "Most Popular",
-          "price": "$5.99",
-          "period": "mo",
-          "features": [
-            "100 Websites",
-            "100 GB NVMe",
-            "Free Domain",
-            "Daily Backups"
-          ]
-        }
-      ],
-      "expert": {
-        "bio": "Conducts multi-region synthetic TTFB and continuous uptime telemetry.",
-        "name": "MonitorMyHost Research Team",
-        "title": "Infrastructure Performance Analyst",
-        "avatarUrl": ""
-      },
-      "bestFor": "small business  ,startup",
-      "logoUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAACUCAMAAABC4vDmAAAAhFBMVEVnPeb///9kOeZfMOX9/P9gMuWYgO38+f+Xfu1cK+VmO+ZrQufu6/xeLuVjN+ZhNOVSF+RWH+R1Uejy7/2ije+CY+qrmfC2pvK/sfOplfBYJOTMwPbe1/l5Vemahe1uR+d8W+nk3frOxfa7rPPVzPeHa+uNcuzHuvXp5PuxoPFLAOOSeez6hLt4AAAEeElEQVR4nO2aa3ejKhRAOSixkAAaH6k2xld8JPn//++CptNpm/beTmc0a+7Zqx8SYZUtHOGAIQRBEARBEARBEARBEARBEARBkP8Fgokvl/x5DkTfvC6KA2Ezuzw3Lbx966sbJbQIq4O/SG8J6gEcW/a+t+h6A7BZEWchKXCf8oDekgLYPwSz99YkZehL/rrtqxTAsFK3o+7PS0HYiFdWP6QAqvJW0M0hBWH+agR/koLVvIH1s9T2Q6kHlEKpv1VKrMN7kCqk1syiDYqoVbi8lJcerqwMLVcOP4VLS73gui54T1upZF7fjdS15x6LTGXd/q6kTJSdBHNEFC64zNxik2qHr/vVvCmolXI/BtzqIqhaz5xRidXnHKJigYxYa8nfIV9wKKXza4nyEv+gtOSG7UgxQea20oLswvdx5f3E7E/fOpKMb/vPHsH5M0/hVp1ksqzdT6SWmDyfikzzceq+Iynwdmum5WW4Kymzi+rOShZR8oPT6XQH+dQ+plQzx3HY9CfVPWSem+L+02GUQqm/Ssr9UGqxeYqox/C2lFCNt5SUkHnv3pIyJWW/kJQZpyB/8m5ImZKsXGTfN6J0fHRvSJkMULUL7PuuKL+t3xwvXtH+ZT93kvfSOOs+2LY4Iu1mPh5+QX34kkbOeziMIAhyv7y8RxP/fqTyH6r8okVgX346PrdfZOA4/rh26ICxQBLmTyjCfflcjft2zRNZoKX9NNXJhPkQBH52a6X8KvS4z6kTDY1pTkeD61UdM5/aynM3ET9sRoaWn8JE6ihsHKKbMGImA30MXbd60Ho1VqmJfNiE4aaPv78gCuW5JeUnOAYk2JmtpwfugdPtAJsKmiy6pnNd9gg7zhKAKGNPkEiijgDDBk6MTXX2hCfgmvx9uJlVfE1Kh24ugwTqQMWm8bMfgatMQ3v/zKnQwbmH9Jwp/ixl/MwVaW5jKHxfrIWpW5/P54zwFPoz3xvP3yHVlXljpJyd7S7he3DhF3DtGb6pEJh+yUwcXaVCd9BWKqsgzQjlDrE3ULbtVhipp7Nfw+7bWZaRmgaoDsyw7EwwB0dIuGxMgn60L67fSPWmTxsjxUJoNS1Pkb4OXyKN1NBXEMbfzmhsT/VNs7dSPdho900fcCE7s2+o1uKtVO3vYTBSMoSOsQsMmZEa0iSJqZGyKX37/RN/I+UVwTm1UilsMsnXAKWmnPtFCDF9J5XlpmvN8B2h93kHVTbGVBDwcfjIxtzR75Canr46MA8iHLtDBVVA874rIxfy91LcdkgqtY26PJqkqlUUHQpTUJ8jCPPvD59y4XlKYPF4kHjcUn0Y46SxMVXDiY9SzSRFeGWnBCcZ96Sj1Eic2UeYHaH+/vjRJCmEak8PdsosoqY5EEVEcdk9Nhf7SoF1qY1c1SatonHaUULjyAyrYPHpsUljSstopFCmVKsyOvyGxUdK808UH+dh4WTZ+LsaoXmWTVOzdsbJUNltAnXsNTpdoaaKpPbriCB0qrLQr6sQBEEQBEEQBEEQBEEQBEEQBPlz/ANcOV4mCkkQkQAAAABJRU5ErkJggg==",
-      "freeDomain": true,
-      "affiliateUrl": "https://www.hostinger.com/",
-      "startingPrice": "$2",
-      "categoryRatings": {
-        "speed": 4.8,
-        "uptime": 4.9,
-        "pricing": 4.6,
-        "support": 4.5,
-        "features": 4.7
-      },
-      "moneyBackGuarantee": "30 Days"
-    },
-    "headline": {
-      "uptime": 98.349,
-      "avgResponseTime": 1028,
-      "performanceScore": 62,
-      "totalChecks": 424
+      "uptime": 99.793,
+      "avgResponseTime": 137,
+      "performanceScore": 98,
+      "totalChecks": 965
     }
   }
 ];
@@ -595,6 +595,10 @@ export const SEED_REVIEWS_MAP = {
   }
 };
 
+// Ensure both canonical short slugs and legacy prefixed slugs resolve in the map
+SEED_REVIEWS_MAP["hostinger-review"] = SEED_REVIEWS_MAP["as-hostinger-hostinger-review"];
+SEED_REVIEWS_MAP["microsoft-review"] = SEED_REVIEWS_MAP["microsoft-corp-msn-as-block-microsoft-review"];
+
 const API_ENDPOINTS = [
   'http://localhost:5000',
   'https://api.monitormyhost.com',
@@ -608,7 +612,7 @@ export async function fetchPublishedReviews(timeoutMs = 3000) {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(`${base}/review`, { signal: controller.signal });
+      const res = await fetch(`${base}/review?limit=100`, { signal: controller.signal });
       clearTimeout(timer);
       if (res.ok) {
         const json = await res.json();
@@ -618,7 +622,7 @@ export async function fetchPublishedReviews(timeoutMs = 3000) {
             data: json.data,
             pagination: json.pagination || {
               page: 1,
-              limit: 10,
+              limit: 100,
               total: json.data.length,
               totalPages: 1,
               hasNextPage: false,

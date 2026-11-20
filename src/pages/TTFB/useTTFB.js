@@ -107,6 +107,8 @@ export default function useTTFB() {
         const failedReading = {
           region: failedRegion,
           ms: null,
+          ttfb: null,
+          totalToFirstByte: null,
           status: 'failed',
           error: payload?.error || reportData?.error || 'Probe failed',
         };
@@ -131,7 +133,7 @@ export default function useTTFB() {
         });
 
         if (pending.readings.length >= pending.expected) {
-          const hasValid = pending.readings.some((r) => r.ms != null);
+          const hasValid = pending.readings.some((r) => r.ms != null && Number.isFinite(Number(r.ms)));
           if (hasValid) {
             settle(null, pending.readings);
           } else {
@@ -284,10 +286,30 @@ export default function useTTFB() {
           jobIds: [],
           resolve: resolveScan,
           reject: rejectScan,
-          timer: setTimeout(
-            () => settle(new Error('Timed out waiting for probe results. Please try again.')),
-            TTFB_SCAN_TIMEOUT_MS,
-          ),
+          timer: setTimeout(() => {
+            const p = pendingRef.current;
+            if (!p) return;
+            const hasValid = p.readings.some((r) => r.ms != null && Number.isFinite(Number(r.ms)));
+            if (hasValid && p.expected > 1) {
+              for (const regObj of TTFB_REGIONS) {
+                const k = regObj.value.toLowerCase();
+                const exists = p.readings.some((r) => r.region?.toLowerCase() === k);
+                if (!exists) {
+                  p.readings.push({
+                    region: regObj.value,
+                    ms: null,
+                    ttfb: null,
+                    totalToFirstByte: null,
+                    status: 'failed',
+                    error: 'Probe timed out',
+                  });
+                }
+              }
+              settle(null, p.readings);
+            } else {
+              settle(new Error('Timed out waiting for probe results. Please try again.'));
+            }
+          }, TTFB_SCAN_TIMEOUT_MS),
         };
 
         const job = isAll ? await findTTFBAllRegions(url) : await findTTFB(url, region);
@@ -425,9 +447,18 @@ export default function useTTFB() {
 
         setResult(entry);
         setStatus('done');
-        toast.success(
-          `TTFB measured — ${readings.length} region${readings.length === 1 ? '' : 's'}`,
-        );
+        setError(null);
+
+        const validCount = readings.filter((r) => r.ms != null && Number.isFinite(Number(r.ms))).length;
+        if (validCount < readings.length && readings.length > 1) {
+          toast.info(
+            `TTFB measured — ${validCount} of ${readings.length} regions responded (${readings.length - validCount} unavailable).`,
+          );
+        } else {
+          toast.success(
+            `TTFB measured — ${readings.length} region${readings.length === 1 ? '' : 's'}`,
+          );
+        }
 
         // Synchronize MongoDB records after scan finishes
         fetchHistory({ page: 1 });

@@ -136,8 +136,12 @@ function ResultPanel({ result, isScanning = false, error = null, onReRun = null 
     );
   }
 
-  // Error State
-  if (error) {
+  // Normalize readings array early so error state can check for partial success
+  const readings = Array.isArray(result?.readings) ? result.readings : [];
+  const validReadings = readings.filter((r) => r && r.ms != null && Number.isFinite(Number(r.ms)));
+
+  // Error State: show full error card ONLY if there are no valid readings at all
+  if (error && !validReadings.length) {
     return (
       <section className="rounded-3xl border border-[var(--red)]/30 bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]" role="alert">
         <div className="flex items-start gap-3">
@@ -183,10 +187,7 @@ function ResultPanel({ result, isScanning = false, error = null, onReRun = null 
     );
   }
 
-  // Normalize readings array
-  const readings = Array.isArray(result.readings) ? result.readings : [];
-  const validReadings = readings.filter((r) => r && r.ms != null && Number.isFinite(Number(r.ms)));
-
+  // If result is present but every probe failed
   if (!validReadings.length && readings.length > 0) {
     return (
       <section className="rounded-3xl border border-[var(--red)]/30 bg-[var(--surface)] p-6 sm:p-8 shadow-[var(--shadow-card)]" role="alert">
@@ -273,6 +274,16 @@ function ResultPanel({ result, isScanning = false, error = null, onReRun = null 
       <p className="mt-2 text-sm leading-relaxed text-[var(--muted-2)]">
         {subtitle}
       </p>
+
+      {/* ── Partial response notice if 1+ probes failed ──────────────────── */}
+      {readings.length > validReadings.length && validReadings.length > 0 && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-[var(--orange)]/30 bg-[var(--orange)]/10 px-3 py-1.5 text-xs text-[var(--orange)]">
+          <span className="font-semibold">Notice:</span>
+          <span>
+            {readings.length - validReadings.length} of {readings.length} probe locations did not respond. Showing data from {validReadings.length} active region{validReadings.length === 1 ? '' : 's'}.
+          </span>
+        </div>
+      )}
 
       {/* ── 3 Stat Columns (Fastest | Slowest | Average) or (TTFB | Total | Quality) ──── */}
       {validReadings.length === 1 ? (

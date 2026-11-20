@@ -19,7 +19,7 @@ import {
 import { ROUTES } from '../../constants';
 import { useAuthState } from '../../context';
 import { getAppUrl } from '../../utils/subdomainNav';
-import { extractReadings, normalizeUrl, summarize } from '../TTFB/ttfb.utils';
+import { extractReadings, normalizeUrl, pickRegion, summarize } from '../TTFB/ttfb.utils';
 import { TTFB_REGIONS } from '../../api/ttfb';
 import { normalizeLighthouseEntry, rateScore, AUDIT_CATEGORIES } from '../Lighthouse/lighthouse.utils';
 import { normalizeDnsEntry, normalizeDomain } from '../DnsType/dns.utils';
@@ -342,8 +342,66 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
       if (!pending || !checkMatchingJob(payload, 'ttfb')) return;
 
       const data = payload?.result || payload;
-      if (payload?.status === 'failed' || data?.status === 'failed') {
-        pending.reject(new Error(payload?.error || data?.error || 'TTFB measurement failed.'));
+      const isFailed = payload?.status === 'failed' || data?.status === 'failed';
+
+      if (isFailed) {
+        if (pending.expected <= 1) {
+          pending.reject(new Error(payload?.error || data?.error || 'TTFB measurement failed on target server.'));
+          return;
+        }
+
+        let failedRegion = pickRegion(payload, pickRegion(data, ''));
+        if (!failedRegion && pending.jobRegionMap) {
+          const candidateIds = [
+            payload?.ttfbdbId,
+            payload?.jobId,
+            payload?.id,
+            data?.ttfbdbId,
+            data?.jobId,
+          ]
+            .filter(Boolean)
+            .map(String);
+          for (const cId of candidateIds) {
+            if (pending.jobRegionMap[cId]) {
+              failedRegion = pending.jobRegionMap[cId];
+              break;
+            }
+          }
+        }
+        if (!failedRegion) {
+          const missing = TTFB_REGIONS.find(
+            (r) => !pending.readings.some((item) => item.region?.toLowerCase() === r.value.toLowerCase())
+          );
+          failedRegion = missing?.value || 'Unknown';
+        }
+
+        const key = failedRegion.toLowerCase();
+        const existingIdx = pending.readings.findIndex((item) => item.region?.toLowerCase() === key);
+        const failedReading = {
+          region: failedRegion,
+          ms: null,
+          ttfb: null,
+          totalToFirstByte: null,
+          status: 'failed',
+          error: payload?.error || data?.error || 'Probe failed',
+        };
+
+        if (existingIdx < 0) {
+          pending.readings.push(failedReading);
+        } else {
+          pending.readings[existingIdx] = { ...pending.readings[existingIdx], ...failedReading };
+        }
+
+        setProgress({ received: pending.readings.length, expected: pending.expected });
+
+        if (pending.readings.length >= pending.expected) {
+          const hasValid = pending.readings.some((r) => r.ms != null && Number.isFinite(Number(r.ms)));
+          if (hasValid) {
+            pending.resolve(pending.readings);
+          } else {
+            pending.reject(new Error(payload?.error || data?.error || 'All probe regions failed.'));
+          }
+        }
         return;
       }
 
@@ -362,7 +420,12 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
       setProgress({ received: pending.readings.length, expected: pending.expected });
       if (pending.readings.length >= pending.expected) {
-        pending.resolve(pending.readings);
+        const hasValid = pending.readings.some((r) => r.ms != null && Number.isFinite(Number(r.ms)));
+        if (hasValid) {
+          pending.resolve(pending.readings);
+        } else {
+          pending.reject(new Error(payload?.error || data?.error || 'All probe regions failed.'));
+        }
       }
     };
 
@@ -567,6 +630,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
         // Collect matching jobIds - prefer database primary keys over pg-boss UUIDs
         let pollingJobIds = [];
+        const jobRegionMap = {};
         if (activeTool === 'ttfb' && ttfbMode === 'all') {
           const dbIds =
             response?.jobs
@@ -576,6 +640,15 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             response?.jobs
               ?.map((j) => String(j.jobId || ''))
               .filter(Boolean) || [];
+
+          if (Array.isArray(response?.jobs)) {
+            for (const j of response.jobs) {
+              if (j.region) {
+                if (j.ttfbdbId) jobRegionMap[String(j.ttfbdbId)] = j.region;
+                if (j.jobId) jobRegionMap[String(j.jobId)] = j.region;
+              }
+            }
+          }
 
           pollingJobIds = dbIds.length ? dbIds : bossIds;
           inFlightJobIds = [...new Set([...dbIds, ...bossIds])];
@@ -606,11 +679,6 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
 
         // Step 4 & 5: Guaranteed delivery via socket events + catchup watchdog + fallback HTTP polling
         const rawData = await new Promise((resolve, reject) => {
-          const timeoutTimer = setTimeout(() => {
-            cleanupFailsafe();
-            reject(new Error('The request timed out waiting for backend worker response.'));
-          }, waitDuration);
-
           const cleanupFailsafe = () => {
             clearTimeout(timeoutTimer);
             if (watchdogTimer) clearTimeout(watchdogTimer);
@@ -621,11 +689,44 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             }
           };
 
+          const timeoutTimer = setTimeout(() => {
+            const pending = pendingRef.current;
+            cleanupFailsafe();
+            if (activeTool === 'ttfb' && pending && pending.expected > 1) {
+              const hasValid = pending.readings.some((r) => r.ms != null && Number.isFinite(Number(r.ms)));
+              if (hasValid) {
+                for (const regObj of TTFB_REGIONS) {
+                  const k = regObj.value.toLowerCase();
+                  const exists = pending.readings.some((r) => r.region?.toLowerCase() === k);
+                  if (!exists) {
+                    pending.readings.push({
+                      region: regObj.value,
+                      ms: null,
+                      ttfb: null,
+                      totalToFirstByte: null,
+                      status: 'failed',
+                      error: 'Probe timed out',
+                    });
+                  }
+                }
+                resolve(pending.readings);
+                return;
+              }
+            }
+            reject(new Error('The request timed out waiting for backend worker response.'));
+          }, waitDuration);
+
           pendingRef.current = {
             kind: activeTool,
             jobIds: inFlightJobIds,
             readings: [],
-            expected: expectedCount,
+            expected:
+              activeTool === 'ttfb' && ttfbMode === 'all' && response?.jobs?.length
+                ? response.jobs.length
+                : expectedCount,
+            url: target,
+            region: ttfbMode === 'all' ? 'all' : ttfbRegion,
+            jobRegionMap,
             resolve: (val) => {
               cleanupFailsafe();
               resolve(val);
@@ -654,6 +755,44 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                   const statusData = await getDemoStatus(activeTool, jId);
                   if (statusData?.success && (statusData.status === 'completed' || statusData.status === 'failed')) {
                     if (statusData.status === 'failed') {
+                      if (activeTool === 'ttfb' && pendingRef.current && pendingRef.current.expected > 1) {
+                        const failedRegion = pickRegion(
+                          statusData,
+                          pickRegion(statusData.result, jobRegionMap[String(jId)] || 'Unknown')
+                        );
+                        const key = failedRegion.toLowerCase();
+                        const existingIdx = pendingRef.current.readings.findIndex((r) => r.region?.toLowerCase() === key);
+                        const failedReading = {
+                          region: failedRegion,
+                          ms: null,
+                          ttfb: null,
+                          totalToFirstByte: null,
+                          status: 'failed',
+                          error: statusData.error || statusData.result?.error || 'Probe failed',
+                        };
+                        if (existingIdx < 0) {
+                          pendingRef.current.readings.push(failedReading);
+                        } else {
+                          pendingRef.current.readings[existingIdx] = {
+                            ...pendingRef.current.readings[existingIdx],
+                            ...failedReading,
+                          };
+                        }
+                        setProgress({
+                          received: pendingRef.current.readings.length,
+                          expected: pendingRef.current.expected,
+                        });
+                        if (pendingRef.current.readings.length >= pendingRef.current.expected) {
+                          const hasValid = pendingRef.current.readings.some((r) => r.ms != null && Number.isFinite(Number(r.ms)));
+                          if (hasValid) {
+                            pendingRef.current.resolve(pendingRef.current.readings);
+                          } else {
+                            pendingRef.current.reject(new Error(statusData.error || 'All probe regions failed.'));
+                          }
+                        }
+                        continue;
+                      }
+
                       pendingRef.current?.reject(
                         new Error(statusData.error || `${activeTool} analysis failed.`)
                       );
@@ -663,7 +802,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                     if (activeTool === 'ttfb') {
                       const extracted = extractReadings(statusData)[0] || extractReadings(statusData.result)[0];
                       const reading = extracted || {
-                        region: statusData.region || statusData.result?.region || 'probe',
+                        region: statusData.region || statusData.result?.region || jobRegionMap[String(jId)] || 'probe',
                         ms: statusData.result?.ttfb ?? statusData.result?.totalToFirstByte ?? 0,
                         ttfb: statusData.result?.ttfb,
                         totalToFirstByte: statusData.result?.totalToFirstByte,
@@ -681,7 +820,12 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
                         expected: pendingRef.current.expected,
                       });
                       if (pendingRef.current.readings.length >= pendingRef.current.expected) {
-                        pendingRef.current.resolve(pendingRef.current.readings);
+                        const hasValid = pendingRef.current.readings.some((r) => r.ms != null && Number.isFinite(Number(r.ms)));
+                        if (hasValid) {
+                          pendingRef.current.resolve(pendingRef.current.readings);
+                        } else {
+                          pendingRef.current.reject(new Error('All probe regions failed.'));
+                        }
                       }
                     } else {
                       pendingRef.current?.resolve(statusData.result || statusData);
@@ -701,7 +845,11 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         if (activeTool === 'ttfb') {
           const readings = Array.isArray(rawData) ? rawData : extractReadings(rawData);
           const sums = summarize(readings);
-          const firstReading = readings[0] || {};
+          const firstReading =
+            readings.find((r) => r.ms != null && r.statusCode && r.statusCode < 400) ||
+            readings.find((r) => r.ms != null) ||
+            readings[0] ||
+            {};
           parsed = {
             id: `demo_ttfb_${Date.now()}`,
             url: target,
@@ -726,6 +874,54 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
         setResult(parsed);
         setPhase('complete');
       } catch (err) {
+        if (
+          activeTool === 'ttfb' &&
+          pendingRef.current?.readings?.some((r) => r.ms != null && Number.isFinite(Number(r.ms)))
+        ) {
+          const readings = pendingRef.current.readings;
+          if (ttfbMode === 'all') {
+            for (const regObj of TTFB_REGIONS) {
+              const k = regObj.value.toLowerCase();
+              const exists = readings.some((r) => r.region?.toLowerCase() === k);
+              if (!exists) {
+                readings.push({
+                  region: regObj.value,
+                  ms: null,
+                  ttfb: null,
+                  totalToFirstByte: null,
+                  status: 'failed',
+                  error: 'Probe timed out',
+                });
+              }
+            }
+          }
+          const sums = summarize(readings);
+          const firstReading =
+            readings.find((r) => r.ms != null && r.statusCode && r.statusCode < 400) ||
+            readings.find((r) => r.ms != null) ||
+            readings[0] ||
+            {};
+          const parsed = {
+            id: `demo_ttfb_${Date.now()}`,
+            url: target,
+            region: ttfbMode === 'all' ? 'all' : (firstReading.region || ttfbRegion),
+            readings,
+            avg: sums.avg ?? firstReading.ms,
+            fastest: sums.fastest ?? firstReading.ms,
+            slowest: sums.slowest ?? firstReading.ms,
+            statusCode: firstReading.statusCode || 200,
+            createdAt: new Date().toISOString(),
+          };
+          pendingRef.current = null;
+          for (const jId of inFlightJobIds) {
+            unregisterCatchupJob(jId);
+          }
+          setError('');
+          setResult(parsed);
+          setPhase('complete');
+          return;
+        }
+
         pendingRef.current = null;
         for (const jId of inFlightJobIds) {
           unregisterCatchupJob(jId);
@@ -1094,7 +1290,7 @@ export default function DemoAnalyzerPage({ kind: initialKind = 'ttfb' }) {
             </form>
 
             {/* Error Message */}
-            {error && !quota.isLimited && (
+            {error && !quota.isLimited && !result && (
               <div role="alert" className="mt-4 rounded-xl border border-[var(--red)]/30 bg-[var(--red)]/10 p-4 text-sm text-[var(--red)]">
                 <p className="font-semibold">{error}</p>
               </div>

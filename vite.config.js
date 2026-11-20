@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
@@ -8,6 +10,43 @@ function escapeHtml(str = '') {
 
 function escapeAttr(str = '') {
   return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * Preview Prerender Plugin
+ * Ensures `npm run preview` cleanly maps clean URLs (such as /reviews/hostinger-review)
+ * to their pre-rendered static HTML files instead of falling back to root index.html.
+ */
+function previewPrerenderPlugin() {
+  return {
+    name: 'vite-plugin-preview-prerender',
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const rawUrl = req.url || '/';
+        const cleanPath = rawUrl.split('?')[0].replace(/\/+$/, '') || '/';
+        if (cleanPath === '/') return next();
+
+        // 1. Direct file: dist/<path>.html
+        const directFile = path.resolve(`dist${cleanPath}.html`);
+        // 2. Directory index: dist/<path>/index.html
+        const dirIndexFile = path.resolve(`dist${cleanPath}/index.html`);
+
+        const targetFile = fs.existsSync(directFile)
+          ? directFile
+          : fs.existsSync(dirIndexFile)
+          ? dirIndexFile
+          : null;
+
+        if (targetFile) {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          fs.createReadStream(targetFile).pipe(res);
+          return;
+        }
+
+        next();
+      });
+    },
+  };
 }
 
 /**
@@ -150,7 +189,7 @@ function devPrerenderPlugin() {
           modified = modified.replace(/<meta\s+name=["']description["'][\s\S]*?>/i, '');
           modified = modified.replace('</head>', `  ${headInjections}\n  </head>`);
           modified = modified.replace(
-            '<div id="root"></div>',
+            /<div id="root"[^>]*>[\s\S]*?<\/div>/i,
             `<div id="root" data-prerendered-path="${cleanPath}">${appHtml}</div>`,
           );
 
@@ -165,5 +204,5 @@ function devPrerenderPlugin() {
 }
 
 export default defineConfig({
-  plugins: [devPrerenderPlugin(), react(), tailwindcss()],
+  plugins: [devPrerenderPlugin(), previewPrerenderPlugin(), react(), tailwindcss()],
 });

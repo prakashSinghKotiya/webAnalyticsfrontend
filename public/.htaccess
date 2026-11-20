@@ -159,24 +159,42 @@ DirectorySlash Off
   RewriteRule ^whois/?$ /whois-lookup [R=301,QSA,L]
 
   # ----------------------------------------------------------------------
-  # Static Prerendered Route Resolution
-  # Maps clean URL paths to generated /<slug>/index.html internally
+  # Static Prerendered Route Resolution (Multi-level & Single-level)
+  # Maps clean URL paths to generated /<slug>/index.html or /<slug>.html internally
   # This prevents mod_dir from issuing 301 trailing-slash redirects on directories,
   # avoiding infinite redirect loops and serving prerendered HTML directly.
   # Excludes api subdomain requests.
   # ----------------------------------------------------------------------
 
+  # Specific dynamic hosting review detail routes: /reviews/:slug -> reviews/:slug/index.html or reviews/:slug.html
+  RewriteCond %{HTTP_HOST} !^api\. [NC]
+  RewriteCond %{DOCUMENT_ROOT}/reviews/$1.html -f
+  RewriteRule ^reviews/([^/]+)/?$ reviews/$1.html [QSA,L]
+
+  RewriteCond %{HTTP_HOST} !^api\. [NC]
+  RewriteCond %{DOCUMENT_ROOT}/reviews/$1/index.html -f [OR]
+  RewriteCond %{REQUEST_FILENAME}/index.html -f
+  RewriteRule ^reviews/([^/]+)/?$ reviews/$1/index.html [QSA,L]
+
   # Specific canonical prerendered tool and content routes
+  RewriteCond %{HTTP_HOST} !^api\. [NC]
+  RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+  RewriteRule ^(ttfb-test|fullsite-report|dns-checker|redirection-checker|whois-lookup|about|contact|privacy|terms|reviews)/?$ $1.html [QSA,L]
+
   RewriteCond %{HTTP_HOST} !^api\. [NC]
   RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f [OR]
   RewriteCond %{REQUEST_FILENAME}/index.html -f
   RewriteRule ^(ttfb-test|fullsite-report|dns-checker|redirection-checker|whois-lookup|about|contact|privacy|terms|reviews)/?$ $1/index.html [QSA,L]
 
-  # General rule: if any requested path is a directory containing index.html, serve that index.html directly
+  # General multi-level & single-level rules: serve corresponding .html or directory/index.html directly
+  RewriteCond %{HTTP_HOST} !^api\. [NC]
+  RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+  RewriteRule ^(.+)/?$ $1.html [QSA,L]
+
   RewriteCond %{HTTP_HOST} !^api\. [NC]
   RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f [OR]
   RewriteCond %{REQUEST_FILENAME}/index.html -f
-  RewriteRule ^([^/]+)/?$ $1/index.html [QSA,L]
+  RewriteRule ^(.+)/?$ $1/index.html [QSA,L]
 
   # Pass existing physical files directly (JS, CSS, images, robots, sitemap, etc.)
   RewriteCond %{REQUEST_FILENAME} -f
