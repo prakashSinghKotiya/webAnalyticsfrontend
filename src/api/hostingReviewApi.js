@@ -116,23 +116,100 @@ export async function getReviewByIdAdmin(id) {
 }
 
 /**
- * Create a new hosting review.
- * @param {Object} payload - { title, reviewText, providerKey, providerName?, rating?, pros?, cons?, extra? }
+ * Helper to build FormData from a review payload and optional image file and reviewer avatar file.
+ * Automatically serializes objects/arrays to JSON strings and attaches the image files.
+ * If payload is already a FormData instance, returns it directly.
+ *
+ * @param {Object|FormData} payload
+ * @param {File|null} [imageFile] - Provider logo
+ * @param {File|null} [reviewerImageFile] - Reviewer avatar image
+ * @returns {FormData}
  */
-export async function createReviewAdmin(payload) {
-  const { data } = await axiosWithCreds.post('/review/admin/create', payload);
+export function buildReviewFormData(payload, imageFile = null, reviewerImageFile = null) {
+  if (payload instanceof FormData) {
+    if (imageFile) {
+      payload.set('image', imageFile);
+    }
+    if (reviewerImageFile) {
+      payload.set('reviewerImage', reviewerImageFile);
+    }
+    return payload;
+  }
+
+  const formData = new FormData();
+  if (payload && typeof payload === 'object') {
+    for (const [key, val] of Object.entries(payload)) {
+      if (val === undefined || val === null) continue;
+      if (key === 'image') {
+        // If an explicit imageFile was passed separately, let imageFile take precedence
+        if (imageFile) {
+          continue;
+        }
+        if (val instanceof File || val instanceof Blob) {
+          formData.append('image', val);
+        } else if (typeof val === 'string' && val.trim() !== '') {
+          formData.append('image', val.trim());
+        }
+      } else if (key === 'reviewerImage' || key === 'reviewerAvatar') {
+        if (reviewerImageFile) continue;
+        if (val instanceof File || val instanceof Blob) {
+          formData.append('reviewerImage', val);
+        }
+      } else if (typeof val === 'object') {
+        formData.append(key, JSON.stringify(val));
+      } else {
+        formData.append(key, String(val));
+      }
+    }
+  }
+
+  if (imageFile) {
+    formData.set('image', imageFile);
+  }
+  if (reviewerImageFile) {
+    formData.set('reviewerImage', reviewerImageFile);
+  }
+
+  return formData;
+}
+
+/**
+ * Create a new hosting review.
+ * Sends multipart/form-data via FormData.
+ *
+ * @param {Object|FormData} payload - { title, reviewText, providerKey, providerName?, rating?, pros?, cons?, extra?, image? }
+ * @param {File|null} [imageFile] - Uploaded logo File object
+ * @param {File|null} [reviewerImageFile] - Uploaded reviewer avatar File object
+ */
+export async function createReviewAdmin(payload, imageFile = null, reviewerImageFile = null) {
+  const formData = buildReviewFormData(payload, imageFile, reviewerImageFile);
+  const { data } = await axiosWithCreds.post('/review/admin/create', formData, {
+    headers: {
+      // Allow browser to generate multipart boundary
+      'Content-Type': undefined,
+    },
+  });
   return data;
 }
 
 /**
  * Update editorial content of an existing review.
- * Note: stats and providerKey are not modified here.
+ * Sends multipart/form-data via FormData.
+ *
  * @param {number|string} id
- * @param {Object} payload - { title?, reviewText?, providerName?, rating?, pros?, cons?, extra? }
+ * @param {Object|FormData} payload - { title?, reviewText?, providerName?, rating?, pros?, cons?, extra?, image? }
+ * @param {File|null} [imageFile] - Uploaded logo File object
+ * @param {File|null} [reviewerImageFile] - Uploaded reviewer avatar File object
  */
-export async function updateReviewAdmin(id, payload) {
+export async function updateReviewAdmin(id, payload, imageFile = null, reviewerImageFile = null) {
   const cleanId = encodeURIComponent(String(id));
-  const { data } = await axiosWithCreds.put(`/review/admin/${cleanId}`, payload);
+  const formData = buildReviewFormData(payload, imageFile, reviewerImageFile);
+  const { data } = await axiosWithCreds.put(`/review/admin/${cleanId}`, formData, {
+    headers: {
+      // Allow browser to generate multipart boundary
+      'Content-Type': undefined,
+    },
+  });
   return data;
 }
 

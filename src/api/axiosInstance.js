@@ -70,6 +70,17 @@ function attachAuthHeaders(config) {
     config.headers = {};
   }
 
+  // If sending FormData, delete Content-Type so browser/Axios sets multipart/form-data with proper boundary
+  if (config.data instanceof FormData) {
+    if (typeof config.headers.delete === "function") {
+      config.headers.delete("Content-Type");
+      config.headers.delete("content-type");
+    } else {
+      delete config.headers["Content-Type"];
+      delete config.headers["content-type"];
+    }
+  }
+
   const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

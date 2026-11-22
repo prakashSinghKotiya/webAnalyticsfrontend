@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getPublicReviews } from '../../api/hostingReviewApi';
 import { PublicHeader, Footer } from '../../components';
 import { useInitialData } from '../../context/InitialDataContext';
+import { getHostingImageUrl } from '../../utils/imageUrl';
 
 /**
  * StarRating — Renders 5 star icons based on rating number (e.g. 4.8).
@@ -311,10 +312,11 @@ export default function HostingReviewsListPage() {
   useEffect(() => {
     const queryKey = `${page}_${debouncedSearchQuery}_${backendSort || 'default'}_${sortBy}`;
 
-    // If state was populated from initial SSR data, skip redundant refetch on initial mount
+    // If state was populated from initial SSR data, trigger fresh fetch so admin updates appear immediately
     if (hasMountedWithInitialDataRef.current && page === 1 && !debouncedSearchQuery && sortBy === 'rating') {
       hasMountedWithInitialDataRef.current = false;
       lastFetchKeyRef.current = queryKey;
+      fetchReviews();
       return;
     }
 
@@ -516,7 +518,8 @@ export default function HostingReviewsListPage() {
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {reviews.map((rev) => {
                   const hl = rev.headline || {};
-                  const logo = rev.extra?.logoUrl;
+                  const rawImg = rev.image || rev.extra?.logoUrl || rev.extra?.image;
+                  const logo = getHostingImageUrl(rawImg);
                   const bestFor = rev.extra?.bestFor;
                   const startingPrice = rev.extra?.startingPrice;
                   const initial = (rev.providerName || 'H').charAt(0).toUpperCase();
@@ -538,12 +541,21 @@ export default function HostingReviewsListPage() {
                                 width="48"
                                 height="48"
                                 className="h-12 w-12 rounded-xl object-contain border border-[var(--border)] bg-[var(--surface-2)] p-1.5"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.nextElementSibling) {
+                                    e.currentTarget.nextElementSibling.style.display = 'flex';
+                                  }
+                                }}
                               />
-                            ) : (
-                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--cyan)] to-[var(--green)] font-['Outfit',sans-serif] text-lg font-bold text-white shadow-xs">
-                                {initial}
-                              </div>
-                            )}
+                            ) : null}
+                            <div
+                              style={{ display: logo ? 'none' : 'flex' }}
+                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--cyan)] to-[var(--green)] font-['Outfit',sans-serif] text-lg font-bold text-white shadow-xs"
+                              aria-hidden="true"
+                            >
+                              {initial}
+                            </div>
                             <div>
                               <h2 className="font-['Outfit',sans-serif] text-lg font-bold text-[var(--text)] group-hover:text-[var(--cyan)] transition">
                                 {rev.providerName}

@@ -5,6 +5,7 @@ import { PublicHeader, Footer, SafeMarkdown, PerformanceChart } from '../../comp
 import { buildReviewDetailMetadata } from '../../seo/routes';
 import { ROUTES } from '../../constants';
 import { useInitialData } from '../../context/InitialDataContext';
+import { getHostingImageUrl } from '../../utils/imageUrl';
 import NotFound from '../Errors/NotFound';
 import ReviewCommentsSection from './components/ReviewCommentsSection';
 
@@ -127,10 +128,18 @@ export default function HostingReviewDetailPage() {
       : null
   );
 
+  const reviewRef = useRef(review);
+  useEffect(() => {
+    reviewRef.current = review;
+  }, [review]);
+
   // Fetch Review Data for the current slug (used on mount/slug change & retry)
   const loadReview = useCallback(async () => {
     if (!slug) return;
-    setLoading(true);
+    // Only show full loading spinner if we don't have initial review state
+    if (!reviewRef.current) {
+      setLoading(true);
+    }
     setNotFound(false);
     setError(null);
 
@@ -146,7 +155,7 @@ export default function HostingReviewDetailPage() {
     } catch (err) {
       if (err?.response?.status === 404) {
         setNotFound(true);
-      } else {
+      } else if (!reviewRef.current) {
         setError(
           err?.response?.data?.message ||
           err?.message ||
@@ -159,13 +168,8 @@ export default function HostingReviewDetailPage() {
   }, [slug]);
 
   useEffect(() => {
-    // If review is already populated in state for this slug (e.g. from SSR initial data), skip fetch
-    if (loadedSlugRef.current === slug && review && review.slug === slug) {
-      return;
-    }
-
+    // Always fetch fresh review data on client to reflect latest admin updates
     loadReview();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, loadReview]);
 
   // Load "More Reviews" excluding current slug
@@ -248,7 +252,8 @@ export default function HostingReviewDetailPage() {
   const extra = review?.extra || {};
   const currentYear = new Date().getFullYear();
   const providerName = review?.providerName || 'Hosting Provider';
-  const logoUrl = extra?.logoUrl;
+  const rawLogo = review?.image || extra?.logoUrl || extra?.image;
+  const logoUrl = getHostingImageUrl(rawLogo);
   const affiliateUrl = extra?.affiliateUrl || '#';
   const initial = providerName.charAt(0).toUpperCase();
 
@@ -450,12 +455,21 @@ export default function HostingReviewDetailPage() {
                     width="64"
                     height="64"
                     className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-2xl object-contain border border-[var(--border-mid)] bg-[var(--surface)] p-2 shadow-sm"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      if (e.currentTarget.nextElementSibling) {
+                        e.currentTarget.nextElementSibling.style.display = 'flex';
+                      }
+                    }}
                   />
-                ) : (
-                  <div className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--cyan)] to-[var(--green)] font-['Outfit',sans-serif] text-2xl font-black text-white shadow-md">
-                    {initial}
-                  </div>
-                )}
+                ) : null}
+                <div
+                  style={{ display: logoUrl ? 'none' : 'flex' }}
+                  className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--cyan)] to-[var(--green)] font-['Outfit',sans-serif] text-2xl font-black text-white shadow-md"
+                  aria-hidden="true"
+                >
+                  {initial}
+                </div>
 
                 <div>
                   <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -1035,17 +1049,26 @@ export default function HostingReviewDetailPage() {
                 <div className="flex items-center gap-3 mb-3">
                   {extra.expert?.avatarUrl ? (
                     <img
-                      src={extra.expert.avatarUrl}
+                      src={getHostingImageUrl(extra.expert.avatarUrl)}
                       alt={extra.expert.name || 'Reviewer avatar'}
                       width="48"
                       height="48"
-                      className="h-12 w-12 rounded-full object-cover border border-[var(--border)]"
+                      className="h-12 w-12 rounded-full object-cover border border-[var(--border)] shadow-xs"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.style.display = 'flex';
+                        }
+                      }}
                     />
-                  ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface-3)] font-['Outfit',sans-serif] text-base font-bold text-emerald-500">
-                      {(extra.expert?.name || 'M').charAt(0)}
-                    </div>
-                  )}
+                  ) : null}
+                  <div
+                    style={{ display: extra.expert?.avatarUrl ? 'none' : 'flex' }}
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500/20 to-[var(--cyan-dim)] border border-emerald-500/30 font-['Outfit',sans-serif] text-base font-bold text-emerald-500 dark:text-emerald-400"
+                    aria-hidden="true"
+                  >
+                    {(extra.expert?.name || 'M').trim().charAt(0).toUpperCase()}
+                  </div>
 
                   <div>
                     <h3 className="font-['Outfit',sans-serif] text-sm font-bold text-[var(--text)]">

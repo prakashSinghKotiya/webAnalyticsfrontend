@@ -13,6 +13,7 @@ import {
 import { useToast } from '../../../context';
 import { ROUTES } from '../../../constants';
 import { SafeMarkdown } from '../../../components';
+import { getHostingImageUrl } from '../../../utils/imageUrl';
 import AdminStatsPreviewPanel from './AdminStatsPreviewPanel';
 import AdminReviewConfirmModal from './AdminReviewConfirmModal';
 
@@ -43,19 +44,34 @@ export default function AdminHostingReviewEditor() {
   const [pros, setPros] = useState(['']);
   const [cons, setCons] = useState(['']);
 
+  // Image upload and management state
+  const [existingImageUrl, setExistingImageUrl] = useState('');
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [imageError, setImageError] = useState(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const fileInputRef = useRef(null);
+
   // Extra metadata fields
-  const [logoUrl, setLogoUrl] = useState('');
   const [affiliateUrl, setAffiliateUrl] = useState('');
   const [bestFor, setBestFor] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
   const [freeDomain, setFreeDomain] = useState(true);
   const [moneyBackGuarantee, setMoneyBackGuarantee] = useState('30 Days');
 
-  // Expert info
+  // Expert / Reviewer info
   const [expertName, setExpertName] = useState('MonitorMyHost Research Team');
   const [expertTitle, setExpertTitle] = useState('Infrastructure Performance Analyst');
   const [expertAvatarUrl, setExpertAvatarUrl] = useState('');
   const [expertBio, setExpertBio] = useState('Conducts multi-region synthetic TTFB and continuous uptime telemetry.');
+
+  // Reviewer Avatar Image state
+  const [selectedReviewerImageFile, setSelectedReviewerImageFile] = useState(null);
+  const [reviewerImagePreviewUrl, setReviewerImagePreviewUrl] = useState('');
+  const [existingReviewerAvatarUrl, setExistingReviewerAvatarUrl] = useState('');
+  const [reviewerImageError, setReviewerImageError] = useState(null);
+  const [isReviewerDraggingOver, setIsReviewerDraggingOver] = useState(false);
+  const reviewerFileInputRef = useRef(null);
 
   // Category Ratings
   const [catRatings, setCatRatings] = useState({
@@ -125,6 +141,150 @@ export default function AdminHostingReviewEditor() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
+
+  // Clean up object preview URLs on unmount or file replacement
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+      if (reviewerImagePreviewUrl && reviewerImagePreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(reviewerImagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl, reviewerImagePreviewUrl]);
+
+  // Image Selection & Drag-and-drop Handlers (Provider Logo)
+  const handleFileSelect = (file) => {
+    setImageError(null);
+    if (!file) return;
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowed.includes(file.type.toLowerCase())) {
+      setImageError('Invalid file format. Please upload a JPEG, PNG, or WebP image.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      setImageError(`File exceeds maximum size of 5 MB (Selected file: ${sizeMb} MB).`);
+      return;
+    }
+
+    if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+
+    const preview = URL.createObjectURL(file);
+    setSelectedImageFile(file);
+    setImagePreviewUrl(preview);
+    markDirty();
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleRemoveSelectedImage = () => {
+    if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setSelectedImageFile(null);
+    setImagePreviewUrl('');
+    setImageError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    markDirty();
+  };
+
+  // Reviewer Avatar Selection & Drag-and-drop Handlers
+  const handleReviewerFileSelect = (file) => {
+    setReviewerImageError(null);
+    if (!file) return;
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowed.includes(file.type.toLowerCase())) {
+      setReviewerImageError('Invalid file format. Please upload a JPEG, PNG, or WebP image.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      setReviewerImageError(`File exceeds maximum size of 5 MB (Selected file: ${sizeMb} MB).`);
+      return;
+    }
+
+    if (reviewerImagePreviewUrl && reviewerImagePreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(reviewerImagePreviewUrl);
+    }
+
+    const preview = URL.createObjectURL(file);
+    setSelectedReviewerImageFile(file);
+    setReviewerImagePreviewUrl(preview);
+    markDirty();
+  };
+
+  const handleReviewerFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleReviewerFileSelect(file);
+    }
+  };
+
+  const handleReviewerDragOver = (e) => {
+    e.preventDefault();
+    setIsReviewerDraggingOver(true);
+  };
+
+  const handleReviewerDragLeave = (e) => {
+    e.preventDefault();
+    setIsReviewerDraggingOver(false);
+  };
+
+  const handleReviewerDrop = (e) => {
+    e.preventDefault();
+    setIsReviewerDraggingOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleReviewerFileSelect(file);
+    }
+  };
+
+  const handleRemoveSelectedReviewerImage = () => {
+    if (reviewerImagePreviewUrl && reviewerImagePreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(reviewerImagePreviewUrl);
+    }
+    setSelectedReviewerImageFile(null);
+    setReviewerImagePreviewUrl('');
+    setReviewerImageError(null);
+    if (reviewerFileInputRef.current) {
+      reviewerFileInputRef.current.value = '';
+    }
+    markDirty();
+  };
 
   // 1. In Create Mode: Fetch Providers
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -198,7 +358,10 @@ export default function AdminHostingReviewEditor() {
 
           // Populate extra fields
           const ex = rev.extra || {};
-          setLogoUrl(ex.logoUrl || '');
+          const initialImg = rev.image || ex.logoUrl || '';
+          setExistingImageUrl(initialImg);
+          setSelectedImageFile(null);
+          setImagePreviewUrl('');
           setAffiliateUrl(ex.affiliateUrl || '');
           setBestFor(ex.bestFor || '');
           setStartingPrice(ex.startingPrice || '');
@@ -208,7 +371,11 @@ export default function AdminHostingReviewEditor() {
           if (ex.expert) {
             setExpertName(ex.expert.name || '');
             setExpertTitle(ex.expert.title || '');
-            setExpertAvatarUrl(ex.expert.avatarUrl || '');
+            const initialRevAvatar = ex.expert.avatarUrl || '';
+            setExpertAvatarUrl(initialRevAvatar);
+            setExistingReviewerAvatarUrl(initialRevAvatar);
+            setSelectedReviewerImageFile(null);
+            setReviewerImagePreviewUrl('');
             setExpertBio(ex.expert.bio || '');
           }
 
@@ -304,7 +471,7 @@ export default function AdminHostingReviewEditor() {
       .filter((f) => f.question && f.answer);
 
     const extraObj = {
-      logoUrl: logoUrl.trim(),
+      logoUrl: selectedImageFile ? '' : (existingImageUrl || ''),
       affiliateUrl: affiliateUrl.trim(),
       bestFor: bestFor.trim(),
       startingPrice: startingPrice.trim(),
@@ -313,7 +480,7 @@ export default function AdminHostingReviewEditor() {
       expert: {
         name: expertName.trim(),
         title: expertTitle.trim(),
-        avatarUrl: expertAvatarUrl.trim(),
+        avatarUrl: selectedReviewerImageFile ? '' : (existingReviewerAvatarUrl || ''),
         bio: expertBio.trim(),
       },
       categoryRatings: catRatings,
@@ -329,6 +496,12 @@ export default function AdminHostingReviewEditor() {
       cons: cleanCons,
       extra: extraObj,
     };
+
+    if (selectedImageFile) {
+      payload.image = selectedImageFile;
+    } else if (existingImageUrl) {
+      payload.image = existingImageUrl;
+    }
 
     if (providerName.trim()) {
       payload.providerName = providerName.trim();
@@ -392,11 +565,11 @@ export default function AdminHostingReviewEditor() {
     try {
       let savedReview;
       if (isEditMode) {
-        const res = await updateReviewAdmin(id, payload);
+        const res = await updateReviewAdmin(id, payload, selectedImageFile, selectedReviewerImageFile);
         savedReview = res.data;
         toast.success('Review editorial content updated.');
       } else {
-        const res = await createReviewAdmin(payload);
+        const res = await createReviewAdmin(payload, selectedImageFile, selectedReviewerImageFile);
         savedReview = res.data;
         toast.success(`Review for "${savedReview.providerName}" created!`);
       }
@@ -888,15 +1061,161 @@ export default function AdminHostingReviewEditor() {
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text)] mb-1">Logo URL</label>
+              {/* Image Upload Component */}
+              <div className="sm:col-span-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-[var(--text)]">
+                    Hosting Provider Image / Logo
+                  </label>
+                  <span className="text-[11px] text-[var(--muted-2)]">
+                    JPEG, PNG, WebP (Max 5 MB)
+                  </span>
+                </div>
+
+                {/* State A: User picked a new image file */}
+                {selectedImageFile ? (
+                  <div className="rounded-xl border border-[var(--cyan)]/40 bg-[var(--cyan-dim)]/20 p-4 transition">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        {imagePreviewUrl && (
+                          <img
+                            src={imagePreviewUrl}
+                            alt="Selected preview"
+                            className="h-16 w-16 object-contain rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] p-1.5 shadow-sm"
+                          />
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[var(--text)] line-clamp-1">
+                              {selectedImageFile.name}
+                            </span>
+                            <span className="rounded-md bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--cyan)] font-semibold border border-[var(--border)]">
+                              {(selectedImageFile.size / 1024).toFixed(1)} KB
+                            </span>
+                          </div>
+                          {isEditMode && existingImageUrl && (
+                            <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-amber-500 dark:text-amber-400">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="8" x2="12" y2="12" />
+                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                              </svg>
+                              Will replace existing image upon saving
+                            </p>
+                          )}
+                          {!isEditMode && (
+                            <p className="mt-1 text-[11px] text-[var(--muted-2)]">
+                              Ready to upload on save
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="rounded-lg border border-[var(--border-mid)] bg-[var(--surface)] px-2.5 py-1 text-xs font-semibold text-[var(--text)] hover:border-[var(--cyan)] transition cursor-pointer"
+                        >
+                          Change
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveSelectedImage}
+                          className="rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-500 hover:bg-red-500/20 transition cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : existingImageUrl ? (
+                  /* State B: Editing existing review with existing image */
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-4 transition">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={getHostingImageUrl(existingImageUrl)}
+                          alt="Current review logo"
+                          className="h-16 w-16 object-contain rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] p-1.5 shadow-sm"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                        <div>
+                          <p className="text-xs font-bold text-[var(--text)]">
+                            Current Image Active
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-mono text-[var(--muted-2)] truncate max-w-[280px] sm:max-w-[360px]" title={existingImageUrl}>
+                            {existingImageUrl}
+                          </p>
+                          <p className="text-[10px] text-[var(--muted-2)]">
+                            Stored on backend • Click "Upload New Image" to replace
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--cyan)] hover:text-[var(--cyan)] transition cursor-pointer self-end sm:self-auto"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        Upload New Image
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* State C: Drag and drop upload dropzone */
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition cursor-pointer ${
+                      isDraggingOver
+                        ? 'border-[var(--cyan)] bg-[var(--cyan-dim)]/20'
+                        : 'border-[var(--border-mid)] hover:border-[var(--cyan)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/60'
+                    }`}
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] shadow-xs mb-2">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                    </div>
+                    <p className="text-xs font-semibold text-[var(--text)]">
+                      <span className="text-[var(--cyan)] font-bold">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="mt-1 text-[11px] text-[var(--muted-2)]">
+                      PNG, JPEG, or WebP up to 5 MB
+                    </p>
+                  </div>
+                )}
+
                 <input
-                  type="url"
-                  value={logoUrl}
-                  onChange={(e) => { markDirty(); setLogoUrl(e.target.value); }}
-                  placeholder="https://example.com/logo.svg"
-                  className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/jpg"
+                  className="hidden"
+                  onChange={handleFileInputChange}
                 />
+
+                {imageError && (
+                  <p className="text-xs text-red-500 font-medium flex items-center gap-1 mt-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    {imageError}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -958,10 +1277,230 @@ export default function AdminHostingReviewEditor() {
             </div>
           </div>
 
+          {/* Section 4: Reviewed By & Editorial Attribution */}
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
+              <div>
+                <h2 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
+                  4. Reviewed By &amp; Editorial Attribution
+                </h2>
+                <p className="text-xs text-[var(--muted-2)] mt-0.5">
+                  Display the verified reviewer name, designation, bio, and avatar on the public review page.
+                </p>
+              </div>
+              <span className="font-['JetBrains_Mono',monospace] text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                Author Attribution
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Reviewer Name */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                  Reviewer Name
+                </label>
+                <input
+                  type="text"
+                  value={expertName}
+                  onChange={(e) => { markDirty(); setExpertName(e.target.value); }}
+                  placeholder="e.g. Prakash Kotiya, Alex Morgan"
+                  maxLength={100}
+                  className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3.5 py-2 text-xs text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none"
+                />
+                <span className="text-[10px] text-[var(--muted)]">Displays as the primary author in "Reviewed By"</span>
+              </div>
+
+              {/* Reviewer Title / Designation */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                  Reviewer Job Title / Role
+                </label>
+                <input
+                  type="text"
+                  value={expertTitle}
+                  onChange={(e) => { markDirty(); setExpertTitle(e.target.value); }}
+                  placeholder="e.g. Infrastructure Performance Analyst"
+                  maxLength={100}
+                  className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] px-3.5 py-2 text-xs text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none"
+                />
+                <span className="text-[10px] text-[var(--muted)]">Designation shown below reviewer name</span>
+              </div>
+
+              {/* Reviewer Bio */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                  Reviewer Bio / Methodology Statement
+                </label>
+                <textarea
+                  value={expertBio}
+                  onChange={(e) => { markDirty(); setExpertBio(e.target.value); }}
+                  rows={3}
+                  maxLength={500}
+                  placeholder="e.g. Conducts multi-region synthetic TTFB and continuous uptime telemetry across tier-1 cloud and shared hosting architectures."
+                  className="w-full rounded-xl border border-[var(--border-mid)] bg-[var(--surface)] p-3 text-xs text-[var(--text)] focus:border-[var(--cyan)] focus:outline-none"
+                />
+                <div className="flex justify-between text-[10px] text-[var(--muted)] mt-1 font-['JetBrains_Mono',monospace]">
+                  <span>Appears in the sidebar box next to the in-depth review</span>
+                  <span>{expertBio.length}/500</span>
+                </div>
+              </div>
+
+              {/* Reviewer Avatar Upload */}
+              <div className="sm:col-span-2 space-y-2 pt-2 border-t border-[var(--border)]">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-[var(--text)]">
+                    Reviewer Photo / Avatar
+                  </label>
+                  <span className="text-[11px] text-[var(--muted-2)]">
+                    JPEG, PNG, WebP (Max 5 MB)
+                  </span>
+                </div>
+
+                {/* State A: User picked a new reviewer avatar file */}
+                {selectedReviewerImageFile ? (
+                  <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 transition">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        {reviewerImagePreviewUrl && (
+                          <img
+                            src={reviewerImagePreviewUrl}
+                            alt="Selected reviewer avatar preview"
+                            className="h-14 w-14 rounded-full object-cover border-2 border-emerald-500 shadow-sm"
+                          />
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[var(--text)] line-clamp-1">
+                              {selectedReviewerImageFile.name}
+                            </span>
+                            <span className="rounded-md bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] font-mono text-emerald-400 font-semibold border border-[var(--border)]">
+                              {(selectedReviewerImageFile.size / 1024).toFixed(1)} KB
+                            </span>
+                          </div>
+                          {isEditMode && existingReviewerAvatarUrl && (
+                            <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-amber-500 dark:text-amber-400">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="8" x2="12" y2="12" />
+                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                              </svg>
+                              Will replace existing reviewer avatar upon saving
+                            </p>
+                          )}
+                          {!isEditMode && (
+                            <p className="mt-1 text-[11px] text-[var(--muted-2)]">
+                              Ready to upload reviewer avatar on save
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => reviewerFileInputRef.current?.click()}
+                          className="rounded-lg border border-[var(--border-mid)] bg-[var(--surface)] px-2.5 py-1 text-xs font-semibold text-[var(--text)] hover:border-emerald-500 transition cursor-pointer"
+                        >
+                          Change
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveSelectedReviewerImage}
+                          className="rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-500 hover:bg-red-500/20 transition cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : existingReviewerAvatarUrl ? (
+                  /* State B: Editing existing review with existing reviewer avatar */
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-4 transition">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={getHostingImageUrl(existingReviewerAvatarUrl)}
+                          alt="Current reviewer avatar"
+                          className="h-14 w-14 rounded-full object-cover border border-[var(--border-mid)] shadow-sm"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                        <div>
+                          <p className="text-xs font-bold text-[var(--text)]">
+                            Current Reviewer Photo Active
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-mono text-[var(--muted-2)] truncate max-w-[280px] sm:max-w-[360px]" title={existingReviewerAvatarUrl}>
+                            {existingReviewerAvatarUrl}
+                          </p>
+                          <p className="text-[10px] text-[var(--muted-2)]">
+                            Stored on backend • Click "Upload New Photo" to replace
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => reviewerFileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-mid)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-emerald-500 hover:text-emerald-500 transition cursor-pointer self-end sm:self-auto"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        Upload New Photo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* State C: Drag and drop upload dropzone */
+                  <div
+                    onDragOver={handleReviewerDragOver}
+                    onDragLeave={handleReviewerDragLeave}
+                    onDrop={handleReviewerDrop}
+                    onClick={() => reviewerFileInputRef.current?.click()}
+                    className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition cursor-pointer ${
+                      isReviewerDraggingOver
+                        ? 'border-emerald-500 bg-emerald-500/10'
+                        : 'border-[var(--border-mid)] bg-[var(--surface-2)]/30 hover:border-emerald-500/60'
+                    }`}
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface-3)] text-[var(--muted-2)] mb-2">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                    </div>
+                    <p className="text-xs font-semibold text-[var(--text)]">
+                      Drop reviewer photo here or <span className="text-emerald-500 underline">browse</span>
+                    </p>
+                    <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                      Square format recommended (1:1 ratio) • JPEG, PNG, or WebP up to 5 MB
+                    </p>
+                  </div>
+                )}
+
+                {/* Hidden File Input */}
+                <input
+                  ref={reviewerFileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/jpg"
+                  onChange={handleReviewerFileInputChange}
+                  className="hidden"
+                />
+
+                {reviewerImageError && (
+                  <p className="text-xs text-rose-400 font-medium">{reviewerImageError}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Section 5: Category Ratings */}
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm space-y-3">
             <h2 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)] border-b border-[var(--border)] pb-2.5">
-              4. Category Ratings (0.0 to 5.0)
+              5. Category Ratings (0.0 to 5.0)
             </h2>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -992,7 +1531,7 @@ export default function AdminHostingReviewEditor() {
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
               <h2 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-                5. Pricing Plans ({plans.length})
+                6. Pricing Plans ({plans.length})
               </h2>
               <button
                 type="button"
@@ -1115,7 +1654,7 @@ export default function AdminHostingReviewEditor() {
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
               <h2 className="font-['Outfit',sans-serif] text-base font-bold text-[var(--text)]">
-                6. Frequently Asked Questions ({faqs.length})
+                7. Frequently Asked Questions ({faqs.length})
               </h2>
               <button
                 type="button"

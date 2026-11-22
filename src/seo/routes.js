@@ -621,7 +621,16 @@ export function buildReviewDetailMetadata(review, slug) {
   const title = `${provider} Review ${currentYear}: Real Uptime & Speed Test | MonitorMyHost`.slice(0, 60);
   const description = `${provider} averaged ${uptime} uptime and ${avg}ms response across ${checks} checks. Read our expert review, pros, cons and pricing.`.slice(0, 155);
   const canonical = `${CANONICAL_HOST}/reviews/${slug}`;
-  const logo = review?.extra?.logoUrl || `${CANONICAL_HOST}/og-image.png`;
+  const rawLogo = review?.image || review?.extra?.logoUrl || review?.extra?.image;
+  let logo = `${CANONICAL_HOST}/og-image.png`;
+  if (rawLogo && typeof rawLogo === 'string') {
+    const trimmed = rawLogo.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      logo = trimmed;
+    } else if (trimmed.startsWith('/')) {
+      logo = `https://api.monitormyhost.com${trimmed}`;
+    }
+  }
 
   const structuredData = [
     {
