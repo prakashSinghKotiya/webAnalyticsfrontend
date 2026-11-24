@@ -75,9 +75,11 @@ function MxRecordView({ records = [], extraIps = {}, isDemo = false }) {
       {/* Rows */}
       <div className="flex flex-col divide-y divide-[var(--border)]">
         {records.map((item, idx) => {
-          const resolvedIpInfo = extraIps[item.exchange];
+          if (!item) return null;
+          const exchangeKey = item.exchange || item.host || '';
+          const resolvedIpInfo = exchangeKey ? extraIps[exchangeKey] : null;
           const displayIp = item.ip || resolvedIpInfo?.ip || '';
-          const displayCountry = item.country || resolvedIpInfo?.country || { flag: '🇺🇸', code: 'US' };
+          const displayCountry = item.country || resolvedIpInfo?.country || { flag: '🌐', code: 'US' };
 
           return (
             <div
@@ -515,22 +517,26 @@ function CaaRecordView({ records = [] }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {records.map((item, idx) => (
-        <div
-          key={idx}
-          className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-xs"
-        >
-          <div className="flex items-center gap-2.5 font-['JetBrains_Mono',monospace]">
-            <span className="rounded bg-[var(--surface-3)] px-2 py-0.5 text-[10px] font-bold text-[var(--cyan)]">
-              {item.critical === 0 ? 'Normal (0)' : 'Critical (128)'}
-            </span>
-            {item.ttl && <span className="text-[10px] text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">TTL: {item.ttl}s</span>}
-            <span className="text-[var(--muted-2)]">{item.tag}:</span>
-            <span className="font-semibold text-[var(--text)]">{item.value}</span>
+      {records.map((item, idx) => {
+        if (!item) return null;
+        const displayVal = item.value != null ? String(item.value) : '';
+        return (
+          <div
+            key={idx}
+            className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-xs"
+          >
+            <div className="flex items-center gap-2.5 font-['JetBrains_Mono',monospace]">
+              <span className="rounded bg-[var(--surface-3)] px-2 py-0.5 text-[10px] font-bold text-[var(--cyan)]">
+                {item.critical === 0 ? 'Normal (0)' : 'Critical (128)'}
+              </span>
+              {item.ttl && <span className="text-[10px] text-[var(--muted-2)] font-['JetBrains_Mono',monospace]">TTL: {item.ttl}s</span>}
+              <span className="text-[var(--muted-2)]">{item.tag || 'tag'}:</span>
+              <span className="font-semibold text-[var(--text)]">{displayVal}</span>
+            </div>
+            {displayVal && <CopyButton text={displayVal} label="Copy" />}
           </div>
-          <CopyButton text={item.value} label="Copy" />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -616,7 +622,13 @@ function DnsHealthInsights({ records }) {
 
     // Email Security (SPF) Check
     const txtData = records.TXT?.data || [];
-    const hasSpf = Array.isArray(txtData) && txtData.some((t) => String(t).includes('v=spf1'));
+    const hasSpf =
+      records.SPF?.status === 'found' ||
+      (Array.isArray(txtData) &&
+        txtData.some((t) => {
+          const val = typeof t === 'object' && t !== null ? t.text || t.value || '' : String(t || '');
+          return val.includes('v=spf1');
+        }));
     const hasMx = records.MX?.status === 'found';
 
     if (hasMx) {
@@ -842,6 +854,16 @@ function DnsResultSection({
 
   // Error state
   if (error) {
+    const isProcessingError =
+      (typeof error === 'object' && error?.isProcessingError) ||
+      (typeof error === 'string' && error.toLowerCase().includes('processing'));
+    const errorTitle = typeof error === 'object' && error?.title
+      ? error.title
+      : isProcessingError
+        ? 'DNS Data Processing Error'
+        : 'DNS Resolution Failed';
+    const errorMessage = typeof error === 'object' ? error.message : String(error);
+
     return (
       <section role="alert" className="fade-up rounded-2xl border border-[var(--red)]/30 bg-[var(--red)]/10 p-6 text-sm">
         <div className="flex items-start gap-3">
@@ -849,8 +871,8 @@ function DnsResultSection({
             !
           </span>
           <div className="flex-1">
-            <h3 className="font-['Outfit',sans-serif] font-bold text-[var(--text)]">DNS Resolution Failed</h3>
-            <p className="mt-1 text-xs leading-relaxed text-[var(--muted-2)]">{error}</p>
+            <h3 className="font-['Outfit',sans-serif] font-bold text-[var(--text)]">{errorTitle}</h3>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--muted-2)]">{errorMessage}</p>
             {onReRun && (
               <button
                 type="button"

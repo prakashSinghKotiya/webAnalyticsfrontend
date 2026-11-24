@@ -2,10 +2,15 @@ import { memo, useCallback } from 'react';
 import { formatDuration, relativeTime } from '../dns.utils';
 
 function HistoryRow({ entry, isActive, onSelect }) {
-  const handleSelect = useCallback(() => onSelect(entry), [entry, onSelect]);
+  const handleSelect = useCallback(() => {
+    if (entry) onSelect(entry);
+  }, [entry, onSelect]);
+
+  if (!entry) return null;
 
   const foundCount = entry.summary?.found ?? 0;
   const domainExists = entry.summary?.domainExists !== false;
+  const displayHost = entry.hostname || entry.url || '—';
 
   return (
     <li
@@ -23,7 +28,7 @@ function HistoryRow({ entry, isActive, onSelect }) {
       >
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate font-['JetBrains_Mono',monospace] text-xs font-semibold text-[var(--text)]">
-            {entry.hostname || entry.url}
+            {displayHost}
           </p>
           <span
             className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
@@ -179,7 +184,7 @@ function DnsHistorySection({
       ) : (
         <div className="flex flex-col gap-2">
           <ul className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
-            {history.map((entry) => (
+            {history.filter(Boolean).map((entry) => (
               <HistoryRow
                 key={entry.id || entry.dbId}
                 entry={entry}

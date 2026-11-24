@@ -229,9 +229,11 @@ export function extractSpfRecord(txtRecords) {
   if (!txtRecords) return null;
   const list = Array.isArray(txtRecords) ? txtRecords : [txtRecords];
   for (const item of list) {
-    const str = String(item).trim();
-    if (/^v=spf1(\s|$)/i.test(str)) {
-      return str;
+    if (item == null) continue;
+    const str = typeof item === 'object' ? (item.value || item.text || '') : String(item);
+    const trimmed = str.trim();
+    if (/^v=spf1(\s|$)/i.test(trimmed)) {
+      return trimmed;
     }
   }
   return null;
@@ -239,7 +241,7 @@ export function extractSpfRecord(txtRecords) {
 
 /** Parse SPF mechanisms into structured tokens */
 export function parseSpfMechanisms(spfStr) {
-  if (!spfStr) return { valid: false, version: 'spf1', mechanisms: [], raw: '' };
+  if (!spfStr || typeof spfStr !== 'string') return { valid: false, version: 'spf1', mechanisms: [], raw: '' };
   const parts = spfStr.split(/\s+/).filter(Boolean);
   const version = parts[0] || 'v=spf1';
   const mechanisms = parts.slice(1).map((part) => {
@@ -291,8 +293,8 @@ export function normalizeRecordSource(records, type) {
   if (!records || typeof records !== 'object') {
     return { found: false, list: [], status: 'not_found' };
   }
-  const upper = type.toUpperCase();
-  const lower = type.toLowerCase();
+  const upper = String(type).toUpperCase();
+  const lower = String(type).toLowerCase();
   const raw = records[upper] !== undefined ? records[upper] : records[lower];
 
   if (!raw) {
@@ -300,24 +302,33 @@ export function normalizeRecordSource(records, type) {
   }
 
   if (Array.isArray(raw)) {
+    const list = raw.filter((item) => item != null);
     return {
-      found: raw.length > 0,
-      list: raw,
-      status: raw.length > 0 ? 'found' : 'not_found',
+      found: list.length > 0,
+      list,
+      status: list.length > 0 ? 'found' : 'not_found',
     };
   }
 
-  if (typeof raw === 'object') {
+  if (typeof raw === 'object' && raw !== null) {
     if (raw.data !== undefined) {
-      const list = Array.isArray(raw.data) ? raw.data : raw.data != null ? [raw.data] : [];
-      const found = raw.status === 'found' || list.length > 0;
+      const rawDataList = Array.isArray(raw.data) ? raw.data : raw.data != null ? [raw.data] : [];
+      const list = rawDataList.filter((item) => item != null);
+      const found = list.length > 0;
       return {
         found,
         list,
-        status: raw.status || (found ? 'found' : 'not_found'),
+        status: found ? 'found' : (raw.status || 'not_found'),
       };
     }
     // Single object structure (e.g. SOA object or single record)
+    if (raw.status && raw.status !== 'found' && !raw.mname && !raw.nsname && !raw.value && !raw.ip && !raw.address) {
+      return {
+        found: false,
+        list: [],
+        status: raw.status || 'not_found',
+      };
+    }
     return {
       found: true,
       list: [raw],
@@ -344,273 +355,424 @@ export function normalizeRecordSource(records, type) {
  */
 export function extractAllRecordTypes(records = {}, hostname = '') {
   const result = {};
+  const safeRecords = records && typeof records === 'object' ? records : {};
 
   // 1. A Records
-  const aSrc = normalizeRecordSource(records, 'A');
-  const aData = aSrc.found
-    ? aSrc.list.map((item) => {
-        const address = typeof item === 'object' ? item.address || item.ip || '' : String(item);
-        const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
-        return {
-          host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
-          address,
-          ttl,
-          class: 'IN',
-          type: 'A',
-          country: detectIpCountry(address, typeof item === 'object' ? item.name || hostname : hostname),
-        };
-      })
-    : [];
-  result.A = {
-    type: 'A',
-    count: aData.length,
-    label: aData.length > 0 ? `A (${aData.length} Records)` : 'A',
-    status: aData.length > 0 ? 'found' : aSrc.status,
-    data: aData,
-  };
+  try {
+    const aSrc = normalizeRecordSource(safeRecords, 'A');
+    const aData = aSrc.found
+      ? aSrc.list
+          .map((item) => {
+            if (!item) return null;
+            const isObj = typeof item === 'object' && item !== null;
+            const address = isObj ? item.address || item.ip || '' : String(item);
+            if (!address) return null;
+            const ttl = isObj ? (item.ttl ?? 300) : 300;
+            const host = isObj ? item.name || hostname || '@' : hostname || '@';
+            return {
+              host,
+              address,
+              ttl,
+              class: 'IN',
+              type: 'A',
+              country: detectIpCountry(address, host),
+            };
+          })
+          .filter(Boolean)
+      : [];
+    result.A = {
+      type: 'A',
+      count: aData.length,
+      label: aData.length > 0 ? `A (${aData.length} Records)` : 'A',
+      status: aData.length > 0 ? 'found' : aSrc.status,
+      data: aData,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting A records:', err);
+    result.A = { type: 'A', count: 0, label: 'A', status: 'error', data: [] };
+  }
 
   // 2. AAAA Records
-  const aaaaSrc = normalizeRecordSource(records, 'AAAA');
-  const aaaaData = aaaaSrc.found
-    ? aaaaSrc.list.map((item) => {
-        const address = typeof item === 'object' ? item.address || item.ip || '' : String(item);
-        const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
-        return {
-          host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
-          address,
-          ttl,
-          class: 'IN',
-          type: 'AAAA',
-        };
-      })
-    : [];
-  result.AAAA = {
-    type: 'AAAA',
-    count: aaaaData.length,
-    label: aaaaData.length > 0 ? `AAAA (${aaaaData.length} Records)` : 'AAAA',
-    status: aaaaData.length > 0 ? 'found' : aaaaSrc.status,
-    data: aaaaData,
-  };
+  try {
+    const aaaaSrc = normalizeRecordSource(safeRecords, 'AAAA');
+    const aaaaData = aaaaSrc.found
+      ? aaaaSrc.list
+          .map((item) => {
+            if (!item) return null;
+            const isObj = typeof item === 'object' && item !== null;
+            const address = isObj ? item.address || item.ip || '' : String(item);
+            if (!address) return null;
+            const ttl = isObj ? (item.ttl ?? 300) : 300;
+            return {
+              host: isObj ? item.name || hostname || '@' : hostname || '@',
+              address,
+              ttl,
+              class: 'IN',
+              type: 'AAAA',
+            };
+          })
+          .filter(Boolean)
+      : [];
+    result.AAAA = {
+      type: 'AAAA',
+      count: aaaaData.length,
+      label: aaaaData.length > 0 ? `AAAA (${aaaaData.length} Records)` : 'AAAA',
+      status: aaaaData.length > 0 ? 'found' : aaaaSrc.status,
+      data: aaaaData,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting AAAA records:', err);
+    result.AAAA = { type: 'AAAA', count: 0, label: 'AAAA', status: 'error', data: [] };
+  }
 
   // 3. CNAME Records
-  const cnameSrc = normalizeRecordSource(records, 'CNAME');
-  const cnameList = cnameSrc.found
-    ? cnameSrc.list.map((item) => {
-        const target = typeof item === 'object' ? item.value || item.target || '' : String(item);
-        const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
-        return {
-          host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
-          target,
-          ttl,
-          class: 'IN',
-          type: 'CNAME',
-        };
-      })
-    : [];
-  result.CNAME = {
-    type: 'CNAME',
-    count: cnameList.length,
-    label: cnameList.length > 0 ? `CNAME (${cnameList.length} Records)` : 'CNAME',
-    status: cnameList.length > 0 ? 'found' : cnameSrc.status,
-    data: cnameList,
-  };
+  try {
+    const cnameSrc = normalizeRecordSource(safeRecords, 'CNAME');
+    const cnameList = cnameSrc.found
+      ? cnameSrc.list
+          .map((item) => {
+            if (!item) return null;
+            const isObj = typeof item === 'object' && item !== null;
+            const target = isObj
+              ? item.canonical || item.value || item.target || item.data || ''
+              : String(item);
+            if (!target) return null;
+            const ttl = isObj ? (item.ttl ?? 300) : 300;
+            return {
+              host: isObj ? item.name || hostname || '@' : hostname || '@',
+              target,
+              ttl,
+              class: 'IN',
+              type: 'CNAME',
+            };
+          })
+          .filter(Boolean)
+      : [];
+    result.CNAME = {
+      type: 'CNAME',
+      count: cnameList.length,
+      label: cnameList.length > 0 ? `CNAME (${cnameList.length} Records)` : 'CNAME',
+      status: cnameList.length > 0 ? 'found' : cnameSrc.status,
+      data: cnameList,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting CNAME records:', err);
+    result.CNAME = { type: 'CNAME', count: 0, label: 'CNAME', status: 'error', data: [] };
+  }
 
   // 4. MX Records
-  const mxSrc = normalizeRecordSource(records, 'MX');
-  const mxList = mxSrc.found
-    ? mxSrc.list.map((item) => {
-        let exchange = '';
-        let priority = 10;
-        let ip = '';
-        if (typeof item === 'object') {
-          exchange = item.exchange || item.mx || item.host || '';
-          priority = item.priority ?? item.preference ?? 10;
-          ip = item.ip || item.address || '';
-        } else if (typeof item === 'string') {
-          const parts = item.trim().split(/\s+/);
-          if (parts.length >= 2 && !isNaN(parts[0])) {
-            priority = parseInt(parts[0], 10);
-            exchange = parts[1];
-          } else {
-            exchange = item;
-          }
-        }
-        const country = detectIpCountry(ip, exchange);
-        return {
-          priority,
-          exchange,
-          host: typeof item === 'object' ? item.name || exchange : exchange,
-          ip,
-          ttl: typeof item === 'object' ? item.ttl ?? item.mxTtl ?? 300 : 300,
-          country,
-          class: 'IN',
-          type: 'MX',
-        };
-      })
-    : [];
-  result.MX = {
-    type: 'MX',
-    count: mxList.length,
-    label: mxList.length > 0 ? `MX (${mxList.length} Records)` : 'MX',
-    status: mxList.length > 0 ? 'found' : mxSrc.status,
-    data: mxList,
-  };
+  try {
+    const mxSrc = normalizeRecordSource(safeRecords, 'MX');
+    const mxList = mxSrc.found
+      ? mxSrc.list
+          .map((item) => {
+            if (!item) return null;
+            let exchange = '';
+            let priority = 10;
+            let ip = '';
+            let ttl = 300;
+            const isObj = typeof item === 'object' && item !== null;
+            if (isObj) {
+              exchange = item.exchange || item.mx || item.host || '';
+              priority = item.priority ?? item.preference ?? 10;
+              ip = item.ip || item.address || '';
+              ttl = item.ttl ?? item.mxTtl ?? 300;
+            } else if (typeof item === 'string') {
+              const parts = item.trim().split(/\s+/);
+              if (parts.length >= 2 && !isNaN(parts[0])) {
+                priority = parseInt(parts[0], 10);
+                exchange = parts[1];
+              } else {
+                exchange = item;
+              }
+            }
+            if (!exchange && !ip) return null;
+            const country = detectIpCountry(ip, exchange);
+            return {
+              priority,
+              exchange,
+              host: isObj ? item.name || exchange : exchange,
+              ip,
+              ttl,
+              country,
+              class: 'IN',
+              type: 'MX',
+            };
+          })
+          .filter(Boolean)
+      : [];
+    result.MX = {
+      type: 'MX',
+      count: mxList.length,
+      label: mxList.length > 0 ? `MX (${mxList.length} Records)` : 'MX',
+      status: mxList.length > 0 ? 'found' : mxSrc.status,
+      data: mxList,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting MX records:', err);
+    result.MX = { type: 'MX', count: 0, label: 'MX', status: 'error', data: [] };
+  }
 
   // 5. NS Records
-  const nsSrc = normalizeRecordSource(records, 'NS');
-  const nsList = nsSrc.found
-    ? nsSrc.list.map((ns) => {
-        const nameserver = typeof ns === 'object' ? ns.value || ns.nameserver || ns.target || '' : String(ns);
-        const ttl = typeof ns === 'object' ? ns.ttl ?? 300 : 300;
-        return {
-          host: typeof ns === 'object' ? ns.name || hostname || '@' : hostname || '@',
-          nameserver,
-          ttl,
-          class: 'IN',
-          type: 'NS',
-        };
-      })
-    : [];
-  result.NS = {
-    type: 'NS',
-    count: nsList.length,
-    label: nsList.length > 0 ? `NS (${nsList.length} Records)` : 'NS',
-    status: nsList.length > 0 ? 'found' : nsSrc.status,
-    data: nsList,
-  };
+  try {
+    const nsSrc = normalizeRecordSource(safeRecords, 'NS');
+    const nsList = nsSrc.found
+      ? nsSrc.list
+          .map((ns) => {
+            if (!ns) return null;
+            const isObj = typeof ns === 'object' && ns !== null;
+            const nameserver = isObj
+              ? ns.value || ns.nameserver || ns.target || ns.data || ''
+              : String(ns);
+            if (!nameserver) return null;
+            const ttl = isObj ? (ns.ttl ?? 300) : 300;
+            return {
+              host: isObj ? ns.name || hostname || '@' : hostname || '@',
+              nameserver,
+              ttl,
+              class: 'IN',
+              type: 'NS',
+            };
+          })
+          .filter(Boolean)
+      : [];
+    result.NS = {
+      type: 'NS',
+      count: nsList.length,
+      label: nsList.length > 0 ? `NS (${nsList.length} Records)` : 'NS',
+      status: nsList.length > 0 ? 'found' : nsSrc.status,
+      data: nsList,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting NS records:', err);
+    result.NS = { type: 'NS', count: 0, label: 'NS', status: 'error', data: [] };
+  }
 
   // 6. PTR Records
-  const ptrSrc = normalizeRecordSource(records, 'PTR');
-  const ptrList = ptrSrc.found
-    ? ptrSrc.list.map((item) => {
-        const target = typeof item === 'object' ? item.value || item.target || '' : String(item);
-        const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
-        return {
-          host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
-          target,
-          ttl,
-          class: 'IN',
-          type: 'PTR',
-        };
-      })
-    : [];
-  result.PTR = {
-    type: 'PTR',
-    count: ptrList.length,
-    label: ptrList.length > 0 ? `PTR (${ptrList.length} Records)` : 'PTR',
-    status: ptrList.length > 0 ? 'found' : ptrSrc.status,
-    data: ptrList,
-  };
+  try {
+    const ptrSrc = normalizeRecordSource(safeRecords, 'PTR');
+    const ptrList = ptrSrc.found
+      ? ptrSrc.list
+          .map((item) => {
+            if (!item) return null;
+            const isObj = typeof item === 'object' && item !== null;
+            const target = isObj
+              ? item.value || item.target || item.ptrdname || item.data || ''
+              : String(item);
+            if (!target) return null;
+            const ttl = isObj ? (item.ttl ?? 300) : 300;
+            return {
+              host: isObj ? item.name || hostname || '@' : hostname || '@',
+              target,
+              ttl,
+              class: 'IN',
+              type: 'PTR',
+            };
+          })
+          .filter(Boolean)
+      : [];
+    result.PTR = {
+      type: 'PTR',
+      count: ptrList.length,
+      label: ptrList.length > 0 ? `PTR (${ptrList.length} Records)` : 'PTR',
+      status: ptrList.length > 0 ? 'found' : ptrSrc.status,
+      data: ptrList,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting PTR records:', err);
+    result.PTR = { type: 'PTR', count: 0, label: 'PTR', status: 'error', data: [] };
+  }
 
   // 7. SOA Records
-  const soaSrc = normalizeRecordSource(records, 'SOA');
-  const soaDataRaw = soaSrc.found ? (Array.isArray(soaSrc.list) ? soaSrc.list[0] : soaSrc.list) : null;
-  const mappedSoa = soaDataRaw
-    ? {
-        nsname: soaDataRaw.nsname || soaDataRaw.mname || soaDataRaw.primary || '',
-        hostmaster: soaDataRaw.hostmaster || soaDataRaw.rname || soaDataRaw.admin || '',
-        serial: soaDataRaw.serial,
-        refresh: soaDataRaw.refresh,
-        retry: soaDataRaw.retry,
-        expire: soaDataRaw.expire,
-        minttl: soaDataRaw.minttl || soaDataRaw.minimum || soaDataRaw.ttl,
-      }
-    : null;
-  result.SOA = {
-    type: 'SOA',
-    count: mappedSoa ? 1 : 0,
-    label: mappedSoa ? 'SOA (1 Records)' : 'SOA',
-    status: mappedSoa ? 'found' : soaSrc.status,
-    data: mappedSoa,
-  };
+  try {
+    const soaSrc = normalizeRecordSource(safeRecords, 'SOA');
+    const soaDataRaw = soaSrc.found
+      ? (Array.isArray(soaSrc.list)
+          ? soaSrc.list.find((x) => x && typeof x === 'object')
+          : (soaSrc.list && typeof soaSrc.list === 'object' ? soaSrc.list : null))
+      : null;
+    const mappedSoa = soaDataRaw
+      ? {
+          nsname: soaDataRaw.nsname || soaDataRaw.mname || soaDataRaw.primary || '',
+          hostmaster: soaDataRaw.hostmaster || soaDataRaw.rname || soaDataRaw.admin || '',
+          serial: soaDataRaw.serial ?? null,
+          refresh: soaDataRaw.refresh ?? null,
+          retry: soaDataRaw.retry ?? null,
+          expire: soaDataRaw.expire ?? null,
+          minttl: soaDataRaw.minttl ?? soaDataRaw.minimum ?? soaDataRaw.ttl ?? null,
+        }
+      : null;
+    result.SOA = {
+      type: 'SOA',
+      count: mappedSoa ? 1 : 0,
+      label: mappedSoa ? 'SOA (1 Records)' : 'SOA',
+      status: mappedSoa ? 'found' : soaSrc.status,
+      data: mappedSoa,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting SOA records:', err);
+    result.SOA = { type: 'SOA', count: 0, label: 'SOA', status: 'error', data: null };
+  }
 
   // 8. SPF (Extracted from TXT or direct)
-  const txtSrc = normalizeRecordSource(records, 'TXT');
-  const rawTxtArray = txtSrc.found ? txtSrc.list : [];
-  const allTxtList = rawTxtArray.map((item) => {
-    if (Array.isArray(item)) return item.join('');
-    if (typeof item === 'object') return item.value || item.text || item.data || JSON.stringify(item);
-    return String(item);
-  });
-  const spfSrc = normalizeRecordSource(records, 'SPF');
-  const spfDirect = spfSrc.found ? (Array.isArray(spfSrc.list) ? spfSrc.list[0] : spfSrc.list) : null;
-  const spfString = extractSpfRecord(allTxtList) || (typeof spfDirect === 'object' ? spfDirect.value || spfDirect.text : spfDirect);
-  const spfParsed = spfString ? parseSpfMechanisms(spfString) : null;
-  result.SPF = {
-    type: 'SPF',
-    count: spfString ? 1 : 0,
-    label: spfString ? 'SPF (1 Records)' : 'SPF',
-    status: spfString ? 'found' : 'not_found',
-    data: spfParsed,
-  };
+  let allTxtList = [];
+  try {
+    const txtSrc = normalizeRecordSource(safeRecords, 'TXT');
+    const rawTxtArray = txtSrc.found ? txtSrc.list : [];
+    allTxtList = rawTxtArray
+      .filter((item) => item != null)
+      .map((item) => {
+        if (Array.isArray(item)) return item.filter((x) => x != null).join('');
+        if (typeof item === 'object' && item !== null) {
+          return item.value != null ? String(item.value) : (item.text != null ? String(item.text) : (item.data != null ? String(item.data) : JSON.stringify(item)));
+        }
+        return String(item ?? '');
+      })
+      .filter((str) => str.trim().length > 0);
+
+    const spfSrc = normalizeRecordSource(safeRecords, 'SPF');
+    const spfDirect = spfSrc.found
+      ? (Array.isArray(spfSrc.list) ? spfSrc.list.find((x) => x != null) : spfSrc.list)
+      : null;
+
+    let spfDirectValue = '';
+    if (spfDirect && typeof spfDirect === 'object') {
+      spfDirectValue = spfDirect.value != null ? String(spfDirect.value) : (spfDirect.text != null ? String(spfDirect.text) : (spfDirect.data != null ? String(spfDirect.data) : ''));
+    } else if (typeof spfDirect === 'string') {
+      spfDirectValue = spfDirect;
+    }
+
+    const spfString = extractSpfRecord(allTxtList) || (spfDirectValue ? spfDirectValue.trim() : null);
+    const spfParsed = spfString ? parseSpfMechanisms(spfString) : null;
+    result.SPF = {
+      type: 'SPF',
+      count: spfString ? 1 : 0,
+      label: spfString ? 'SPF (1 Records)' : 'SPF',
+      status: spfString ? 'found' : 'not_found',
+      data: spfParsed,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting SPF records:', err);
+    result.SPF = { type: 'SPF', count: 0, label: 'SPF', status: 'error', data: null };
+  }
 
   // 9. TXT Records (remaining non-SPF records, or all TXT records)
-  const txtDisplayData = allTxtList.filter((item) => {
-    return !/^v=spf1(\s|$)/i.test(String(item).trim());
-  });
-  const finalTxtList = txtDisplayData.length > 0 ? txtDisplayData : allTxtList;
+  try {
+    const txtSrc = normalizeRecordSource(safeRecords, 'TXT');
+    const txtDisplayData = allTxtList.filter((item) => {
+      return !/^v=spf1(\s|$)/i.test(String(item).trim());
+    });
+    const finalTxtList = txtDisplayData.length > 0 ? txtDisplayData : allTxtList;
 
-  result.TXT = {
-    type: 'TXT',
-    count: finalTxtList.length,
-    label: finalTxtList.length > 0 ? `TXT (${finalTxtList.length} Records)` : 'TXT',
-    status: finalTxtList.length > 0 ? 'found' : txtSrc.status,
-    data: finalTxtList.map((item) => {
-      const text = typeof item === 'object' ? item.value || item.text || JSON.stringify(item) : String(item);
-      const ttl = typeof item === 'object' ? item.ttl ?? 300 : 300;
-      return {
-        host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
-        text,
-        ttl,
-        ...classifyTxtRecord(text),
-      };
-    }),
-  };
+    const txtData = finalTxtList
+      .map((item) => {
+        if (item == null) return null;
+        const isObj = typeof item === 'object' && item !== null;
+        const text = isObj
+          ? (item.value != null ? String(item.value) : (item.text != null ? String(item.text) : JSON.stringify(item)))
+          : String(item);
+        const ttl = isObj ? (item.ttl ?? 300) : 300;
+        return {
+          host: isObj ? item.name || hostname || '@' : hostname || '@',
+          text,
+          ttl,
+          ...classifyTxtRecord(text),
+        };
+      })
+      .filter(Boolean);
+
+    result.TXT = {
+      type: 'TXT',
+      count: txtData.length,
+      label: txtData.length > 0 ? `TXT (${txtData.length} Records)` : 'TXT',
+      status: txtData.length > 0 ? 'found' : txtSrc.status,
+      data: txtData,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting TXT records:', err);
+    result.TXT = { type: 'TXT', count: 0, label: 'TXT', status: 'error', data: [] };
+  }
 
   // 10. CAA Records
-  const caaSrc = normalizeRecordSource(records, 'CAA');
-  const caaList = caaSrc.found
-    ? caaSrc.list.map((item) => ({
-        host: typeof item === 'object' ? item.name || hostname || '@' : hostname || '@',
-        critical: typeof item === 'object' ? item.critical ?? 0 : 0,
-        tag: typeof item === 'object' ? item.tag || (item.issue ? 'issue' : item.issuewild ? 'issuewild' : item.iodef ? 'iodef' : 'tag') : 'tag',
-        value: typeof item === 'object' ? item.value || item.issue || item.issuewild || item.iodef || JSON.stringify(item) : String(item),
-        ttl: typeof item === 'object' ? item.ttl ?? 300 : 300,
-        class: 'IN',
-        type: 'CAA',
-      }))
-    : [];
-  result.CAA = {
-    type: 'CAA',
-    count: caaList.length,
-    label: caaList.length > 0 ? `CAA (${caaList.length} Records)` : 'CAA',
-    status: caaList.length > 0 ? 'found' : caaSrc.status,
-    data: caaList,
-  };
+  try {
+    const caaSrc = normalizeRecordSource(safeRecords, 'CAA');
+    const caaList = caaSrc.found
+      ? caaSrc.list
+          .map((item) => {
+            if (!item) return null;
+            const isObj = typeof item === 'object' && item !== null;
+            if (!isObj) {
+              return {
+                host: hostname || '@',
+                critical: 0,
+                tag: 'issue',
+                value: String(item),
+                ttl: 300,
+                class: 'IN',
+                type: 'CAA',
+              };
+            }
+            const val =
+              item.value ?? item.issue ?? item.issuewild ?? item.iodef ?? '';
+            return {
+              host: item.name || hostname || '@',
+              critical: item.critical ?? item.flags ?? 0,
+              tag: item.tag || (item.issue ? 'issue' : item.issuewild ? 'issuewild' : item.iodef ? 'iodef' : 'tag'),
+              value: typeof val === 'object' ? JSON.stringify(val) : String(val),
+              ttl: item.ttl ?? 300,
+              class: 'IN',
+              type: 'CAA',
+            };
+          })
+          .filter(Boolean)
+      : [];
+    result.CAA = {
+      type: 'CAA',
+      count: caaList.length,
+      label: caaList.length > 0 ? `CAA (${caaList.length} Records)` : 'CAA',
+      status: caaList.length > 0 ? 'found' : caaSrc.status,
+      data: caaList,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting CAA records:', err);
+    result.CAA = { type: 'CAA', count: 0, label: 'CAA', status: 'error', data: [] };
+  }
 
   // 11. DS Records (DNSSEC)
-  const dsSrc = normalizeRecordSource(records, 'DS');
-  const dsList = dsSrc.found ? (Array.isArray(dsSrc.list) ? dsSrc.list : [dsSrc.list]) : [];
-  result.DS = {
-    type: 'DS',
-    count: dsList.length,
-    label: dsList.length > 0 ? `DS (${dsList.length} Records)` : 'DS',
-    status: dsList.length > 0 ? 'found' : 'not_found',
-    data: dsList,
-  };
+  try {
+    const dsSrc = normalizeRecordSource(safeRecords, 'DS');
+    const dsRawList = dsSrc.found ? (Array.isArray(dsSrc.list) ? dsSrc.list : [dsSrc.list]) : [];
+    const dsList = dsRawList.filter((item) => item != null);
+    result.DS = {
+      type: 'DS',
+      count: dsList.length,
+      label: dsList.length > 0 ? `DS (${dsList.length} Records)` : 'DS',
+      status: dsList.length > 0 ? 'found' : 'not_found',
+      data: dsList,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting DS records:', err);
+    result.DS = { type: 'DS', count: 0, label: 'DS', status: 'error', data: [] };
+  }
 
   // 12. DNSKEY Records (DNSSEC)
-  const dnskeySrc = normalizeRecordSource(records, 'DNSKEY');
-  const dnskeyList = dnskeySrc.found
-    ? (Array.isArray(dnskeySrc.list) ? dnskeySrc.list : [dnskeySrc.list])
-    : [];
-  result.DNSKEY = {
-    type: 'DNSKEY',
-    count: dnskeyList.length,
-    label: dnskeyList.length > 0 ? `DNSKEY (${dnskeyList.length} Records)` : 'DNSKEY',
-    status: dnskeyList.length > 0 ? 'found' : 'not_found',
-    data: dnskeyList,
-  };
+  try {
+    const dnskeySrc = normalizeRecordSource(safeRecords, 'DNSKEY');
+    const dnskeyRawList = dnskeySrc.found
+      ? (Array.isArray(dnskeySrc.list) ? dnskeySrc.list : [dnskeySrc.list])
+      : [];
+    const dnskeyList = dnskeyRawList.filter((item) => item != null);
+    result.DNSKEY = {
+      type: 'DNSKEY',
+      count: dnskeyList.length,
+      label: dnskeyList.length > 0 ? `DNSKEY (${dnskeyList.length} Records)` : 'DNSKEY',
+      status: dnskeyList.length > 0 ? 'found' : 'not_found',
+      data: dnskeyList,
+    };
+  } catch (err) {
+    console.error('[DNS] Error extracting DNSKEY records:', err);
+    result.DNSKEY = { type: 'DNSKEY', count: 0, label: 'DNSKEY', status: 'error', data: [] };
+  }
 
   return result;
 }
@@ -659,16 +821,52 @@ export function exportDnsReport(report) {
  */
 export function normalizeDnsEntry(entry) {
   if (!entry) return null;
-  const raw = entry.result || entry;
-  const id = entry._id ? String(entry._id) : entry.id || entry.jobId || createId();
-  const dbId = entry._id ? String(entry._id) : entry.dnsRecordId ? String(entry.dnsRecordId) : null;
+  let raw = entry.result || entry;
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      raw = {};
+    }
+  }
+  if (!raw || typeof raw !== 'object') {
+    raw = {};
+  }
+
+  const id = entry._id != null
+    ? String(entry._id)
+    : entry.id != null
+      ? String(entry.id)
+      : entry.jobId != null
+        ? String(entry.jobId)
+        : createId();
+
+  const dbId = entry._id != null
+    ? String(entry._id)
+    : entry.dnsRecordId != null
+      ? String(entry.dnsRecordId)
+      : entry.id != null
+        ? String(entry.id)
+        : null;
 
   const hostname = raw.hostname || entry.url || entry.hostname || '';
   const resolver = raw.resolver || 'system';
   const resolvedAt =
     entry.completedAt || entry.createdAt || raw.resolvedAt || new Date().toISOString();
   const durationMs = raw.durationMs ?? 0;
-  const records = raw.records || (raw && typeof raw === 'object' && !raw.records ? raw : {});
+
+  let records = raw.records || (raw && typeof raw === 'object' && !raw.records ? raw : {});
+  if (typeof records === 'string') {
+    try {
+      records = JSON.parse(records);
+    } catch {
+      records = {};
+    }
+  }
+  if (!records || typeof records !== 'object') {
+    records = {};
+  }
+
   const status = entry.status || raw.status || 'completed';
   const error = entry.error || raw.error || null;
 

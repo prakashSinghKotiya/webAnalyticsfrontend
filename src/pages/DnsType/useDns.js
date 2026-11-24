@@ -158,7 +158,16 @@ export default function useDns() {
         if (!mountedRef.current || seq !== fetchReqSeqRef.current) return;
 
         if (res?.success && Array.isArray(res?.data)) {
-          const normalizedList = res.data.map((item) => normalizeDnsEntry(item)).filter(Boolean);
+          const normalizedList = res.data
+            .map((item) => {
+              try {
+                return normalizeDnsEntry(item);
+              } catch (parseErr) {
+                console.error('[DNS] Failed to normalize history item:', parseErr);
+                return null;
+              }
+            })
+            .filter(Boolean);
           setHistory(normalizedList);
 
           if (res.pagination) {
@@ -184,7 +193,16 @@ export default function useDns() {
       .then((res) => {
         if (ignore || !mountedRef.current) return;
         if (res?.success && Array.isArray(res?.data)) {
-          const normalizedList = res.data.map((item) => normalizeDnsEntry(item)).filter(Boolean);
+          const normalizedList = res.data
+            .map((item) => {
+              try {
+                return normalizeDnsEntry(item);
+              } catch (parseErr) {
+                console.error('[DNS] Failed to normalize initial history item:', parseErr);
+                return null;
+              }
+            })
+            .filter(Boolean);
           setHistory(normalizedList);
 
           if (res.pagination) {
@@ -292,17 +310,33 @@ export default function useDns() {
 
         if (!mountedRef.current) return;
 
-        const entry = normalizeDnsEntry({
-          _id: dnsRecordId,
-          url: domain,
-          status: 'completed',
-          result: rawReport?.result || rawReport,
-          createdAt: new Date().toISOString(),
-        });
+        let entry = null;
+        try {
+          entry = normalizeDnsEntry({
+            _id: dnsRecordId,
+            url: domain,
+            status: 'completed',
+            result: rawReport?.result || rawReport,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (normErr) {
+          console.error('[DNS] Frontend normalization error on scan result:', normErr);
+          setError({
+            type: 'processing_error',
+            isProcessingError: true,
+            title: 'Data Processing Error',
+            message: 'DNS lookup resolved successfully, but an error occurred while parsing the record results.',
+          });
+          setStatus('error');
+          toast.error('Failed to parse DNS results.');
+          return;
+        }
 
-        setResult(entry);
-        setStatus('done');
-        toast.success(`DNS lookup complete for ${domain}`);
+        if (entry) {
+          setResult(entry);
+          setStatus('done');
+          toast.success(`DNS lookup complete for ${domain}`);
+        }
 
         // Refresh database history & pagination
         fetchHistory({ page: 1 });
@@ -311,7 +345,13 @@ export default function useDns() {
         if (!mountedRef.current) return;
         const msg =
           err?.response?.data?.error || err?.message || 'DNS record lookup failed.';
-        setError(msg);
+        const isNetworkOrApi = Boolean(err?.response || err?.code === 'ECONNABORTED' || err?.isAxiosError);
+        setError({
+          type: isNetworkOrApi ? 'api_error' : 'dns_failed',
+          isProcessingError: false,
+          title: isNetworkOrApi ? 'DNS Service Error' : 'DNS Resolution Failed',
+          message: msg,
+        });
         setStatus('error');
         toast.error(msg);
       }
@@ -331,8 +371,12 @@ export default function useDns() {
         try {
           const detailRes = await getDnsById(entry.dbId);
           if (mountedRef.current && detailRes?.success && detailRes?.data) {
-            const fresh = normalizeDnsEntry(detailRes.data);
-            if (fresh) setResult(fresh);
+            try {
+              const fresh = normalizeDnsEntry(detailRes.data);
+              if (fresh) setResult(fresh);
+            } catch (freshErr) {
+              console.error('[DNS] Failed to normalize detail data by ID:', freshErr);
+            }
           }
         } catch (detailErr) {
           console.error('[DNS] Failed to fetch full details by ID:', detailErr);
