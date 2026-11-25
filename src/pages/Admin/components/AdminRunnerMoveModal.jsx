@@ -144,7 +144,7 @@ function AdminRunnerMoveModal({
               </option>
               {targetOptions.map((r) => (
                 <option key={r.id} value={r.id} disabled={!r.isActive}>
-                  {r.name} ({r.type}){r.isDefault ? ' ⭐ Default' : ''}{!r.isActive ? ' — [Disabled]' : ''}
+                  {r.name} ({r.type === 'lambda' && r.config?.region ? `LAMBDA · ${r.config.region}` : r.type}){r.isDefault ? ' ⭐ Default' : ''}{!r.isActive ? ' — [Disabled]' : ''}
                 </option>
               ))}
             </select>

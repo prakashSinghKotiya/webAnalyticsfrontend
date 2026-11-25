@@ -95,8 +95,8 @@ export function createId() {
 /** Average / fastest / slowest across a set of `{ region, ms }` readings. */
 export function summarize(readings = []) {
   const values = readings
-    .map((r) => Number(r?.ms))
-    .filter((n) => Number.isFinite(n));
+    .filter((r) => r && r.status !== 'failed' && r.ms != null && Number.isFinite(Number(r.ms)))
+    .map((r) => Number(r.ms));
 
   if (!values.length) return { avg: null, fastest: null, slowest: null };
 
@@ -213,7 +213,7 @@ export function extractReadings(payload) {
     if (readings.length) return readings;
   }
 
-  const nested = payload?.data ?? payload?.result ?? payload?.payload;
+  const nested = payload?.data ?? payload?.result ?? payload?.results ?? payload?.payload;
   const detailSource = nested ?? payload;
   const rawWait = detailSource?.ttfb ?? detailSource?.serverWait ?? detailSource?.ttfbMs ?? payload?.ttfb ?? payload?.serverWait ?? payload?.ttfbMs;
   const rawTotal = detailSource?.totalToFirstByte ?? payload?.totalToFirstByte;
@@ -264,25 +264,26 @@ export function regionLabel(region) {
 export function normalizeDbEntry(doc) {
   if (!doc) return null;
   const id = doc.id ?? doc._id;
-  const rawWait = doc.result?.ttfb ?? doc.result?.serverWait ?? doc.result?.ttfbMs;
-  const rawTotal = doc.result?.totalToFirstByte;
+  const resObj = doc.result?.results ?? doc.result;
+  const rawWait = resObj?.ttfb ?? resObj?.serverWait ?? resObj?.ttfbMs;
+  const rawTotal = resObj?.totalToFirstByte;
   const ttfb = rawWait != null && Number.isFinite(Number(rawWait)) ? Number(rawWait) : null;
   const totalToFirstByte = rawTotal != null && Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : null;
   const ms = ttfb != null ? ttfb : (totalToFirstByte != null ? totalToFirstByte : null);
   const serverWait = ttfb;
 
-  const metrics = doc.result ? {
+  const metrics = resObj ? {
     ttfb: ttfb ?? ms,
     totalToFirstByte: totalToFirstByte ?? ms,
     serverWait,
-    dns: doc.result.dns,
-    tcp: doc.result.tcp,
-    tls: doc.result.tls,
-    min: doc.result.min,
-    max: doc.result.max,
-    samples: doc.result.samples,
-    reliable: doc.result.reliable,
-    statusCode: doc.result.statusCode,
+    dns: resObj.dns,
+    tcp: resObj.tcp,
+    tls: resObj.tls,
+    min: resObj.min,
+    max: resObj.max,
+    samples: resObj.samples,
+    reliable: resObj.reliable,
+    statusCode: resObj.statusCode,
   } : {};
   const readings = ms != null ? [{ region: doc.region, ms, ttfb: ttfb ?? ms, totalToFirstByte: totalToFirstByte ?? ms, serverWait, statusCode: doc.result?.statusCode, ...metrics }] : [];
   return {
@@ -316,25 +317,26 @@ export function groupDbRecords(records = []) {
       return !g.readings.some((r) => r.region?.toLowerCase() === doc.region?.toLowerCase());
     });
 
-    const rawWait = doc.result?.ttfb ?? doc.result?.serverWait ?? doc.result?.ttfbMs;
-    const rawTotal = doc.result?.totalToFirstByte;
+    const resObj = doc.result?.results ?? doc.result;
+    const rawWait = resObj?.ttfb ?? resObj?.serverWait ?? resObj?.ttfbMs;
+    const rawTotal = resObj?.totalToFirstByte;
     const ttfb = rawWait != null && Number.isFinite(Number(rawWait)) ? Number(rawWait) : null;
     const totalToFirstByte = rawTotal != null && Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : null;
     const ms = ttfb != null ? ttfb : (totalToFirstByte != null ? totalToFirstByte : null);
     const serverWait = ttfb;
 
-    const metrics = doc.result ? {
+    const metrics = resObj ? {
       ttfb: ttfb ?? ms,
       totalToFirstByte: totalToFirstByte ?? ms,
       serverWait,
-      dns: doc.result.dns,
-      tcp: doc.result.tcp,
-      tls: doc.result.tls,
-      min: doc.result.min,
-      max: doc.result.max,
-      samples: doc.result.samples,
-      reliable: doc.result.reliable,
-      statusCode: doc.result.statusCode,
+      dns: resObj.dns,
+      tcp: resObj.tcp,
+      tls: resObj.tls,
+      min: resObj.min,
+      max: resObj.max,
+      samples: resObj.samples,
+      reliable: resObj.reliable,
+      statusCode: resObj.statusCode,
     } : {};
     const reading = ms != null ? { region: doc.region, ms, ttfb: ttfb ?? ms, totalToFirstByte: totalToFirstByte ?? ms, serverWait, statusCode: doc.result?.statusCode, ...metrics } : null;
 

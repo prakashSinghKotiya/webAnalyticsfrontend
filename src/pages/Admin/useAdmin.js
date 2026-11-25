@@ -25,6 +25,7 @@ import {
   getAdminExportMonitors,
   getAdminRunners as apiGetAdminRunners,
   adminCreateRunner as apiAdminCreateRunner,
+  adminUpdateRunner as apiAdminUpdateRunner,
   adminSetDefaultRunner as apiAdminSetDefaultRunner,
   adminToggleRunner as apiAdminToggleRunner,
   adminTestRunner as apiAdminTestRunner,
@@ -1083,7 +1084,7 @@ export default function useAdmin(currentUser) {
             monitorIds: selectedMonitorIds,
             runnerId: payload.runnerId !== undefined ? payload.runnerId : null,
           });
-          toast.success(res?.message || `Assigned ${res?.updatedCount || selectedMonitorIds.length} monitors to runner.`);
+          toast.success(res?.message || `Assigned ${res?.count ?? res?.updatedCount ?? selectedMonitorIds.length} monitors to runner.`);
           appendAuditLog('BULK_ASSIGN_RUNNER', `Assigned ${selectedMonitorIds.length} monitors to runner`);
           setSelectedMonitorIds([]);
         } else if (type === 'delete') {
@@ -1366,6 +1367,36 @@ export default function useAdmin(currentUser) {
     [appendAuditLog, fetchRunners, toast]
   );
 
+  const handleUpdateRunner = useCallback(
+    async (runnerId, { name, config }) => {
+      if (!runnerId) return;
+      setRunnerActionInProgress((prev) => ({ ...prev, [runnerId]: 'update', edit: true }));
+      try {
+        const res = await apiAdminUpdateRunner(runnerId, { name, config });
+        toast.success(res?.message || 'Runner updated successfully');
+        appendAuditLog('UPDATE_RUNNER', `Updated runner #${runnerId} ('${name}')`);
+        await Promise.all([
+          fetchRunners({ silent: true }),
+          fetchMonitorsData(),
+        ]);
+        return res;
+      } catch (err) {
+        const msg = err?.message || err?.error || 'Failed to update runner';
+        toast.error(msg);
+        appendAuditLog('UPDATE_RUNNER_FAILED', `Failed to update runner #${runnerId}: ${msg}`, 'error');
+        throw err;
+      } finally {
+        setRunnerActionInProgress((prev) => {
+          const next = { ...prev };
+          delete next[runnerId];
+          delete next.edit;
+          return next;
+        });
+      }
+    },
+    [appendAuditLog, fetchMonitorsData, fetchRunners, toast]
+  );
+
   const handleDeleteRunner = useCallback(
     async (runnerId) => {
       if (!runnerId) return;
@@ -1519,6 +1550,7 @@ export default function useAdmin(currentUser) {
     handleBulkAssignMonitorRunner,
     handleTestRunner,
     handleCreateRunner,
+    handleUpdateRunner,
     handleDeleteRunner,
   };
 }

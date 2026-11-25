@@ -278,7 +278,7 @@ function AdminMonitorModal({
               </option>
               {runners.map((r) => (
                 <option key={r.id} value={r.id} disabled={!r.isActive && String(r.id) !== runnerId}>
-                  {r.name} ({r.type}){r.isDefault ? ' ⭐ Default' : ''}{!r.isActive ? ' — [Disabled]' : ''}
+                  {r.name} ({r.type === 'lambda' && r.config?.region ? `LAMBDA · ${r.config.region}` : r.type.toUpperCase()}){r.isDefault ? ' ⭐ Default' : ''}{!r.isActive ? ' — [Disabled]' : ''}
                 </option>
               ))}
             </select>

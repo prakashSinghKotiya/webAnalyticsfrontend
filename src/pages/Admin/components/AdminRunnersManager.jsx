@@ -32,10 +32,15 @@ function AdminRunnersManager({
   onMoveMonitors,
   onTestRunner,
   onCreateRunner,
+  onUpdateRunner,
   onDeleteRunner,
   actionInProgress = {},
 }) {
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [runnerModalState, setRunnerModalState] = useState({
+    open: false,
+    mode: 'create',
+    runner: null,
+  });
   const [testModalState, setTestModalState] = useState({ open: false, runner: null });
   const [setDefaultState, setSetDefaultState] = useState({ open: false, runner: null });
   const [moveModalState, setMoveModalState] = useState({ open: false, runner: null });
@@ -89,9 +94,16 @@ function AdminRunnersManager({
     await onDeleteRunner(runnerId);
   };
 
-  const handleCreateSubmit = async (payload) => {
-    await onCreateRunner(payload);
-    setCreateModalOpen(false);
+  const handleRunnerModalSubmit = async (payload) => {
+    if (runnerModalState.mode === 'edit' && runnerModalState.runner && onUpdateRunner) {
+      await onUpdateRunner(runnerModalState.runner.id, {
+        name: payload.name,
+        config: payload.config,
+      });
+    } else {
+      await onCreateRunner(payload);
+    }
+    setRunnerModalState({ open: false, mode: 'create', runner: null });
   };
 
   return (
@@ -154,7 +166,7 @@ function AdminRunnersManager({
 
             <button
               type="button"
-              onClick={() => setCreateModalOpen(true)}
+              onClick={() => setRunnerModalState({ open: true, mode: 'create', runner: null })}
               className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[var(--cyan)] px-4 py-2.5 text-xs font-bold text-white dark:text-slate-950 shadow-sm transition hover:opacity-90 active:scale-95"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -230,7 +242,7 @@ function AdminRunnersManager({
                     Batching Size
                   </span>
                   <p className="mt-0.5 font-['JetBrains_Mono',monospace] text-sm font-bold text-[var(--text)]">
-                    50 Monitors / Job
+                    {resolvedDefaultRunner?.config?.batchSize || 50} Monitors / Job
                   </p>
                   <span className="text-[10px] text-[var(--muted-2)]">Per-runner chunking</span>
                 </div>
@@ -461,19 +473,45 @@ function AdminRunnersManager({
                       {/* Config summary (masked secrets) */}
                       <td className="px-4 py-4 text-[11px] text-[var(--text-2)] font-['JetBrains_Mono',monospace]">
                         {r.type === 'lambda' ? (
-                          <div className="space-y-0.5">
-                            <p>Function: <strong className="text-[var(--text)]">{cfg.functionName || '—'}</strong></p>
-                            <p className="text-[10px] text-[var(--muted-2)]">Region: {cfg.region || 'ap-south-1'}</p>
+                          <div className="space-y-0.5 max-w-[260px]">
+                            <p className="truncate" title={cfg.url || 'Fallback: env UPTIME_LAMBDA_URL'}>
+                              URL: <strong className="text-[var(--text)]">{cfg.url || 'env fallback'}</strong>
+                            </p>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--muted-2)]">
+                              <span>Region: {cfg.region || 'ap-south-1'}</span>
+                              {cfg.functionName && <span>• {cfg.functionName}</span>}
+                              {cfg.batchSize && <span>• Batch {cfg.batchSize}</span>}
+                            </div>
+                            <p className="text-[10px]">
+                              <span className="text-[var(--muted-2)]">Secret: </span>
+                              <span className="text-[var(--text)]">{cfg.secretEnv || 'UPTIME_LAMBDA_SECRET'}</span>{' '}
+                              {cfg.hasSecretConfigured === false ? (
+                                <span className="text-red-600 dark:text-red-400 font-semibold">(Missing in .env)</span>
+                              ) : (
+                                <span className="text-emerald-700 dark:text-emerald-400 font-semibold">(Configured)</span>
+                              )}
+                            </p>
                           </div>
                         ) : r.type === 'http' ? (
-                          <div className="space-y-0.5 max-w-[240px]">
+                          <div className="space-y-0.5 max-w-[260px]">
                             <p className="truncate" title={cfg.url}>URL: <strong className="text-[var(--text)]">{cfg.url || '—'}</strong></p>
-                            <p className="text-[10px] text-[var(--muted-2)]">Auth: Token Configured</p>
+                            <p className="text-[10px]">
+                              <span className="text-[var(--muted-2)]">Secret: </span>
+                              <span className="text-[var(--text)]">{cfg.secretEnv || 'RUNNER_SECRET'}</span>{' '}
+                              {cfg.hasSecretConfigured === false ? (
+                                <span className="text-red-600 dark:text-red-400 font-semibold">(Missing in .env)</span>
+                              ) : (
+                                <span className="text-emerald-700 dark:text-emerald-400 font-semibold">(Configured)</span>
+                              )}
+                              {cfg.batchSize ? ` • Batch ${cfg.batchSize}` : ''}
+                            </p>
                           </div>
                         ) : (
                           <div>
                             <p>Concurrency: <strong className="text-[var(--text)]">{cfg.concurrency || 20} concurrent</strong></p>
-                            <p className="text-[10px] text-[var(--muted-2)]">Node.js bounded pool</p>
+                            <p className="text-[10px] text-[var(--muted-2)]">
+                              Node.js bounded pool{cfg.batchSize ? ` • Batch ${cfg.batchSize}` : ''}
+                            </p>
                           </div>
                         )}
                       </td>
@@ -490,6 +528,19 @@ function AdminRunnersManager({
                           >
                             Test Probe
                           </button>
+
+                          {/* Edit Runner config button */}
+                          {onUpdateRunner && (
+                            <button
+                              type="button"
+                              onClick={() => setRunnerModalState({ open: true, mode: 'edit', runner: r })}
+                              disabled={isBusy}
+                              className="cursor-pointer rounded-lg border border-[var(--border-mid)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-2)] hover:border-[var(--cyan)] hover:text-[var(--cyan)] disabled:opacity-50"
+                              title="Edit runner URL, secret env var, region, or batch size"
+                            >
+                              Edit
+                            </button>
+                          )}
 
                           {/* Move Monitors from this runner */}
                           <button
@@ -565,13 +616,15 @@ function AdminRunnersManager({
       </div>
 
       {/* ── MODALS ─────────────────────────────────────────────────────── */}
-      {/* 1. Register Runner Modal */}
-      {createModalOpen && (
+      {/* 1. Register / Edit Runner Modal */}
+      {runnerModalState.open && (
         <AdminRunnerModal
-          open={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
-          onSubmit={handleCreateSubmit}
-          loading={Boolean(actionInProgress.create)}
+          open={runnerModalState.open}
+          mode={runnerModalState.mode}
+          runner={runnerModalState.runner}
+          onClose={() => setRunnerModalState({ open: false, mode: 'create', runner: null })}
+          onSubmit={handleRunnerModalSubmit}
+          loading={Boolean(actionInProgress.create || actionInProgress.edit)}
         />
       )}
 

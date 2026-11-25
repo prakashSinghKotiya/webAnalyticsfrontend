@@ -205,8 +205,22 @@ function AdminRunnerTestModal({
             <div className="mt-1 font-['JetBrains_Mono',monospace] text-[10px] text-[var(--muted-2)] space-y-0.5">
               <p>ID: #{runner.id}</p>
               <p>Type: {runner.type}</p>
+              {runner.config?.url && <p className="truncate" title={runner.config.url}>Endpoint URL: {runner.config.url}</p>}
+              {runner.config?.region && <p>Region: {runner.config.region}</p>}
+              {runner.config?.secretEnv && (
+                <p>
+                  Secret Env: {runner.config.secretEnv} ({runner.config.hasSecretConfigured === false ? 'Missing in .env' : 'Configured'})
+                </p>
+              )}
               <p>Config: {JSON.stringify(runner.config || {})}</p>
-              <p>State: {runner.isActive ? 'Active (Current Global Engine)' : 'Standby'}</p>
+              <p>
+                State:{' '}
+                {runner.isDefault
+                  ? 'System Default (Active)'
+                  : runner.isActive
+                  ? 'Enabled (Dedicated Runner)'
+                  : 'Disabled'}
+              </p>
             </div>
           </div>
         </div>

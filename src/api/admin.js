@@ -253,6 +253,15 @@ export const adminCreateRunner = async ({ name, type, config }) => {
   return data;
 };
 
+// 18b. Update an existing uptime runner's name or config (e.g. Lambda Function URL, secretEnv, region, batchSize)
+export const adminUpdateRunner = async (id, { name, config }) => {
+  const { data } = await axiosWithCreds.put(`/admin/runners/${encodeURIComponent(id)}`, {
+    name,
+    config,
+  });
+  return data;
+};
+
 // 19. Switch the globally active / default runner (sets isDefault: true atomically)
 export const adminSetDefaultRunner = async (id) => {
   const { data } = await axiosWithCreds.put(`/admin/runners/${encodeURIComponent(id)}/default`);

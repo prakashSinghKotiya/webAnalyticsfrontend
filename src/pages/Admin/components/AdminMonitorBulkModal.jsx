@@ -115,7 +115,7 @@ function AdminMonitorBulkModal({
                   .filter((r) => r.isActive)
                   .map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.name} ({r.type.toUpperCase()}) {r.isDefault ? '⭐ Default' : ''}
+                      {r.name} ({r.type === 'lambda' && r.config?.region ? `LAMBDA · ${r.config.region}` : r.type.toUpperCase()}) {r.isDefault ? '⭐ Default' : ''}
                     </option>
                   ))}
               </select>

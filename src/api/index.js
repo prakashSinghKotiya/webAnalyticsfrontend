@@ -40,6 +40,7 @@ export {
   getAdminExportMonitors,
   getAdminRunners,
   adminCreateRunner,
+  adminUpdateRunner,
   adminSetDefaultRunner,
   adminActivateRunner,
   adminToggleRunner,

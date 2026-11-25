@@ -148,6 +148,7 @@ export default function AdminPanel() {
     handleAssignMonitorRunner,
     handleTestRunner,
     handleCreateRunner,
+    handleUpdateRunner,
     handleDeleteRunner,
   } = useAdmin(currentUser);
 
@@ -504,6 +505,7 @@ export default function AdminPanel() {
             onMoveMonitors={handleMoveRunnerMonitors}
             onTestRunner={handleTestRunner}
             onCreateRunner={handleCreateRunner}
+            onUpdateRunner={handleUpdateRunner}
             onDeleteRunner={handleDeleteRunner}
             actionInProgress={runnerActionInProgress}
           />

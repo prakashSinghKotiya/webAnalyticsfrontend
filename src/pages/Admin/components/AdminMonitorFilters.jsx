@@ -103,7 +103,7 @@ function AdminMonitorFilters({
             <option value="default">⭐ System Default (Unassigned)</option>
             {runners?.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name} ({r.type.toUpperCase()}) {r.isDefault ? '⭐' : ''}
+                {r.name} ({r.type === 'lambda' && r.config?.region ? `LAMBDA · ${r.config.region}` : r.type.toUpperCase()}) {r.isDefault ? '⭐' : ''}
               </option>
             ))}
           </select>
